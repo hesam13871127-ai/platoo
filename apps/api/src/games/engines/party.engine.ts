@@ -411,6 +411,7 @@ export class SketchGuessEngine implements GameEngine {
     if (side === state.drawerIndex) throw new IllegalMoveError('The drawer cannot guess their own prompt.');
     if (state.guesses[side] !== null) throw new IllegalMoveError('You already guessed this drawing.');
     const guess = asString(action.guess, 'guess').trim();
+    if (!guess) throw new IllegalMoveError('Guess must contain a word.');
     if (guess.length > 40) throw new IllegalMoveError('Keep guesses under forty characters.');
   }
 

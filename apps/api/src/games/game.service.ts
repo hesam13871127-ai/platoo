@@ -146,7 +146,9 @@ export class GameService {
     let shouldRetry = false;
     let consecutiveErrors = 0;
     try {
-      for (let count = 0; count < 64; count += 1) {
+      // Eight-player Trivia Battle can legitimately need eighty bot answers;
+      // keep the guard above any shipped match's maximum automated turn count.
+      for (let count = 0; count < 256; count += 1) {
         let rows: MatchRow[];
         try {
           rows = await this.mysql.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1`, [matchId]);

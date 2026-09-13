@@ -209,6 +209,7 @@ describe('authoritative game engines', () => {
     const engine = new SketchGuessEngine(); const roster = players(3); let state = engine.create(roster) as any;
     expect(() => engine.apply(state, 'player-0', { type: 'guess', guess: 'anything' }, roster)).toThrow();
     const submitted = engine.apply(state, 'player-0', engine.botAction(state, 'player-0'), roster) as any;
+    expect(() => engine.apply(submitted, 'player-1', { type: 'guess', guess: '   ' }, roster)).toThrow();
     expect(() => engine.apply(submitted, 'player-2', { type: 'guess', guess: submitted.prompt }, roster)).toThrow();
     state = submitted;
     for (let move = 0; move < 20 && !state.finished; move += 1) {
