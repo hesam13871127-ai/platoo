@@ -1,0 +1,17 @@
+{
+  "name": "vibetable",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VibeTable real-time tabletop games platform",
+  "workspaces": ["apps/api", "packages/contracts"],
+  "engines": { "node": ">=20.11.0" },
+  "scripts": {
+    "dev:api": "npm --workspace apps/api run start:dev",
+    "build": "npm run build:contracts && npm --workspace apps/api run build",
+    "build:contracts": "npm --workspace packages/contracts run build",
+    "test": "npm --workspace apps/api run test",
+    "lint": "npm --workspace apps/api run lint",
+    "db:migrate": "npm --workspace apps/api run db:migrate",
+    "db:seed": "npm --workspace apps/api run db:seed"
+  }
+}
