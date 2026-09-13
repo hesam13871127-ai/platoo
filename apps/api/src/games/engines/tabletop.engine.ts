@@ -224,13 +224,145 @@ export class SeaBattleEngine implements GameEngine {
   botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const side = players.findIndex((p) => p.id === botId); if (state.phase === 'placing') { const sizes = [5,4,3,3,2]; const size = sizes[(state.fleets as unknown[][][])[side].length]; const row = (state.fleets as unknown[][][])[side].length; return { type: 'place', cells: Array.from({ length: size }, (_, i) => [row, i]) }; } const shots = (state.shots as number[][][])[side]; const open: Array<[number, number]> = []; for (let r = 0; r < 10; r += 1) for (let c = 0; c < 10; c += 1) if (shots[r][c] === -1) open.push([r, c]); const [row, column] = open[randomInt(open.length)] ?? [0, 0]; return { type: 'fire', row, column }; }
 }
 
+type PoolGroup = 'solids' | 'stripes';
+
+interface PoolState extends GameState {
+  remainingBalls: number[];
+  groups: Array<PoolGroup | null>;
+  pocketed: number[][];
+  phase: 'break' | 'open' | 'assigned';
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  winnerIds: string[];
+  shots: number;
+  lastShot: { actorId: string; pocketed: number[]; scratch: boolean; legalEight: boolean } | null;
+}
+
 export class PoolEngine implements GameEngine {
   readonly id: GameId = 'pool_8_ball';
-  create(players: GamePlayer[]): GameState { return { balls: { solids: 7, stripes: 7, eight: true }, scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, shots: 0, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { ensureTurn(state, actorId); if (action.type !== 'shot') throw new IllegalMoveError('Use the shot action.'); asInt(action.power, 'power', 1, 100); asInt(action.pocket, 'pocket', 0, 5); if (!players.some((p) => p.id === actorId)) throw new IllegalMoveError('You are not in this game.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); const chance = (action.power as number) / 100; const scored = Math.random() < chance; next.shots = Number(next.shots) + 1; if (scored) { (next.scores as number[])[side] += 1; if ((next.scores as number[])[side] >= 8) { next.finished = true; next.winnerId = actorId; } } if (!next.finished && !scored) rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(): Action { return { type: 'shot', power: 65, pocket: randomInt(6) }; }
+
+  create(players: GamePlayer[]): PoolState {
+    if (players.length !== 2) throw new IllegalMoveError('Pool 8-ball requires exactly two players.');
+    return {
+      remainingBalls: Array.from({ length: 15 }, (_, index) => index + 1),
+      groups: [null, null],
+      pocketed: [[], []],
+      phase: 'break',
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+      winnerIds: [],
+      shots: 0,
+      lastShot: null,
+    };
+  }
+
+  validate(state: PoolState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    ensureTurn(state, actorId);
+    if (action.type !== 'shot') throw new IllegalMoveError('Use the shot action.');
+    asInt(action.power, 'power', 1, 100);
+    asInt(action.pocket, 'pocket', 0, 5);
+    if (action.scratch !== undefined && typeof action.scratch !== 'boolean') throw new IllegalMoveError('scratch must be true or false.');
+    const balls = this.pocketedBalls(action);
+    for (const ball of balls) if (!state.remainingBalls.includes(ball)) throw new IllegalMoveError('That ball is no longer on the table.');
+    if (state.phase === 'break') {
+      if (balls.includes(8) && balls.length !== 1) throw new IllegalMoveError('The eight ball must be the only ball called on a break.');
+      return;
+    }
+    const group = state.groups[side];
+    const ownRemaining = this.ownRemaining(state, side);
+    const objectBalls = balls.filter((ball) => ball !== 8);
+    if (group === null && objectBalls.length > 1 && objectBalls.some((ball) => this.groupFor(ball) !== this.groupFor(objectBalls[0]))) throw new IllegalMoveError('Open-table shots must use one group.');
+    if (group !== null && ownRemaining > 0 && objectBalls.some((ball) => this.groupFor(ball) !== group)) throw new IllegalMoveError('You must hit your assigned group.');
+    if (group !== null && ownRemaining === 0 && objectBalls.length) throw new IllegalMoveError('Your group is cleared. Call the eight ball.');
+  }
+
+  apply(state: PoolState, actorId: string, action: Action, players: GamePlayer[]): PoolState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as PoolState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const balls = this.pocketedBalls(action);
+    const scratch = action.scratch === true;
+    const legalEight = balls.length === 1 && balls[0] === 8 && !scratch && next.phase !== 'break' && this.canShootEight(next, side);
+    next.shots = Number(next.shots) + 1;
+    next.remainingBalls = next.remainingBalls.filter((ball) => !balls.includes(ball));
+    next.pocketed[side].push(...balls);
+    next.lastShot = { actorId, pocketed: balls, scratch, legalEight };
+
+    if (balls.includes(8)) {
+      next.finished = true;
+      next.winnerId = legalEight || (next.phase === 'break' && !scratch) ? actorId : players[1 - side].id;
+      next.winnerIds = [next.winnerId];
+      return next;
+    }
+
+    if (next.phase === 'break') {
+      next.phase = 'open';
+      if (balls.length && !next.remainingBalls.some((ball) => ball !== 8)) {
+        const firstGroup = this.groupFor(balls[0]);
+        next.groups[side] = firstGroup;
+        next.groups[1 - side] = firstGroup === 'solids' ? 'stripes' : 'solids';
+      }
+      if (!balls.length || scratch) rotateTurn(next, players);
+      return next;
+    }
+
+    if (next.groups[side] === null && balls.length) {
+      next.groups[side] = this.groupFor(balls[0]);
+      next.groups[1 - side] = next.groups[side] === 'solids' ? 'stripes' : 'solids';
+    }
+    if (!balls.length || scratch) rotateTurn(next, players);
+    return next;
+  }
+
+  outcome(state: PoolState, players: GamePlayer[]): GameOutcome {
+    const winners = Array.isArray(state.winnerIds) && state.winnerIds.length ? state.winnerIds : state.winnerId ? [state.winnerId] : [];
+    return {
+      finished: Boolean(state.finished),
+      winnerIds: winners,
+      loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [],
+      draw: false,
+    };
+  }
+
+  botAction(state: PoolState, botId: string, players: GamePlayer[]): Action {
+    const side = players.findIndex((player) => player.id === botId);
+    const available = state.remainingBalls.filter((ball) => ball !== 8);
+    if (state.phase === 'break') return { type: 'shot', power: 75, pocket: 0, pocketed: available.length ? [available[0]] : [] };
+    const group = state.groups[side];
+    const target = group === null
+      ? available[0]
+      : available.find((ball) => this.groupFor(ball) === group) ?? (this.canShootEight(state, side) ? 8 : undefined);
+    return { type: 'shot', power: 65, pocket: 0, pocketed: target === undefined ? [] : [target] };
+  }
+
+  private pocketedBalls(action: Action): number[] {
+    const raw = action.pocketed === undefined
+      ? action.ball === undefined || action.ball === null ? [] : [action.ball]
+      : action.pocketed;
+    if (!Array.isArray(raw)) throw new IllegalMoveError('pocketed must be an array of ball numbers.');
+    const balls = raw.map((value) => asInt(value, 'ball', 1, 15));
+    if (new Set(balls).size !== balls.length) throw new IllegalMoveError('A ball may only be pocketed once per shot.');
+    return balls;
+  }
+
+  private groupFor(ball: number): PoolGroup {
+    return ball <= 7 ? 'solids' : 'stripes';
+  }
+
+  private ownRemaining(state: PoolState, side: number): number {
+    const group = state.groups[side];
+    return group === null ? 0 : state.remainingBalls.filter((ball) => ball !== 8 && this.groupFor(ball) === group).length;
+  }
+
+  private canShootEight(state: PoolState, side: number): boolean {
+    return state.groups[side] !== null && this.ownRemaining(state, side) === 0;
+  }
 }
 
 export class CarromEngine implements GameEngine {

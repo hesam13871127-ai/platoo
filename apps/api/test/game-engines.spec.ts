@@ -1,5 +1,6 @@
 import { ChessEngine, FourInARowEngine, MancalaEngine } from '../src/games/engines/board.engine';
-import { LudoEngine } from '../src/games/engines/tabletop.engine';
+import { LudoEngine, PoolEngine } from '../src/games/engines/tabletop.engine';
+import { WerewolfEngine } from '../src/games/engines/party.engine';
 import { OchoEngine } from '../src/games/engines/cards.engine';
 import { GamePlayer } from '../src/games/game.types';
 import { GameRegistry } from '../src/games/game.registry';
@@ -96,6 +97,75 @@ describe('authoritative game engines', () => {
     const teamState = engine.create(teamRoster) as any; teamState.pendingRoll = 1; teamState.positions[0] = [56, 57, 57, 57]; teamState.positions[2] = [57, 57, 57, 57];
     const teamFinished = engine.apply(teamState, 'player-0', { type: 'move', token: 0 }, teamRoster) as any;
     expect(teamFinished.finished).toBe(true); expect(teamFinished.winnerIds).toEqual(['player-0', 'player-2']);
+  });
+
+  it('plays pool 8-ball through groups, fouls, and the winning eight ball', () => {
+    const engine = new PoolEngine(); const roster = players(2); let state = engine.create(roster) as any;
+    state = engine.apply(state, 'player-0', { type: 'shot', power: 80, pocket: 0, pocketed: [1] }, roster) as any;
+    expect(state.phase).toBe('open'); expect(state.turnPlayerId).toBe('player-0'); expect(state.remainingBalls).not.toContain(1);
+    state = engine.apply(state, 'player-0', { type: 'shot', power: 60, pocket: 1, pocketed: [2] }, roster) as any;
+    expect(state.groups).toEqual(['solids', 'stripes']);
+    expect(() => engine.apply(state, 'player-0', { type: 'shot', power: 60, pocket: 1, pocketed: [9] }, roster)).toThrow();
+    for (const ball of [3, 4, 5, 6, 7]) state = engine.apply(state, 'player-0', { type: 'shot', power: 60, pocket: 1, pocketed: [ball] }, roster) as any;
+    expect(state.remainingBalls).toEqual([8, 9, 10, 11, 12, 13, 14, 15]);
+    state = engine.apply(state, 'player-0', { type: 'shot', power: 70, pocket: 2, pocketed: [8] }, roster) as any;
+    expect(state.finished).toBe(true); expect(state.winnerId).toBe('player-0');
+
+    const earlyEight = engine.create(roster) as any;
+    earlyEight.phase = 'assigned'; earlyEight.groups = ['solids', 'stripes']; earlyEight.remainingBalls = [3, 8, 9];
+    const foul = engine.apply(earlyEight, 'player-0', { type: 'shot', power: 70, pocket: 2, pocketed: [8] }, roster) as any;
+    expect(foul.finished).toBe(true); expect(foul.winnerId).toBe('player-1');
+
+    const scratch = engine.create(roster) as any;
+    const afterScratch = engine.apply(scratch, 'player-0', { type: 'shot', power: 35, pocket: 0, pocketed: [], scratch: true }, roster) as any;
+    expect(afterScratch.phase).toBe('open'); expect(afterScratch.turnPlayerId).toBe('player-1');
+  });
+
+  it('lets pool bots complete full matches', () => {
+    const engine = new PoolEngine(); const roster = players(2).map((player) => ({ ...player, isBot: true }));
+    for (let trial = 0; trial < 10; trial += 1) {
+      let state = engine.create(roster) as any;
+      for (let move = 0; move < 100 && !state.finished; move += 1) {
+        const actor = state.turnPlayerId as string;
+        state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
+      }
+      expect(state.finished).toBe(true); expect(state.winnerId).toBeTruthy();
+    }
+  });
+
+  it('runs Werewolf night roles, private seer information, voting, and victory rules', () => {
+    const engine = new WerewolfEngine(); const roster = players(7); const created = engine.create(roster) as any;
+    expect(created.roles.filter((role: string) => role === 'werewolf')).toHaveLength(1);
+    expect(created.roles.filter((role: string) => role === 'seer')).toHaveLength(1);
+    expect(created.roles.filter((role: string) => role === 'doctor')).toHaveLength(1);
+
+    const state = created as any;
+    state.roles = ['werewolf', 'villager', 'villager', 'seer', 'doctor', 'villager', 'villager'];
+    state.alive = Array(7).fill(true); state.phase = 'night'; state.nightTargets = Array(7).fill(null); state.nightActed = Array(7).fill(false); state.votes = Array(7).fill(null); state.turnIndex = 0; state.turnPlayerId = 'player-0'; state.seerResults = Array(7).fill(null);
+    let next = engine.apply(state, 'player-0', { type: 'night', target: 1 }, roster) as any;
+    expect(() => engine.apply(next, 'player-2', { type: 'night' }, roster)).toThrow();
+    next = engine.apply(next, 'player-1', { type: 'night' }, roster) as any;
+    next = engine.apply(next, 'player-2', { type: 'night' }, roster) as any;
+    next = engine.apply(next, 'player-3', { type: 'night', target: 0 }, roster) as any;
+    next = engine.apply(next, 'player-4', { type: 'night', target: 1 }, roster) as any;
+    next = engine.apply(next, 'player-5', { type: 'night' }, roster) as any;
+    next = engine.apply(next, 'player-6', { type: 'night' }, roster) as any;
+    expect(next.phase).toBe('day'); expect(next.alive[1]).toBe(true); expect(next.seerResults[3]).toEqual({ target: 0, isWerewolf: true });
+    for (const [actor, target] of [['player-0', 1], ['player-1', 0], ['player-2', 0], ['player-3', 0], ['player-4', 0], ['player-5', 0], ['player-6', 0]] as const) next = engine.apply(next, actor, { type: 'vote', target }, roster) as any;
+    expect(next.finished).toBe(true); expect(next.winnerIds).not.toContain('player-0'); expect(next.alive[1]).toBe(true);
+    expect(engine.outcome(next, roster).loserIds).toContain('player-0');
+  });
+
+  it('lets Werewolf bots resolve complete matches', () => {
+    const engine = new WerewolfEngine(); const roster = players(7).map((player) => ({ ...player, isBot: true }));
+    for (let trial = 0; trial < 10; trial += 1) {
+      let state = engine.create(roster) as any;
+      for (let move = 0; move < 500 && !state.finished; move += 1) {
+        const actor = state.turnPlayerId as string;
+        state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
+      }
+      expect(state.finished).toBe(true); expect(state.winnerIds.length).toBeGreaterThan(0);
+    }
   });
 
   it('gives the second mancala player a turn after a non-store finish', () => {

@@ -11,6 +11,8 @@ import 'four_in_a_row_game_board.dart';
 import 'ocho_game_board.dart';
 import 'chess_game_board.dart';
 import 'ludo_game_board.dart';
+import 'pool_game_board.dart';
+import 'werewolf_game_board.dart';
 import '../social/social_screen.dart';
 
 class GameRoomScreen extends ConsumerStatefulWidget { const GameRoomScreen({super.key, required this.matchId, required this.game}); final String matchId; final GameDescriptor game; @override ConsumerState<GameRoomScreen> createState() => _GameRoomScreenState(); }
@@ -36,10 +38,12 @@ class _RoomChatHint extends StatelessWidget { const _RoomChatHint({this.onTap});
 
 class GameCanvas extends StatefulWidget { const GameCanvas({super.key, required this.game, required this.state, required this.match, required this.onAction}); final GameDescriptor game; final Map<String, dynamic> state; final MatchModel match; final ValueChanged<Map<String, dynamic>> onAction; @override State<GameCanvas> createState() => _GameCanvasState(); }
 class _GameCanvasState extends State<GameCanvas> { int? selected; final word = TextEditingController(); @override void dispose() { word.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) { final id = widget.game.id; if (id == 'four_in_a_row') return _four(context); if (id == 'chess') return _chess(context); if (id == 'ludo') return _ludo(context); if (id == 'checkers') return _gridGame(context); if (id == 'memory_race') return _memory(context); if (id == 'sea_battle') return _sea(context); if (id == 'ocho') return _ocho(context); if (id == 'mancala') return _mancala(context); return _generic(context); }
+  @override Widget build(BuildContext context) { final id = widget.game.id; if (id == 'four_in_a_row') return _four(context); if (id == 'chess') return _chess(context); if (id == 'ludo') return _ludo(context); if (id == 'pool_8_ball') return _pool(context); if (id == 'werewolf') return _werewolf(context); if (id == 'checkers') return _gridGame(context); if (id == 'memory_race') return _memory(context); if (id == 'sea_battle') return _sea(context); if (id == 'ocho') return _ocho(context); if (id == 'mancala') return _mancala(context); return _generic(context); }
   Widget _four(BuildContext context) => FourInARowGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _chess(BuildContext context) => ChessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _ludo(BuildContext context) => LudoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+  Widget _pool(BuildContext context) => PoolGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+  Widget _werewolf(BuildContext context) => WerewolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _gridGame(BuildContext context) {
     final board = (widget.state['board'] as List? ?? const []).map((row) => (row as List).toList()).toList();
     return Card(
