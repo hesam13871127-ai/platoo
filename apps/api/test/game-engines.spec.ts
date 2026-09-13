@@ -65,7 +65,10 @@ describe('authoritative game engines', () => {
     const drawn = engine.apply(state, 'player-0', { type: 'draw' }, roster) as any;
     expect(drawn.turnPlayerId).toBe('player-0');
     expect(drawn.drawnCardIndex).toBe(1);
-    const played = engine.apply(drawn, 'player-0', { type: 'play', index: 1, call: true }, roster) as any;
+    const passed = engine.apply(drawn, 'player-0', { type: 'pass' }, roster) as any;
+    expect(passed.turnPlayerId).toBe('player-1');
+    const redrawn = engine.apply(state, 'player-0', { type: 'draw' }, roster) as any;
+    const played = engine.apply(redrawn, 'player-0', { type: 'play', index: 1, call: true }, roster) as any;
     expect(played.discard.at(-1)).toEqual({ color: 'green', value: '7' });
     expect(played.turnPlayerId).toBe('player-1');
   });
@@ -85,5 +88,29 @@ describe('authoritative game engines', () => {
     expect(challenged.hands[0]).toHaveLength(5);
     expect(challenged.turnPlayerId).toBe('player-1');
     expect(challenged.pendingDraw).toBe(0);
+  });
+
+  it('lets the Ocho bot action loop finish complete matches', () => {
+    const engine = new OchoEngine(); const roster = players(2).map((player) => ({ ...player, isBot: true }));
+    for (let trial = 0; trial < 10; trial += 1) {
+      let state = engine.create(roster) as any;
+      for (let move = 0; move < 5000 && !state.finished; move += 1) {
+        const actor = state.turnPlayerId as string;
+        state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
+      }
+      expect(state.finished).toBe(true);
+    }
+  });
+
+  it('lets the Four in a Row bot action loop finish complete matches', () => {
+    const engine = new FourInARowEngine(); const roster = players(2).map((player) => ({ ...player, isBot: true }));
+    for (let trial = 0; trial < 10; trial += 1) {
+      let state = engine.create(roster) as any;
+      for (let move = 0; move < 100 && !state.finished; move += 1) {
+        const actor = state.turnPlayerId as string;
+        state = engine.apply(state, actor, engine.botAction(state, actor), roster) as any;
+      }
+      expect(state.finished).toBe(true);
+    }
   });
 });

@@ -73,16 +73,28 @@ class OchoGameBoard extends StatelessWidget {
               for (var index = 0; index < hand.length; index += 1)
                 _OchoCardTile(
                   card: Map<String, dynamic>.from(hand[index] as Map),
-                  enabled: isTurn && (drawnIndex == null || drawnIndex == index),
+                  enabled: _canPlayCard(hand, index, currentColor, top, isTurn, drawnIndex),
                   onTap: () => _playCard(context, index, Map<String, dynamic>.from(hand[index] as Map)),
                 ),
             ]),
             const SizedBox(height: 14),
-            OutlinedButton.icon(onPressed: isTurn && drawnIndex == null ? () => onAction({'type': 'draw'}) : null, icon: const Icon(Icons.add_rounded), label: const Text('Draw card')),
+            Row(children: [
+              OutlinedButton.icon(onPressed: isTurn && drawnIndex == null ? () => onAction({'type': 'draw'}) : null, icon: const Icon(Icons.add_rounded), label: const Text('Draw card')),
+              if (drawnIndex != null) ...[
+                const SizedBox(width: 8),
+                TextButton(onPressed: isTurn ? () => onAction({'type': 'pass'}) : null, child: const Text('Pass')),
+              ],
+            ]),
           ],
         ]),
       ),
     );
+  }
+
+  bool _canPlayCard(List hand, int index, String currentColor, Map<String, dynamic>? top, bool isTurn, int? drawnIndex) {
+    if (!isTurn || (drawnIndex != null && drawnIndex != index)) return false;
+    final card = Map<String, dynamic>.from(hand[index] as Map);
+    return card['color'] == 'wild' || card['color'] == currentColor || card['value'] == top?['value'];
   }
 
   Future<void> _playCard(BuildContext context, int index, Map<String, dynamic> card) async {

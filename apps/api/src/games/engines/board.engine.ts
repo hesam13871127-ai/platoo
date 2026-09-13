@@ -7,7 +7,10 @@ function turnCheck(state: GameState, actorId: string): void {
 
 export class FourInARowEngine implements GameEngine {
   readonly id: GameId = 'four_in_a_row';
-  create(players: GamePlayer[]): GameState { return { board: Array.from({ length: 6 }, () => Array(7).fill(0)), turnIndex: 0, turnPlayerId: players[0].id, moveCount: 0, winnerId: null, finished: false }; }
+  create(players: GamePlayer[]): GameState {
+    if (players.length !== 2) throw new IllegalMoveError('4 in a Row requires exactly two players.');
+    return { board: Array.from({ length: 6 }, () => Array(7).fill(0)), turnIndex: 0, turnPlayerId: players[0].id, moveCount: 0, winnerId: null, finished: false };
+  }
   validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void {
     turnCheck(state, actorId); if (action.type !== 'drop') throw new IllegalMoveError('Use the drop action.');
     const column = asInt(action.column, 'column', 0, 6); const board = state.board as number[][];

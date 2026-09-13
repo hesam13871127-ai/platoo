@@ -7,6 +7,7 @@ import '../../core/voice/voice_service.dart';
 import '../../core/widgets/vibe_logo.dart';
 import '../../models/models.dart';
 import 'game_socket.dart';
+import 'four_in_a_row_game_board.dart';
 import 'ocho_game_board.dart';
 import '../social/social_screen.dart';
 
@@ -34,7 +35,7 @@ class _RoomChatHint extends StatelessWidget { const _RoomChatHint({this.onTap});
 class GameCanvas extends StatefulWidget { const GameCanvas({super.key, required this.game, required this.state, required this.match, required this.onAction}); final GameDescriptor game; final Map<String, dynamic> state; final MatchModel match; final ValueChanged<Map<String, dynamic>> onAction; @override State<GameCanvas> createState() => _GameCanvasState(); }
 class _GameCanvasState extends State<GameCanvas> { int? selected; final word = TextEditingController(); @override void dispose() { word.dispose(); super.dispose(); }
   @override Widget build(BuildContext context) { final id = widget.game.id; if (id == 'four_in_a_row') return _four(context); if (id == 'chess' || id == 'checkers') return _gridGame(context); if (id == 'memory_race') return _memory(context); if (id == 'sea_battle') return _sea(context); if (id == 'ocho') return _ocho(context); if (id == 'mancala') return _mancala(context); return _generic(context); }
-  Widget _four(BuildContext context) { final board = (widget.state['board'] as List? ?? const []).map((row) => (row as List).map((cell) => (cell as num).toInt()).toList()).toList(); return Card(child: Padding(padding: const EdgeInsets.all(15), child: AspectRatio(aspectRatio: 7 / 6, child: Column(children: [for (var r = 0; r < 6; r++) Expanded(child: Row(children: [for (var c = 0; c < 7; c++) Expanded(child: InkWell(onTap: () => widget.onAction({'type': 'drop', 'column': c}), child: Container(margin: const EdgeInsets.all(3), decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.1), shape: BoxShape.circle), child: Center(child: AnimatedContainer(duration: const Duration(milliseconds: 180), width: 28, height: 28, decoration: BoxDecoration(color: board.length > r && board[r].length > c && board[r][c] != 0 ? (board[r][c] == 1 ? AppTheme.coral : AppTheme.gold) : Colors.transparent, shape: BoxShape.circle))))))]))])))); }
+  Widget _four(BuildContext context) => FourInARowGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _gridGame(BuildContext context) {
     final board = (widget.state['board'] as List? ?? const []).map((row) => (row as List).toList()).toList();
     return Card(

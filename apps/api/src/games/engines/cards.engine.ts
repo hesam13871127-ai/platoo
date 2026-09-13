@@ -32,6 +32,7 @@ export class OchoEngine implements GameEngine {
   readonly id: GameId = 'ocho';
 
   create(players: GamePlayer[]): OchoState {
+    if (players.length < 2 || players.length > 4) throw new IllegalMoveError('Ocho supports two to four players.');
     const deck = this.shuffle(this.deck());
     const hands = players.map(() => deck.splice(0, 7));
     let first = deck.pop() as OchoCard;
@@ -90,7 +91,12 @@ export class OchoEngine implements GameEngine {
       return;
     }
 
-    if (action.type !== 'play') throw new IllegalMoveError('Use play or draw.');
+    if (action.type === 'pass') {
+      if (state.drawnCardIndex === null) throw new IllegalMoveError('You may only pass after drawing a playable card.');
+      return;
+    }
+
+    if (action.type !== 'play') throw new IllegalMoveError('Use play, draw, or pass.');
     const index = asInt(action.index, 'index', 0, state.hands[side].length - 1);
     const card = state.hands[side][index];
     if (!card) throw new IllegalMoveError('That card is not in your hand.');
@@ -136,6 +142,12 @@ export class OchoEngine implements GameEngine {
         next.drawnCardIndex = null;
         rotateTurn(next, players, next.direction);
       }
+      return next;
+    }
+
+    if (action.type === 'pass') {
+      next.drawnCardIndex = null;
+      rotateTurn(next, players, next.direction);
       return next;
     }
 
