@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { randomUUID } from 'node:crypto';
-import { RowDataPacket } from 'mysql2/promise';
+import { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { MysqlService } from '../database/mysql.service';
 import { conflict, invalid, notFound } from '../common/errors';
 import { GameService } from '../games/game.service';
 import { GameRegistry } from '../games/game.registry';
 import { JoinQueueDto } from './matchmaking.dto';
+
+class TicketClaimLostError extends Error {}
 
 @Injectable()
 export class MatchmakingService {
@@ -17,6 +19,8 @@ export class MatchmakingService {
   async join(userId: string, dto: JoinQueueDto) {
     const descriptor = this.registry.descriptor(dto.gameId);
     if (dto.playerCount < descriptor.minPlayers || dto.playerCount > descriptor.maxPlayers) throw invalid(`Choose between ${descriptor.minPlayers} and ${descriptor.maxPlayers} players for this game.`);
+    const activeRows = await this.mysql.query<RowDataPacket[]>(`SELECT is_active AS isActive FROM games WHERE id = ? LIMIT 1`, [dto.gameId]);
+    if (!activeRows[0] || !Boolean(activeRows[0].isActive)) throw notFound('This game is currently unavailable.');
     const existing = await this.mysql.query<RowDataPacket[]>(`SELECT id, game_id AS gameId, mode, desired_players AS desiredPlayers, queued_at AS queuedAt FROM matchmaking_tickets WHERE user_id = ? AND status = 'queued' LIMIT 1`, [userId]);
     if (existing[0]) throw conflict('You are already in a matchmaking queue.');
     const rating = await this.rating(userId, dto.gameId);
@@ -43,6 +47,7 @@ export class MatchmakingService {
     if (this.processing) return;
     this.processing = true;
     try {
+      await this.recoverStaleClaims();
       const tickets = await this.mysql.query<RowDataPacket[]>(`SELECT id, user_id AS userId, game_id AS gameId, mode, desired_players AS desiredPlayers, rating, queued_at AS queuedAt FROM matchmaking_tickets WHERE status = 'queued' ORDER BY queued_at LIMIT 200`);
       const grouped = new Map<string, RowDataPacket[]>();
       for (const ticket of tickets) { const key = `${ticket.gameId}:${ticket.mode}:${ticket.desiredPlayers}`; const list = grouped.get(key) ?? []; list.push(ticket); grouped.set(key, list); }
@@ -58,17 +63,68 @@ export class MatchmakingService {
   }
 
   private async createHumanMatch(batch: RowDataPacket[]): Promise<void> {
-    const ids = batch.map((ticket) => ticket.userId as string);
     const first = batch[0];
-    const match = await this.games.createMatch(first.gameId as string, first.mode as 'casual' | 'ranked', ids, Number(first.desiredPlayers));
-    await this.mysql.transaction(async (connection) => {
-      for (const ticket of batch) await connection.execute(`UPDATE matchmaking_tickets SET status = 'matched', matched_at = UTC_TIMESTAMP(3), match_id = ? WHERE id = ? AND status = 'queued'`, [match.id, ticket.id]);
-    });
+    if (!await this.claimTickets(batch)) return;
+    let matchCreated = false;
+    try {
+      const ids = batch.map((ticket) => ticket.userId as string);
+      const match = await this.games.createMatch(first.gameId as string, first.mode as 'casual' | 'ranked', ids, Number(first.desiredPlayers), first.id as string);
+      matchCreated = true;
+      await this.markMatched(batch, match.id as string);
+    } catch (error) {
+      if (!matchCreated) await this.releaseTickets(batch);
+      throw error;
+    }
   }
 
   private async createBotMatch(ticket: RowDataPacket, playerCount: number): Promise<void> {
-    const match = await this.games.createMatch(ticket.gameId as string, ticket.mode as 'casual' | 'ranked', [ticket.userId as string], playerCount);
-    await this.mysql.execute(`UPDATE matchmaking_tickets SET status = 'matched', matched_at = UTC_TIMESTAMP(3), match_id = ? WHERE id = ? AND status = 'queued'`, [match.id, ticket.id]);
+    if (!await this.claimTickets([ticket])) return;
+    let matchCreated = false;
+    try {
+      const match = await this.games.createMatch(ticket.gameId as string, ticket.mode as 'casual' | 'ranked', [ticket.userId as string], playerCount, ticket.id as string);
+      matchCreated = true;
+      await this.markMatched([ticket], match.id as string);
+    } catch (error) {
+      if (!matchCreated) await this.releaseTickets([ticket]);
+      throw error;
+    }
+  }
+
+  private async claimTickets(tickets: RowDataPacket[]): Promise<boolean> {
+    try {
+      await this.mysql.transaction(async (connection) => {
+        for (const ticket of tickets) {
+          const [result] = await connection.execute<ResultSetHeader>(`UPDATE matchmaking_tickets SET status = 'matched', matched_at = UTC_TIMESTAMP(3), match_id = NULL WHERE id = ? AND status = 'queued'`, [ticket.id]);
+          if (!result.affectedRows) throw new TicketClaimLostError('A matchmaking ticket was already claimed.');
+        }
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof TicketClaimLostError) return false;
+      throw error;
+    }
+  }
+
+  private async markMatched(tickets: RowDataPacket[], matchId: string): Promise<void> {
+    await this.mysql.transaction(async (connection) => {
+      for (const ticket of tickets) {
+        const [result] = await connection.execute<ResultSetHeader>(`UPDATE matchmaking_tickets SET match_id = ? WHERE id = ? AND status = 'matched' AND match_id IS NULL`, [matchId, ticket.id]);
+        if (!result.affectedRows) throw new Error('Could not finalize a matchmaking ticket.');
+      }
+    });
+  }
+
+  private async releaseTickets(tickets: RowDataPacket[]): Promise<void> {
+    try {
+      const ids = tickets.map((ticket) => ticket.id as string);
+      await this.mysql.execute(`UPDATE matchmaking_tickets SET status = 'queued', matched_at = NULL WHERE id IN (${ids.map(() => '?').join(',')}) AND status = 'matched' AND match_id IS NULL`, ids);
+    } catch (error) {
+      this.logger.error('Could not release claimed matchmaking tickets', error);
+    }
+  }
+
+  private async recoverStaleClaims(): Promise<void> {
+    await this.mysql.execute(`UPDATE matchmaking_tickets SET status = 'queued', matched_at = NULL WHERE status = 'matched' AND match_id IS NULL AND matched_at < DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 2 MINUTE)`);
   }
 
   private async rating(userId: string, gameId: string): Promise<number> {

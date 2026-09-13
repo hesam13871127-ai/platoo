@@ -17,11 +17,29 @@ import '../social/social_screen.dart';
 
 class GameRoomScreen extends ConsumerStatefulWidget { const GameRoomScreen({super.key, required this.matchId, required this.game}); final String matchId; final GameDescriptor game; @override ConsumerState<GameRoomScreen> createState() => _GameRoomScreenState(); }
 class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
-  MatchModel? match; String? error; Timer? poller; late final GameSocket socket;
-  @override void initState() { super.initState(); socket = GameSocket(ref.read(tokenStoreProvider)); _load(); socket.connect(matchId: widget.matchId, onUpdate: (data) { if (mounted) setState(() => match = MatchModel.fromJson(data)); }, onError: (message) { if (mounted) setState(() => error = message); }); poller = Timer.periodic(const Duration(seconds: 3), (_) => _load()); }
+  MatchModel? match; String? error; Timer? poller; late final GameSocket socket; bool completionSynced = false; bool actionPending = false;
+  @override void initState() { super.initState(); socket = GameSocket(ref.read(tokenStoreProvider)); _load(); socket.connect(matchId: widget.matchId, onUpdate: _acceptMatch, onError: (message) { if (mounted) setState(() => error = message); }); poller = Timer.periodic(const Duration(seconds: 3), (_) => _load()); }
   @override void dispose() { poller?.cancel(); socket.dispose(); super.dispose(); }
-  Future<void> _load() async { try { final data = await ref.read(apiClientProvider).get('/matches/${widget.matchId}') as Map; if (mounted) setState(() { match = MatchModel.fromJson(Map<String, dynamic>.from(data)); error = null; }); } catch (e) { if (mounted) setState(() => error = e.toString()); } }
-  Future<void> _action(Map<String, dynamic> action) async { try { final data = await ref.read(apiClientProvider).post('/matches/${widget.matchId}/actions', data: action) as Map; if (mounted) setState(() => match = MatchModel.fromJson(Map<String, dynamic>.from(data))); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()))); } }
+  void _acceptMatch(Map<String, dynamic> data) {
+    final next = MatchModel.fromJson(Map<String, dynamic>.from(data));
+    if (!mounted) return;
+    if (match != null && next.revision < match!.revision) return;
+    setState(() { match = next; error = null; });
+    if (next.status == 'finished' && !completionSynced) { completionSynced = true; unawaited(ref.read(authProvider.notifier).refreshProfile()); }
+  }
+  Future<void> _load() async { try { final data = await ref.read(apiClientProvider).get('/matches/${widget.matchId}') as Map; _acceptMatch(Map<String, dynamic>.from(data)); } catch (e) { if (mounted) setState(() => error = e.toString()); } }
+  Future<void> _action(Map<String, dynamic> action) async {
+    if (actionPending) return;
+    setState(() => actionPending = true);
+    try {
+      final data = await ref.read(apiClientProvider).post('/matches/${widget.matchId}/actions', data: action) as Map;
+      _acceptMatch(Map<String, dynamic>.from(data));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => actionPending = false);
+    }
+  }
   @override Widget build(BuildContext context) { final current = match; return Scaffold(appBar: AppBar(leading: IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_rounded)), title: Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 34), const SizedBox(width: 10), Expanded(child: Text(widget.game.name, style: const TextStyle(fontWeight: FontWeight.w900))), if (current?.status == 'finished') const Icon(Icons.emoji_events_rounded, color: AppTheme.gold)]), actions: [VoiceRoomButton(api: ref.read(apiClientProvider), matchId: widget.matchId), IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded))]), body: current == null ? Center(child: error == null ? const CircularProgressIndicator() : Padding(padding: const EdgeInsets.all(24), child: Text(error!))) : _MatchBody(match: current, game: widget.game, onAction: _action)); }
 }
 
@@ -30,7 +48,16 @@ class _MatchBody extends StatelessWidget { const _MatchBody({required this.match
 
 class _PlayerChip extends StatelessWidget { const _PlayerChip({required this.name, required this.bot, required this.active, required this.winner, required this.color}); final String name; final bool bot; final bool active; final bool winner; final Color color; @override Widget build(BuildContext context) => AnimatedContainer(duration: const Duration(milliseconds: 250), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: active ? color.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: active ? color : Theme.of(context).dividerColor, width: active ? 1.5 : .6)), child: Row(children: [CircleAvatar(radius: 14, backgroundColor: color.withOpacity(.2), child: Icon(bot ? Icons.smart_toy_rounded : Icons.person_rounded, size: 15, color: color)), const SizedBox(width: 7), Text(name, style: const TextStyle(fontWeight: FontWeight.w800)), if (winner) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.emoji_events_rounded, size: 16, color: AppTheme.gold))])); }
 
-class _ResultBanner extends StatelessWidget { const _ResultBanner({required this.match}); final MatchModel match; @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(17), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF2D2264), Color(0xFF7957F2)]), borderRadius: BorderRadius.circular(22)), child: Row(children: [const Icon(Icons.celebration_rounded, color: AppTheme.gold, size: 32), const SizedBox(width: 13), Expanded(child: Text(match.draw ? 'It’s a draw!' : 'The table has a winner!', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)))])); }
+class _ResultBanner extends StatelessWidget {
+  const _ResultBanner({required this.match});
+  final MatchModel match;
+  @override
+  Widget build(BuildContext context) {
+    final winners = match.players.where((player) => match.winnerIds.contains(player['id'])).map((player) => player['displayName']?.toString() ?? 'Player').toList();
+    final headline = match.draw ? 'It’s a draw!' : winners.isEmpty ? 'The table has a winner!' : '${winners.join(' and ')} won';
+    return Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(17), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF2D2264), Color(0xFF7957F2)]), borderRadius: BorderRadius.circular(22)), child: Row(children: [const Icon(Icons.celebration_rounded, color: AppTheme.gold, size: 32), const SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(headline, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)), const SizedBox(height: 4), const Text('Result saved · ranking, XP, and coins synced', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700))]))]));
+  }
+}
 
 class _TurnHint extends StatelessWidget { const _TurnHint({required this.match}); final MatchModel match; @override Widget build(BuildContext context) { final turnPlayers = match.players.where((player) => player['id'] == match.state['turnPlayerId']).toList(); final turn = turnPlayers.isEmpty ? null : turnPlayers.first['displayName']; return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16)), child: Row(children: [Icon(Icons.timelapse_rounded, size: 20, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 9), Text(turn == null ? 'Set up your board' : 'Turn: $turn', style: const TextStyle(fontWeight: FontWeight.w800))])); } }
 

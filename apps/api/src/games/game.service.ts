@@ -16,6 +16,7 @@ interface MatchPlayerRow extends RowDataPacket { id: string; userId: string; dis
 export class GameService {
   private readonly logger = new Logger(GameService.name);
   private readonly updates = new EventEmitter();
+  private readonly botRuns = new Set<string>();
 
   constructor(private readonly mysql: MysqlService, private readonly registry: GameRegistry, private readonly ranking: RankingService) {}
 
@@ -30,12 +31,16 @@ export class GameService {
     return this.registry.list().filter((game) => active.get(game.id) !== false);
   }
 
-  async createMatch(gameId: string, mode: 'casual' | 'ranked' | 'private', playerIds: string[], desiredPlayers?: number) {
+  async createMatch(gameId: string, mode: 'casual' | 'ranked' | 'private', playerIds: string[], desiredPlayers?: number, idempotencyKey?: string) {
     const descriptor = this.registry.descriptor(gameId);
     const activeRows = await this.mysql.query<RowDataPacket[]>(`SELECT is_active AS isActive FROM games WHERE id = ?`, [gameId]);
     if (!activeRows[0] || !Boolean(activeRows[0].isActive)) throw notFound('This game is currently unavailable.');
     const unique = [...new Set(playerIds)];
     if (!unique.length) throw invalid('A match needs at least one player.');
+    if (idempotencyKey) {
+      const existing = await this.mysql.query<RowDataPacket[]>(`SELECT id FROM matches WHERE id = ? LIMIT 1`, [idempotencyKey]);
+      if (existing[0]) return this.getMatch(existing[0].id as string, unique[0]);
+    }
     const users = await this.mysql.query<RowDataPacket[]>(`SELECT id FROM users WHERE id IN (${unique.map(() => '?').join(',')}) AND status = 'active'`, unique);
     if (users.length !== unique.length) throw notFound('One or more players could not be found.');
     if (unique.length < descriptor.minPlayers && mode === 'private') throw invalid(`This game needs at least ${descriptor.minPlayers} players.`);
@@ -46,7 +51,7 @@ export class GameService {
     for (let i = 0; i < botCount; i += 1) players.push({ id: await this.createBotUser(i), seat: players.length, isBot: true, team: descriptor.supportsTeams ? players.length % 2 : undefined });
     const engine = this.registry.engine(gameId);
     const state = engine.create(players);
-    const matchId = randomUUID();
+    const matchId = idempotencyKey ?? randomUUID();
     await this.mysql.transaction(async (connection) => {
       await connection.execute(`INSERT INTO matches (id, game_id, mode, status, max_players, state, started_at) VALUES (?, ?, ?, 'active', ?, ?, UTC_TIMESTAMP(3))`, [matchId, gameId, mode, players.length, JSON.stringify(state)]);
       for (const player of players) await connection.execute(`INSERT INTO match_players (match_id, user_id, seat, team, is_bot) VALUES (?, ?, ?, ?, ?)`, [matchId, player.id, player.seat, player.team ?? null, player.isBot]);
@@ -70,12 +75,14 @@ export class GameService {
 
   async act(matchId: string, actorId: string, dto: GameActionDto, internalBot = false) {
     let completed = false;
+    let resultViewerId = actorId;
     let result: ReturnType<GameService['publicMatch']> | undefined;
     await this.mysql.transaction(async (connection) => {
       const [matchRows] = await connection.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1 FOR UPDATE`, [matchId]);
       const match = matchRows[0];
       if (!match) throw notFound('Match not found.');
       const players = await this.playersOnConnection(connection, matchId);
+      resultViewerId = players.find((player) => !Boolean(player.isBot))?.userId ?? actorId;
       const actor = players.find((player) => player.userId === actorId);
       if (!actor || (!internalBot && actor.isBot)) throw forbidden('You are not a player in this match.');
       if (match.status !== 'active') throw conflict('This match is no longer active.');
@@ -96,9 +103,16 @@ export class GameService {
         completed = true;
       }
       const refreshed = { ...match, state: updated, revision: nextRevision, status, winner_ids: outcome.winnerIds, loser_ids: outcome.loserIds, draw: outcome.draw ? 1 : 0 } as MatchRow;
-      result = this.publicMatch(refreshed, players, actorId);
+      const visiblePlayers = outcome.finished ? players.map((player) => ({ ...player, result: outcome.draw ? 'draw' : outcome.winnerIds.includes(player.userId) ? 'win' : 'loss' })) : players;
+      result = this.publicMatch(refreshed, visiblePlayers, actorId);
     });
-    if (completed) await this.ranking.recordMatch(matchId);
+    if (completed) {
+      try {
+        result = await this.settleCompletedMatch(matchId, resultViewerId);
+      } catch (error: unknown) {
+        this.logger.error(`Match completion side effects failed for ${matchId}`, error);
+      }
+    }
     if (result) this.updates.emit('match.updated', matchId);
     if (result && !internalBot) void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
     return result;
@@ -110,20 +124,43 @@ export class GameService {
     return rows.map((row) => ({ ...row, payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload, stateAfter: typeof row.stateAfter === 'string' ? JSON.parse(row.stateAfter) : row.stateAfter }));
   }
 
-  private async runBotTurns(matchId: string): Promise<void> {
-    for (let count = 0; count < 12; count += 1) {
-      const rows = await this.mysql.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1`, [matchId]);
-      if (!rows[0] || rows[0].status !== 'active') return;
-      const playerRows = await this.players(matchId);
-      const currentState = this.parseState(rows[0].state);
-      const currentId = typeof currentState.turnPlayerId === 'string' ? currentState.turnPlayerId : null;
-      const bot = currentId ? playerRows.find((player) => player.userId === currentId && Boolean(player.isBot)) : rows[0].game_id === 'sea_battle' ? playerRows.find((player) => Boolean(player.isBot) && ((currentState.fleets as unknown[][][])[player.seat]?.length ?? 0) < 5) : undefined;
-      if (!bot) return;
-      await this.sleep(650 + cryptoRandomInt(850));
-      const enginePlayers = playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
-      const action = this.registry.engine(rows[0].game_id).botAction(currentState, bot.userId, enginePlayers);
-      await this.act(matchId, bot.userId, action as GameActionDto, true);
+  private async settleCompletedMatch(matchId: string, viewerId: string): Promise<ReturnType<GameService['publicMatch']>> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await this.ranking.recordMatch(matchId);
+        return await this.getMatch(matchId, viewerId) as ReturnType<GameService['publicMatch']>;
+      } catch (error: unknown) {
+        lastError = error;
+        if (attempt < 2) await this.sleep(250 * (attempt + 1));
+      }
     }
+    throw lastError instanceof Error ? lastError : new Error('Could not settle completed match.');
+  }
+
+  private async runBotTurns(matchId: string): Promise<void> {
+    if (this.botRuns.has(matchId)) return;
+    this.botRuns.add(matchId);
+    let exhausted = false;
+    try {
+      for (let count = 0; count < 64; count += 1) {
+        const rows = await this.mysql.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1`, [matchId]);
+        if (!rows[0] || rows[0].status !== 'active') return;
+        const playerRows = await this.players(matchId);
+        const currentState = this.parseState(rows[0].state);
+        const currentId = typeof currentState.turnPlayerId === 'string' ? currentState.turnPlayerId : null;
+        const bot = currentId ? playerRows.find((player) => player.userId === currentId && Boolean(player.isBot)) : rows[0].game_id === 'sea_battle' ? playerRows.find((player) => Boolean(player.isBot) && ((currentState.fleets as unknown[][][])[player.seat]?.length ?? 0) < 5) : undefined;
+        if (!bot) return;
+        await this.sleep(650 + cryptoRandomInt(850));
+        const enginePlayers = playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
+        const action = this.registry.engine(rows[0].game_id).botAction(currentState, bot.userId, enginePlayers);
+        await this.act(matchId, bot.userId, action as GameActionDto, true);
+      }
+      exhausted = true;
+    } finally {
+      this.botRuns.delete(matchId);
+    }
+    if (exhausted) setTimeout(() => { void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error)); }, 250);
   }
 
   private async players(matchId: string): Promise<MatchPlayerRow[]> {

@@ -19,6 +19,19 @@ class AuthController extends AsyncNotifier<AuthSession?> {
   Future<Map<String, dynamic>> requestOtp(String phone) async => Map<String, dynamic>.from(await _api.post('/auth/otp/request', data: {'phone': phone}) as Map);
   Future<void> verifyOtp(String challengeId, String code) async { state = const AsyncLoading(); state = await AsyncValue.guard(() async { final data = await _api.post('/auth/otp/verify', data: {'challengeId': challengeId, 'code': code}) as Map; final session = AuthSession.fromJson(Map<String, dynamic>.from(data)); await ref.read(tokenStoreProvider).saveSession(session); return session; }); }
   Future<void> social(String provider, String token, {String? displayName}) async { state = const AsyncLoading(); state = await AsyncValue.guard(() async { final data = await _api.post('/auth/social', data: {'provider': provider, 'token': token, if (displayName != null) 'displayName': displayName}) as Map; final session = AuthSession.fromJson(Map<String, dynamic>.from(data)); await ref.read(tokenStoreProvider).saveSession(session); return session; }); }
+  Future<void> refreshProfile() async {
+    final current = state.value;
+    if (current == null) return;
+    try {
+      final data = await _api.get('/users/me') as Map;
+      final user = UserProfile.fromJson(Map<String, dynamic>.from(data));
+      final refreshed = AuthSession(accessToken: current.accessToken, refreshToken: current.refreshToken, expiresAt: current.expiresAt, user: user);
+      state = AsyncData(refreshed);
+      await ref.read(tokenStoreProvider).saveSession(refreshed);
+    } catch (_) {
+      // A completed match remains valid even if the profile refresh is temporarily unavailable.
+    }
+  }
   Future<void> logout() async { await _api.post('/auth/logout'); await ref.read(tokenStoreProvider).clear(); state = const AsyncData(null); }
   Future<void> updatePreferences({AppLocale? locale, ThemeChoice? theme}) async { final payload = <String, dynamic>{if (locale != null) 'locale': locale == AppLocale.fa ? 'fa' : 'en', if (theme != null) 'theme': theme.name}; final data = await _api.put('/auth/preferences', data: payload) as Map; final current = state.value; if (current != null) { final user = UserProfile.fromJson(Map<String, dynamic>.from(data)); state = AsyncData(AuthSession(accessToken: current.accessToken, refreshToken: current.refreshToken, expiresAt: current.expiresAt, user: user)); await ref.read(tokenStoreProvider).saveSession(state.value!); } }
 }

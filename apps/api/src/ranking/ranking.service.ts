@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import * as crypto from 'node:crypto';
 import { RowDataPacket } from 'mysql2/promise';
 import { MysqlService } from '../database/mysql.service';
@@ -8,6 +9,9 @@ interface RatingRow extends RowDataPacket { userId: string; displayName: string;
 
 @Injectable()
 export class RankingService {
+  private readonly logger = new Logger(RankingService.name);
+  private retryingPending = false;
+
   constructor(private readonly mysql: MysqlService) {}
 
   async currentSeason() {
@@ -35,32 +39,84 @@ export class RankingService {
       if (!match) return;
       const [players] = await connection.query<RowDataPacket[]>(`SELECT user_id AS userId, result, is_bot AS isBot, rating_before AS ratingBefore FROM match_players WHERE match_id = ? FOR UPDATE`, [matchId]);
       const humanPlayers = players.filter((player) => !Boolean(player.isBot));
-      if (humanPlayers.length > 0 && humanPlayers.every((player) => player.ratingBefore !== null)) return;
-      const [seasons] = await connection.query<RowDataPacket[]>(`SELECT id FROM seasons WHERE status = 'active' ORDER BY starts_at DESC LIMIT 1`);
-      if (!seasons[0]) return;
-      const seasonId = seasons[0].id as string;
-      const currentRatings = new Map<string, number>();
-      for (const player of humanPlayers) {
-        const [existing] = await connection.query<RowDataPacket[]>(`SELECT rating FROM player_ratings WHERE user_id = ? AND game_id = ? AND season_id = ? FOR UPDATE`, [player.userId, match.gameId, seasonId]);
-        currentRatings.set(player.userId as string, Number(existing[0]?.rating ?? 1000));
+      if (!humanPlayers.length) return;
+      if (humanPlayers.every((player) => player.ratingBefore !== null)) {
+        for (const player of humanPlayers) await this.grantMatchReward(connection, player.userId as string, matchId, player.result as string, player.result === 'draw' || Boolean(match.draw));
+        return;
       }
+
+      const [seasons] = await connection.query<RowDataPacket[]>(`SELECT id FROM seasons WHERE status = 'active' ORDER BY starts_at DESC LIMIT 1`);
+      const seasonId = seasons[0]?.id as string | undefined;
+      const currentRatings = new Map<string, number>();
+      if (seasonId) {
+        for (const player of humanPlayers) {
+          const [existing] = await connection.query<RowDataPacket[]>(`SELECT rating FROM player_ratings WHERE user_id = ? AND game_id = ? AND season_id = ? FOR UPDATE`, [player.userId, match.gameId, seasonId]);
+          currentRatings.set(player.userId as string, Number(existing[0]?.rating ?? 1000));
+        }
+      }
+
       const ranked = match.mode === 'ranked';
       for (const player of humanPlayers) {
         const userId = player.userId as string;
         const oldRating = currentRatings.get(userId) ?? 1000;
         const result = player.result as string;
-        const score = result === 'win' ? 1 : result === 'draw' || match.draw ? 0.5 : 0;
+        const isDraw = result === 'draw' || Boolean(match.draw);
+        const score = result === 'win' ? 1 : isDraw ? 0.5 : 0;
         let newRating = oldRating;
-        if (ranked) {
+        if (seasonId && ranked) {
           const opponents = humanPlayers.filter((candidate) => candidate.userId !== userId);
-          const expected = opponents.reduce((sum, opponent) => sum + 1 / (1 + 10 ** (((currentRatings.get(opponent.userId as string) ?? 1000) - oldRating) / 400)), 0) / Math.max(opponents.length, 1);
-          newRating = Math.max(100, Math.round(oldRating + 32 * (score - expected)));
+          if (opponents.length) {
+            const expected = opponents.reduce((sum, opponent) => sum + 1 / (1 + 10 ** (((currentRatings.get(opponent.userId as string) ?? 1000) - oldRating) / 400)), 0) / opponents.length;
+            newRating = Math.max(100, Math.round(oldRating + 32 * (score - expected)));
+          }
         }
-        await connection.execute(`INSERT INTO player_ratings (user_id, game_id, season_id, rating, wins, losses, draws, games_played, peak_rating) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?) ON DUPLICATE KEY UPDATE rating = ?, wins = wins + ?, losses = losses + ?, draws = draws + ?, games_played = games_played + 1, peak_rating = GREATEST(peak_rating, ?)`, [userId, match.gameId, seasonId, newRating, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, result === 'draw' || Boolean(match.draw) ? 1 : 0, newRating, newRating, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, result === 'draw' || Boolean(match.draw) ? 1 : 0, newRating]);
+        if (seasonId) {
+          await connection.execute(`INSERT INTO player_ratings (user_id, game_id, season_id, rating, wins, losses, draws, games_played, peak_rating) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?) ON DUPLICATE KEY UPDATE rating = ?, wins = wins + ?, losses = losses + ?, draws = draws + ?, games_played = games_played + 1, peak_rating = GREATEST(peak_rating, ?)`, [userId, match.gameId, seasonId, newRating, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, isDraw ? 1 : 0, newRating, newRating, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, isDraw ? 1 : 0, newRating]);
+        }
+        await connection.execute(`INSERT INTO game_stats (user_id, game_id, games_played, wins, losses, draws) VALUES (?, ?, 1, ?, ?, ?) ON DUPLICATE KEY UPDATE games_played = games_played + 1, wins = wins + ?, losses = losses + ?, draws = draws + ?`, [userId, match.gameId, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, isDraw ? 1 : 0, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, isDraw ? 1 : 0]);
         await connection.execute(`UPDATE match_players SET rating_before = ?, rating_after = ? WHERE match_id = ? AND user_id = ?`, [oldRating, newRating, matchId, userId]);
-        await connection.execute(`INSERT INTO game_stats (user_id, game_id, games_played, wins, losses, draws) VALUES (?, ?, 1, ?, ?, ?) ON DUPLICATE KEY UPDATE games_played = games_played + 1, wins = wins + ?, losses = losses + ?, draws = draws + ?`, [userId, match.gameId, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, result === 'draw' || Boolean(match.draw) ? 1 : 0, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, result === 'draw' || Boolean(match.draw) ? 1 : 0]);
+        await this.grantMatchReward(connection, userId, matchId, result, isDraw);
       }
     });
+  }
+
+  private async grantMatchReward(connection: import('mysql2/promise').PoolConnection, userId: string, matchId: string, result: string, isDraw: boolean): Promise<void> {
+    const idempotencyKey = `match:${matchId}`;
+    const [existing] = await connection.query<RowDataPacket[]>(`SELECT id FROM wallet_transactions WHERE user_id = ? AND idempotency_key = ? LIMIT 1`, [userId, idempotencyKey]);
+    if (existing[0]) return;
+    const xp = result === 'win' ? 100 : isDraw ? 60 : 40;
+    const coins = result === 'win' ? 100 : isDraw ? 50 : 25;
+    await connection.execute(`INSERT IGNORE INTO wallets (user_id) VALUES (?)`, [userId]);
+    const [walletRows] = await connection.query<RowDataPacket[]>(`SELECT coins FROM wallets WHERE user_id = ? FOR UPDATE`, [userId]);
+    const balanceAfter = Number(walletRows[0]?.coins ?? 0) + coins;
+    await connection.execute(`UPDATE wallets SET coins = ?, version = version + 1 WHERE user_id = ?`, [balanceAfter, userId]);
+    await connection.execute(`INSERT INTO wallet_transactions (id, user_id, currency, amount, balance_after, type, reference_type, reference_id, idempotency_key, metadata) VALUES (?, ?, 'coins', ?, ?, 'match_reward', 'match', ?, ?, ?)`, [crypto.randomUUID(), userId, coins, balanceAfter, matchId, idempotencyKey, JSON.stringify({ xp, result: isDraw ? 'draw' : result })]);
+    const [userRows] = await connection.query<RowDataPacket[]>(`SELECT experience, level FROM users WHERE id = ? FOR UPDATE`, [userId]);
+    if (userRows[0]) {
+      const experience = Number(userRows[0].experience ?? 0) + xp;
+      const level = Math.min(100, Math.max(Number(userRows[0].level ?? 1), Math.floor(experience / 1000) + 1));
+      await connection.execute(`UPDATE users SET experience = ?, level = ? WHERE id = ?`, [experience, level, userId]);
+    }
+  }
+
+  @Interval(5000)
+  async retryPendingMatches(): Promise<void> {
+    if (this.retryingPending) return;
+    this.retryingPending = true;
+    try {
+      const rows = await this.mysql.query<RowDataPacket[]>(`SELECT DISTINCT m.id FROM matches m JOIN match_players mp ON mp.match_id = m.id AND mp.is_bot = FALSE LEFT JOIN wallet_transactions wt ON wt.user_id = mp.user_id AND wt.idempotency_key = CONCAT('match:', m.id) WHERE m.status = 'finished' AND m.finished_at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY) AND (mp.rating_before IS NULL OR wt.id IS NULL) LIMIT 100`);
+      for (const row of rows) {
+        try {
+          await this.recordMatch(row.id as string);
+        } catch (error: unknown) {
+          this.logger.warn(`Could not settle completed match ${row.id as string}; it will be retried`, error instanceof Error ? error.message : String(error));
+        }
+      }
+    } catch (error: unknown) {
+      this.logger.warn('Could not scan pending match settlements', error instanceof Error ? error.message : String(error));
+    } finally {
+      this.retryingPending = false;
+    }
   }
 
   async finishSeason(seasonId: string): Promise<void> {
