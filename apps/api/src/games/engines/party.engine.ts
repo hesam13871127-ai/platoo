@@ -345,6 +345,271 @@ export class ImpostorLightEngine implements GameEngine {
 }
 
 export class EmojiCharadesEngine extends KnowledgeEngine { readonly id: GameId = 'emoji_charades'; constructor() { super('emoji_charades', 7); } }
-export class SketchGuessEngine extends KnowledgeEngine { readonly id: GameId = 'sketch_guess'; constructor() { super('sketch_guess', 7); } }
-export class TriviaBattleEngine extends KnowledgeEngine { readonly id: GameId = 'trivia_battle'; constructor() { super('trivia_battle', 10); } }
+interface SketchGuessState extends GameState {
+  round: number;
+  rounds: number;
+  drawerIndex: number;
+  prompt: string;
+  phase: 'drawing' | 'guessing';
+  drawing: number[][][];
+  guesses: Array<string | null>;
+  scores: number[];
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  winnerIds: string[];
+  lastGuess: { playerId: string; guess: string; correct: boolean } | null;
+  lastEvent: string | null;
+  draw?: boolean;
+}
+
+const SKETCH_PROMPTS = [
+  'sunset', 'bicycle', 'pizza', 'rocket', 'castle', 'rainbow', 'cat', 'mountain',
+  'robot', 'ice cream', 'lighthouse', 'treehouse', 'camera', 'dragon', 'popcorn',
+  'hot air balloon', 'snowman', 'treasure chest', 'sunglasses', 'campfire',
+];
+
+const normalizeGuess = (value: string): string => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '');
+
+export class SketchGuessEngine implements GameEngine {
+  readonly id: GameId = 'sketch_guess';
+
+  create(players: GamePlayer[]): SketchGuessState {
+    if (players.length < 3 || players.length > 8) throw new IllegalMoveError('Sketch & Guess supports three to eight players.');
+    return {
+      round: 1,
+      rounds: players.length,
+      drawerIndex: 0,
+      prompt: SKETCH_PROMPTS[randomInt(SKETCH_PROMPTS.length)],
+      phase: 'drawing',
+      drawing: [],
+      guesses: players.map(() => null),
+      scores: players.map(() => 0),
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+      winnerIds: [],
+      lastGuess: null,
+      lastEvent: null,
+    };
+  }
+
+  validate(state: SketchGuessState, actorId: string, action: Action, players: GamePlayer[]): void {
+    if (state.finished) throw new IllegalMoveError('This game has finished.');
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    if (state.phase === 'drawing') {
+      if (side !== state.drawerIndex || state.turnPlayerId !== actorId) throw new IllegalMoveError('Only the active drawer can submit the sketch.');
+      if (action.type !== 'draw') throw new IllegalMoveError('Submit the sketch before guessing begins.');
+      this.strokes(action.strokes);
+      return;
+    }
+    if (state.turnPlayerId !== actorId) throw new IllegalMoveError('Wait for your guessing turn.');
+    if (action.type !== 'guess') throw new IllegalMoveError('Submit a guess.');
+    if (side === state.drawerIndex) throw new IllegalMoveError('The drawer cannot guess their own prompt.');
+    if (state.guesses[side] !== null) throw new IllegalMoveError('You already guessed this drawing.');
+    const guess = asString(action.guess, 'guess').trim();
+    if (guess.length > 40) throw new IllegalMoveError('Keep guesses under forty characters.');
+  }
+
+  apply(state: SketchGuessState, actorId: string, action: Action, players: GamePlayer[]): SketchGuessState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as SketchGuessState;
+    const side = players.findIndex((player) => player.id === actorId);
+    if (next.phase === 'drawing') {
+      next.drawing = this.strokes(action.strokes);
+      next.phase = 'guessing';
+      next.guesses = players.map(() => null);
+      next.turnIndex = (next.drawerIndex + 1) % players.length;
+      next.turnPlayerId = players[next.turnIndex].id;
+      next.lastEvent = `${players[next.drawerIndex].id} submitted a sketch.`;
+      return next;
+    }
+
+    const guess = (action.guess as string).trim();
+    const correct = normalizeGuess(guess) === normalizeGuess(next.prompt);
+    next.guesses[side] = guess;
+    next.lastGuess = { playerId: actorId, guess, correct };
+    if (correct) {
+      next.scores[side] += 3;
+      next.scores[next.drawerIndex] += 2;
+      next.lastEvent = `${actorId} guessed the drawing.`;
+      this.advanceRound(next, players);
+      return next;
+    }
+
+    next.lastEvent = `${actorId} made a guess.`;
+    const allGuessersActed = players.every((_, index) => index === next.drawerIndex || next.guesses[index] !== null);
+    if (allGuessersActed) this.advanceRound(next, players);
+    else this.nextGuesser(next, players);
+    return next;
+  }
+
+  outcome(state: SketchGuessState, players: GamePlayer[]): GameOutcome {
+    const winners = Array.isArray(state.winnerIds) && state.winnerIds.length ? state.winnerIds : state.winnerId ? [state.winnerId] : [];
+    return { finished: Boolean(state.finished), winnerIds: winners, loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(state: SketchGuessState, botId: string): Action {
+    if (state.phase === 'drawing') {
+      return { type: 'draw', strokes: [[[100, 100], [900, 100], [900, 900], [100, 900], [100, 100]], [[250, 500], [750, 500]]] };
+    }
+    return { type: 'guess', guess: state.prompt };
+  }
+
+  private nextGuesser(state: SketchGuessState, players: GamePlayer[]): void {
+    for (let offset = 1; offset <= players.length; offset += 1) {
+      const index = (state.turnIndex + offset) % players.length;
+      if (index !== state.drawerIndex && state.guesses[index] === null) {
+        state.turnIndex = index;
+        state.turnPlayerId = players[index].id;
+        return;
+      }
+    }
+  }
+
+  private advanceRound(state: SketchGuessState, players: GamePlayer[]): void {
+    if (state.round >= state.rounds) {
+      const maximum = Math.max(...state.scores);
+      state.winnerIds = state.scores.map((score, index) => score === maximum ? players[index].id : null).filter((id): id is string => id !== null);
+      state.winnerId = state.winnerIds[0] ?? null;
+      state.draw = state.winnerIds.length > 1;
+      state.finished = true;
+      return;
+    }
+    state.round += 1;
+    state.drawerIndex = (state.drawerIndex + 1) % players.length;
+    state.prompt = SKETCH_PROMPTS[randomInt(SKETCH_PROMPTS.length)];
+    state.phase = 'drawing';
+    state.drawing = [];
+    state.guesses = players.map(() => null);
+    state.turnIndex = state.drawerIndex;
+    state.turnPlayerId = players[state.drawerIndex].id;
+  }
+
+  private strokes(value: unknown): number[][][] {
+    if (!Array.isArray(value) || value.length < 1 || value.length > 80) throw new IllegalMoveError('A sketch needs between one and eighty strokes.');
+    return value.map((rawStroke) => {
+      if (!Array.isArray(rawStroke) || rawStroke.length < 2 || rawStroke.length > 120) throw new IllegalMoveError('Each stroke needs between two and 120 points.');
+      return rawStroke.map((rawPoint) => {
+        if (!Array.isArray(rawPoint) || rawPoint.length !== 2 || typeof rawPoint[0] !== 'number' || typeof rawPoint[1] !== 'number' || !Number.isFinite(rawPoint[0]) || !Number.isFinite(rawPoint[1]) || rawPoint[0] < 0 || rawPoint[0] > 1000 || rawPoint[1] < 0 || rawPoint[1] > 1000) throw new IllegalMoveError('Sketch points must be between zero and one thousand.');
+        return [rawPoint[0], rawPoint[1]];
+      });
+    });
+  }
+}
+
+interface TriviaQuestion { prompt: string; options: string[]; answer: number; category: string; }
+interface TriviaState extends GameState {
+  questionBank: TriviaQuestion[];
+  questionIndex: number;
+  rounds: number;
+  answered: boolean[];
+  answers: Array<number | null>;
+  scores: number[];
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  winnerIds: string[];
+  lastAnswer: { correctAnswer: number; answers: Array<number | null> } | null;
+  draw?: boolean;
+}
+
+const TRIVIA_QUESTIONS: TriviaQuestion[] = [
+  { prompt: 'Which planet is known as the Red Planet?', options: ['Venus', 'Mars', 'Jupiter', 'Mercury'], answer: 1, category: 'Space' },
+  { prompt: 'How many sides does a hexagon have?', options: ['Five', 'Six', 'Seven', 'Eight'], answer: 1, category: 'Science' },
+  { prompt: 'What is the capital of Japan?', options: ['Seoul', 'Beijing', 'Tokyo', 'Bangkok'], answer: 2, category: 'Geography' },
+  { prompt: 'Which animal is the largest land mammal?', options: ['Giraffe', 'Elephant', 'Rhino', 'Hippopotamus'], answer: 1, category: 'Nature' },
+  { prompt: 'What is the chemical symbol for water?', options: ['CO2', 'O2', 'H2O', 'NaCl'], answer: 2, category: 'Science' },
+  { prompt: 'Who painted the Mona Lisa?', options: ['Van Gogh', 'Leonardo da Vinci', 'Picasso', 'Monet'], answer: 1, category: 'Art' },
+  { prompt: 'Which ocean is the largest?', options: ['Atlantic', 'Indian', 'Arctic', 'Pacific'], answer: 3, category: 'Geography' },
+  { prompt: 'What is the fastest land animal?', options: ['Cheetah', 'Horse', 'Lion', 'Ostrich'], answer: 0, category: 'Nature' },
+  { prompt: 'How many minutes are in one hour?', options: ['30', '45', '60', '90'], answer: 2, category: 'Everyday' },
+  { prompt: 'Which instrument has black and white keys?', options: ['Violin', 'Flute', 'Piano', 'Trumpet'], answer: 2, category: 'Music' },
+  { prompt: 'What do bees make?', options: ['Silk', 'Honey', 'Wax only', 'Milk'], answer: 1, category: 'Nature' },
+  { prompt: 'Which shape has three sides?', options: ['Circle', 'Square', 'Triangle', 'Oval'], answer: 2, category: 'Shapes' },
+];
+
+export class TriviaBattleEngine implements GameEngine {
+  readonly id: GameId = 'trivia_battle';
+
+  create(players: GamePlayer[]): TriviaState {
+    if (players.length < 2 || players.length > 8) throw new IllegalMoveError('Trivia Battle supports two to eight players.');
+    const questionBank = this.shuffle(TRIVIA_QUESTIONS).slice(0, 10);
+    return {
+      questionBank,
+      questionIndex: 0,
+      rounds: questionBank.length,
+      answered: players.map(() => false),
+      answers: players.map(() => null),
+      scores: players.map(() => 0),
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+      winnerIds: [],
+      lastAnswer: null,
+    };
+  }
+
+  validate(state: TriviaState, actorId: string, action: Action, players: GamePlayer[]): void {
+    checkTurn(state, actorId);
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    if (action.type !== 'answer') throw new IllegalMoveError('Answer the current question.');
+    asInt(action.answer, 'answer', 0, 3);
+    if (state.answered[side]) throw new IllegalMoveError('You already answered this question.');
+  }
+
+  apply(state: TriviaState, actorId: string, action: Action, players: GamePlayer[]): TriviaState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as TriviaState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const question = next.questionBank[next.questionIndex];
+    const answer = action.answer as number;
+    next.answered[side] = true;
+    next.answers[side] = answer;
+    if (answer === question.answer) next.scores[side] += 100;
+
+    if (next.answered.every(Boolean)) {
+      next.lastAnswer = { correctAnswer: question.answer, answers: [...next.answers] };
+      if (next.questionIndex + 1 >= next.rounds) {
+        const maximum = Math.max(...next.scores);
+        next.winnerIds = next.scores.map((score, index) => score === maximum ? players[index].id : null).filter((id): id is string => id !== null);
+        next.winnerId = next.winnerIds[0] ?? null;
+        next.draw = next.winnerIds.length > 1;
+        next.finished = true;
+      } else {
+        next.questionIndex += 1;
+        next.answered = players.map(() => false);
+        next.answers = players.map(() => null);
+        next.turnIndex = 0;
+        next.turnPlayerId = players[0].id;
+      }
+    } else {
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: TriviaState, players: GamePlayer[]): GameOutcome {
+    const winners = Array.isArray(state.winnerIds) && state.winnerIds.length ? state.winnerIds : state.winnerId ? [state.winnerId] : [];
+    return { finished: Boolean(state.finished), winnerIds: winners, loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(state: TriviaState, _botId: string, _players: GamePlayer[]): Action { return { type: 'answer', answer: state.questionBank[state.questionIndex].answer }; }
+
+  private shuffle<T>(values: T[]): T[] {
+    const copy = [...values];
+    for (let index = copy.length - 1; index > 0; index -= 1) {
+      const swap = randomInt(index + 1);
+      [copy[index], copy[swap]] = [copy[swap], copy[index]];
+    }
+    return copy;
+  }
+}
+
 export class QuickChallengesEngine extends KnowledgeEngine { readonly id: GameId = 'quick_challenges'; constructor() { super('quick_challenges', 7); } }

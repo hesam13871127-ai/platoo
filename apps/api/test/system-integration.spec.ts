@@ -106,6 +106,30 @@ describe('core game system integration', () => {
     expect(connection.execute).not.toHaveBeenCalled();
   });
 
+  it('sanitizes hidden Sketch prompts and Trivia answers per viewer', () => {
+    const service = new GameService({} as any, {} as any, {} as any);
+    const players = [
+      { userId: 'player-0', seat: 0 },
+      { userId: 'player-1', seat: 1 },
+    ];
+    const trivia = {
+      questionBank: [{ prompt: 'Question', options: ['A', 'B', 'C', 'D'], answer: 2, category: 'Test' }],
+      questionIndex: 0,
+      answers: [null, 1],
+    };
+    const hidden = (service as any).sanitizeState('trivia_battle', trivia, players, 'player-1', 'active');
+    expect(hidden.questionBank).toBeUndefined();
+    expect(hidden.currentQuestion).toEqual({ prompt: 'Question', options: ['A', 'B', 'C', 'D'], category: 'Test' });
+    expect(hidden.answers).toEqual([null, 1]);
+    expect(JSON.stringify(hidden)).not.toContain('answer":2');
+
+    const sketch = { prompt: 'rocket', drawerIndex: 0, drawing: [], guesses: [null, null] };
+    const guesserView = (service as any).sanitizeState('sketch_guess', sketch, players, 'player-1', 'active');
+    expect(guesserView.prompt).toBeNull();
+    const drawerView = (service as any).sanitizeState('sketch_guess', sketch, players, 'player-0', 'active');
+    expect(drawerView.prompt).toBe('rocket');
+  });
+
   it('retries a stale invisible-bot action against freshly loaded state', async () => {
     const active = { id: 'match-1', game_id: 'four_in_a_row', status: 'active', state: { turnPlayerId: 'bot-1' }, revision: 1 };
     const finished = { ...active, status: 'finished' };

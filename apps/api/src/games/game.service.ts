@@ -225,6 +225,20 @@ export class GameService {
         if (Array.isArray(state.seerResults)) state.seerResults = (state.seerResults as unknown[]).map((result, index) => index === viewerSeat ? result : null);
       }
     }
+    if (gameId === 'sketch_guess' && typeof state.prompt === 'string' && status !== 'finished') {
+      const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
+      if (Number(state.drawerIndex) !== viewerSeat) state.prompt = null;
+    }
+    if (gameId === 'trivia_battle' && Array.isArray(state.questionBank)) {
+      const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
+      const bank = state.questionBank as Array<{ prompt: string; options: string[]; category: string; answer?: number }>;
+      const question = bank[Number(state.questionIndex)];
+      if (question) state.currentQuestion = { prompt: question.prompt, options: question.options, category: question.category };
+      if (status !== 'finished') {
+        state.answers = Array.isArray(state.answers) ? (state.answers as unknown[]).map((answer, index) => index === viewerSeat ? answer : null) : [];
+        delete state.questionBank;
+      }
+    }
     if (gameId === 'memory_race' && Array.isArray(state.values)) { state.values = (state.values as unknown[]).map((value, index) => (state.revealed as boolean[])[index] || (state.matched as boolean[])[index] ? value : null); }
     return state;
   }

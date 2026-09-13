@@ -1,6 +1,7 @@
 import { ChessEngine, FourInARowEngine, MancalaEngine } from '../src/games/engines/board.engine';
 import { CarromEngine, DominoesEngine, LudoEngine, PoolEngine } from '../src/games/engines/tabletop.engine';
-import { BingoEngine, WerewolfEngine } from '../src/games/engines/party.engine';
+import { MiniGolfEngine, TableSoccerEngine } from '../src/games/engines/sport.engine';
+import { BingoEngine, SketchGuessEngine, TriviaBattleEngine, WerewolfEngine } from '../src/games/engines/party.engine';
 import { OchoEngine } from '../src/games/engines/cards.engine';
 import { GamePlayer } from '../src/games/game.types';
 import { GameRegistry } from '../src/games/game.registry';
@@ -174,6 +175,61 @@ describe('authoritative game engines', () => {
     }
   });
 
+  it('plays Mini Golf hole-by-hole and settles the lowest total score, including a tie', () => {
+    const engine = new MiniGolfEngine(); const roster = players(2); let state = engine.create(roster) as any;
+    expect(() => engine.apply(state, 'player-0', { type: 'putt', strokes: 0 }, roster)).toThrow();
+    for (let hole = 1; hole <= 9; hole += 1) {
+      state = engine.apply(state, state.turnPlayerId, { type: 'putt', strokes: 2 }, roster) as any;
+      state = engine.apply(state, state.turnPlayerId, { type: 'putt', strokes: 3 }, roster) as any;
+      expect(state.holeStrokes).toEqual(hole === 9 && state.finished ? [2, 3] : [null, null]);
+    }
+    expect(state.finished).toBe(true); expect(state.completedHoles).toBe(9); expect(state.winnerIds).toEqual(['player-0']);
+    expect(() => engine.apply(state, 'player-0', { type: 'putt', strokes: 2 }, roster)).toThrow();
+    expect(engine.outcome(state, roster)).toMatchObject({ finished: true, winnerIds: ['player-0'], loserIds: ['player-1'], draw: false });
+
+    let tie = engine.create(roster) as any;
+    for (let hole = 1; hole <= 9; hole += 1) {
+      tie = engine.apply(tie, tie.turnPlayerId, { type: 'putt', strokes: 2 }, roster) as any;
+      tie = engine.apply(tie, tie.turnPlayerId, { type: 'putt', strokes: 2 }, roster) as any;
+    }
+    expect(tie.finished).toBe(true); expect(tie.winnerIds).toEqual(['player-0', 'player-1']); expect(tie.draw).toBe(true);
+  });
+
+  it('uses Table Soccer target goals, validates shots, and resolves a four-player team win', () => {
+    const engine = new TableSoccerEngine(); const roster = players(4).map((player) => ({ ...player, team: player.seat % 2 })); let state = engine.create(roster) as any;
+    expect(state.teamMode).toBe(true); expect(state.teamGoals).toEqual([0, 0]);
+    expect(() => engine.apply(state, 'player-0', { type: 'shoot', power: 101, aim: 50 }, roster)).toThrow();
+    state.teamGoals = [4, 0]; state.goals = [4, 0, 0, 0]; state.turnPlayerId = 'player-0'; state.turnIndex = 0;
+    for (let attempts = 0; attempts < 100 && !state.finished; attempts += 1) state = engine.apply(state, state.turnPlayerId, engine.botAction(state, state.turnPlayerId, roster), roster) as any;
+    expect(state.finished).toBe(true); expect(state.winnerIds).toEqual(['player-0', 'player-2']);
+    expect(engine.outcome(state, roster).loserIds).toEqual(['player-1', 'player-3']);
+  });
+
+  it('runs Sketch & Guess rounds, scores the drawer and guesser, and lets bots finish', () => {
+    const engine = new SketchGuessEngine(); const roster = players(3); let state = engine.create(roster) as any;
+    expect(() => engine.apply(state, 'player-0', { type: 'guess', guess: 'anything' }, roster)).toThrow();
+    const submitted = engine.apply(state, 'player-0', engine.botAction(state, 'player-0'), roster) as any;
+    expect(() => engine.apply(submitted, 'player-2', { type: 'guess', guess: submitted.prompt }, roster)).toThrow();
+    state = submitted;
+    for (let move = 0; move < 20 && !state.finished; move += 1) {
+      const actor = state.turnPlayerId as string;
+      state = engine.apply(state, actor, engine.botAction(state, actor), roster) as any;
+    }
+    expect(state.finished).toBe(true); expect(state.winnerIds.length).toBeGreaterThan(0); expect(state.scores.every((score: number) => score > 0)).toBe(true);
+    expect(() => engine.apply(state, 'player-0', { type: 'guess', guess: 'late' }, roster)).toThrow();
+  });
+
+  it('runs Trivia Battle rounds, hides invalid answers, and settles a complete bot match', () => {
+    const engine = new TriviaBattleEngine(); const roster = players(2); let state = engine.create(roster) as any;
+    expect(() => engine.apply(state, 'player-0', { type: 'answer', answer: 4 }, roster)).toThrow();
+    for (let move = 0; move < 30 && !state.finished; move += 1) {
+      const actor = state.turnPlayerId as string;
+      state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
+    }
+    expect(state.finished).toBe(true); expect(state.scores).toEqual([1000, 1000]); expect(state.winnerIds).toEqual(['player-0', 'player-1']); expect(state.draw).toBe(true);
+    expect(engine.outcome(state, roster)).toMatchObject({ finished: true, draw: true });
+  });
+
   it('gives the second mancala player a turn after a non-store finish', () => {
     const engine = new MancalaEngine(); const roster = players(2); const state = engine.create(roster);
     const next = engine.apply(state, 'player-0', { type: 'sow', pit: 0 }, roster);
@@ -210,7 +266,7 @@ describe('authoritative game engines', () => {
     expect(drawTwo.turnPlayerId).toBe('player-1');
 
     const wild = engine.create(roster) as any;
-    wild.awaitingColor = true; wild.currentColor = ''; wild.turnIndex = 0; wild.turnPlayerId = 'player-0';
+    wild.awaitingColor = true; wild.currentColor = ''; wild.turnIndex = 0; wild.turnPlayerId = 'player-0'; wild.direction = 1;
     const chosen = engine.apply(wild, 'player-0', { type: 'choose_color', color: 'blue' }, roster) as any;
     expect(chosen.currentColor).toBe('blue');
     expect(chosen.awaitingColor).toBe(false);
