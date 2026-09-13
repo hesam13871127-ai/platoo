@@ -40,9 +40,50 @@ describe('authoritative game engines', () => {
 
   it('only permits an Ocho card matching the active color or value', () => {
     const engine = new OchoEngine(); const roster = players(2); const state = engine.create(roster); const hand = (state.hands as Array<Array<{ color: string; value: string }>>)[0];
-    const top = state.discard[state.discard.length - 1]; const currentColor = state.currentColor as string; const illegalColor = currentColor === 'red' ? 'blue' : 'red';
-    hand[0] = { color: currentColor, value: '0' }; hand[1] = { color: illegalColor, value: top.value === '0' ? '1' : '0' };
+    (state as any).discard = [{ color: 'red', value: '9' }]; (state as any).currentColor = 'red'; (state as any).turnPlayerId = 'player-0';
+    (state as any).pendingDraw = 0; (state as any).drawnCardIndex = null; (state as any).awaitingColor = false;
+    hand[0] = { color: 'red', value: '0' }; hand[1] = { color: 'blue', value: '0' };
     expect(() => engine.apply(state, 'player-0', { type: 'play', index: 0 }, roster)).not.toThrow();
     expect(() => engine.apply(state, 'player-0', { type: 'play', index: 1 }, roster)).toThrow();
+  });
+
+  it('deals the complete 108-card deck and keeps Wild Draw Four out of the opening discard', () => {
+    const state = new OchoEngine().create(players(4)) as any;
+    const cardCount = state.hands.flat().length + state.draw.length + state.discard.length;
+    expect(cardCount).toBe(108);
+    expect(state.discard[state.discard.length - 1].value).not.toBe('wild4');
+  });
+
+  it('lets a player play a matching card drawn during the same turn', () => {
+    const engine = new OchoEngine(); const roster = players(2);
+    const state = {
+      hands: [[{ color: 'red', value: '1' }], [{ color: 'blue', value: '2' }]],
+      draw: [{ color: 'green', value: '7' }], discard: [{ color: 'red', value: '7' }], currentColor: 'red', direction: 1,
+      turnIndex: 0, turnPlayerId: 'player-0', winnerId: null, finished: false, pendingDraw: 0,
+      pendingDrawSource: null, wildFourLegal: null, drawnCardIndex: null, awaitingColor: false,
+    } as any;
+    const drawn = engine.apply(state, 'player-0', { type: 'draw' }, roster) as any;
+    expect(drawn.turnPlayerId).toBe('player-0');
+    expect(drawn.drawnCardIndex).toBe(1);
+    const played = engine.apply(drawn, 'player-0', { type: 'play', index: 1, call: true }, roster) as any;
+    expect(played.discard.at(-1)).toEqual({ color: 'green', value: '7' });
+    expect(played.turnPlayerId).toBe('player-1');
+  });
+
+  it('resolves a successful Wild Draw Four challenge correctly', () => {
+    const engine = new OchoEngine(); const roster = players(2);
+    const state = {
+      hands: [[{ color: 'yellow', value: '5' }, { color: 'wild', value: 'wild4' }], [{ color: 'blue', value: '2' }]],
+      draw: Array.from({ length: 12 }, () => ({ color: 'green', value: '1' })), discard: [{ color: 'yellow', value: '9' }], currentColor: 'yellow', direction: 1,
+      turnIndex: 0, turnPlayerId: 'player-0', winnerId: null, finished: false, pendingDraw: 0,
+      pendingDrawSource: null, wildFourLegal: null, drawnCardIndex: null, awaitingColor: false,
+    } as any;
+    const played = engine.apply(state, 'player-0', { type: 'play', index: 1, color: 'blue', call: true }, roster) as any;
+    expect(played.pendingDraw).toBe(4);
+    expect(played.wildFourLegal).toBe(false);
+    const challenged = engine.apply(played, 'player-1', { type: 'challenge' }, roster) as any;
+    expect(challenged.hands[0]).toHaveLength(5);
+    expect(challenged.turnPlayerId).toBe('player-1');
+    expect(challenged.pendingDraw).toBe(0);
   });
 });

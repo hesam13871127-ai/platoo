@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { randomInt as cryptoRandomInt, randomUUID } from 'node:crypto';
 import { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { MysqlService } from '../database/mysql.service';
 import { conflict, forbidden, invalid, notFound } from '../common/errors';
@@ -14,7 +15,14 @@ interface MatchPlayerRow extends RowDataPacket { id: string; userId: string; dis
 @Injectable()
 export class GameService {
   private readonly logger = new Logger(GameService.name);
+  private readonly updates = new EventEmitter();
+
   constructor(private readonly mysql: MysqlService, private readonly registry: GameRegistry, private readonly ranking: RankingService) {}
+
+  onMatchUpdated(listener: (matchId: string) => void): () => void {
+    this.updates.on('match.updated', listener);
+    return () => this.updates.off('match.updated', listener);
+  }
 
   async listGames() {
     const rows = await this.mysql.query<RowDataPacket[]>(`SELECT id, is_active AS isActive FROM games`);
@@ -35,7 +43,7 @@ export class GameService {
     if (unique.length > playerCount) throw invalid('Too many players for this match.');
     const botCount = playerCount - unique.length;
     const players: GamePlayer[] = unique.map((id, seat) => ({ id, seat, isBot: false, team: descriptor.supportsTeams ? seat % 2 : undefined }));
-    for (let i = 0; i < botCount; i += 1) players.push({ id: await this.createBotUser(gameId, i), seat: players.length, isBot: true, team: descriptor.supportsTeams ? players.length % 2 : undefined });
+    for (let i = 0; i < botCount; i += 1) players.push({ id: await this.createBotUser(i), seat: players.length, isBot: true, team: descriptor.supportsTeams ? players.length % 2 : undefined });
     const engine = this.registry.engine(gameId);
     const state = engine.create(players);
     const matchId = randomUUID();
@@ -47,7 +55,7 @@ export class GameService {
       for (const player of players.filter((candidate) => !candidate.isBot)) await connection.execute(`INSERT INTO conversation_members (conversation_id, user_id) VALUES (?, ?)`, [conversationId, player.id]);
     });
     const result = await this.getMatch(matchId, unique[0]);
-    void this.runBotTurns(matchId);
+    void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
     return result;
   }
 
@@ -91,7 +99,8 @@ export class GameService {
       result = this.publicMatch(refreshed, players, actorId);
     });
     if (completed) await this.ranking.recordMatch(matchId);
-    if (result && !internalBot) void this.runBotTurns(matchId);
+    if (result) this.updates.emit('match.updated', matchId);
+    if (result && !internalBot) void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
     return result;
   }
 
@@ -110,6 +119,7 @@ export class GameService {
       const currentId = typeof currentState.turnPlayerId === 'string' ? currentState.turnPlayerId : null;
       const bot = currentId ? playerRows.find((player) => player.userId === currentId && Boolean(player.isBot)) : rows[0].game_id === 'sea_battle' ? playerRows.find((player) => Boolean(player.isBot) && ((currentState.fleets as unknown[][][])[player.seat]?.length ?? 0) < 5) : undefined;
       if (!bot) return;
+      await this.sleep(650 + cryptoRandomInt(850));
       const enginePlayers = playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
       const action = this.registry.engine(rows[0].game_id).botAction(currentState, bot.userId, enginePlayers);
       await this.act(matchId, bot.userId, action as GameActionDto, true);
@@ -128,12 +138,12 @@ export class GameService {
   private publicMatch(match: MatchRow, players: MatchPlayerRow[], viewerId: string) {
     const parsed = this.parseState(match.state);
     const state = this.sanitizeState(match.game_id, parsed, players, viewerId, match.status);
-    return { id: match.id, gameId: match.game_id, mode: match.mode, status: match.status, revision: Number(match.revision), state, players: players.map((player) => ({ id: player.userId, displayName: player.displayName, avatarUrl: player.avatarUrl, seat: player.seat, team: player.team, isBot: Boolean(player.isBot), result: player.result, ratingBefore: player.ratingBefore, ratingAfter: player.ratingAfter })), winnerIds: this.parseJsonArray(match.winner_ids), loserIds: this.parseJsonArray(match.loser_ids), draw: Boolean(match.draw), createdAt: match.created_at, startedAt: match.started_at, finishedAt: match.finished_at };
+    return { id: match.id, gameId: match.game_id, mode: match.mode, status: match.status, revision: Number(match.revision), viewerSeat: players.find((player) => player.userId === viewerId)?.seat ?? 0, state, players: players.map((player) => ({ id: player.userId, displayName: player.displayName, avatarUrl: player.avatarUrl, seat: player.seat, team: player.team, isBot: false, result: player.result, ratingBefore: player.ratingBefore, ratingAfter: player.ratingAfter })), winnerIds: this.parseJsonArray(match.winner_ids), loserIds: this.parseJsonArray(match.loser_ids), draw: Boolean(match.draw), createdAt: match.created_at, startedAt: match.started_at, finishedAt: match.finished_at };
   }
 
   private sanitizeState(gameId: string, original: GameState, players: MatchPlayerRow[], viewerId: string, status: string): GameState {
     const state = JSON.parse(JSON.stringify(original)) as GameState;
-    if (gameId === 'ocho' && Array.isArray(state.hands)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat || status === 'finished' ? hand : []); }
+    if (gameId === 'ocho' && Array.isArray(state.hands)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat || status === 'finished' ? hand : []); delete state.wildFourLegal; }
     if (gameId === 'sea_battle' && Array.isArray(state.boards)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.boards = (state.boards as unknown[]).map((board, index) => index === viewerSeat || status === 'finished' ? board : (board as number[][]).map((row) => row.map((cell) => cell < 0 ? -1 : 0))); }
     if (gameId === 'werewolf' && status !== 'finished' && Array.isArray(state.roles)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.roles = (state.roles as unknown[]).map((role, index) => index === viewerSeat ? role : 'hidden'); }
     if (gameId === 'memory_race' && Array.isArray(state.values)) { state.values = (state.values as unknown[]).map((value, index) => (state.revealed as boolean[])[index] || (state.matched as boolean[])[index] ? value : null); }
@@ -143,12 +153,17 @@ export class GameService {
   private parseState(value: GameState | string): GameState { return typeof value === 'string' ? JSON.parse(value) as GameState : value; }
   private parseJsonArray(value: string[] | string | null): string[] { if (!value) return []; return Array.isArray(value) ? value : JSON.parse(value) as string[]; }
 
-  private async createBotUser(gameId: string, ordinal: number): Promise<string> {
+  private async createBotUser(ordinal: number): Promise<string> {
     const id = randomUUID();
-    const descriptor = this.registry.descriptor(gameId);
-    const username = `bot_${id.replace(/-/g, '').slice(0, 20)}`;
-    await this.mysql.execute(`INSERT INTO users (id, username, display_name, role, status) VALUES (?, ?, ?, 'player', 'active')`, [id, username, `Vibe Bot · ${descriptor.name} ${ordinal + 1}`]);
+    const username = `player_${id.replace(/-/g, '').slice(0, 20)}`;
+    const names = ['Ari', 'Mina', 'Noah', 'Sami', 'Nika', 'Milo', 'Lina', 'Raya'];
+    const displayName = names[(cryptoRandomInt(names.length) + ordinal) % names.length];
+    await this.mysql.execute(`INSERT INTO users (id, username, display_name, role, status) VALUES (?, ?, ?, 'player', 'active')`, [id, username, displayName]);
     await this.mysql.execute(`INSERT INTO wallets (user_id, coins, pips) VALUES (?, 0, 0)`, [id]);
     return id;
+  }
+
+  private sleep(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
   }
 }

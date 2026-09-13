@@ -10,7 +10,9 @@ import { GameActionDto } from './game.dto';
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(GameGateway.name);
-  constructor(private readonly games: GameService, private readonly jwt: JwtService, private readonly config: ConfigService) {}
+  constructor(private readonly games: GameService, private readonly jwt: JwtService, private readonly config: ConfigService) {
+    this.games.onMatchUpdated((matchId) => { void this.broadcast(matchId); });
+  }
 
   async handleConnection(socket: Socket): Promise<void> {
     try {
@@ -33,9 +35,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('game:action')
   async action(@ConnectedSocket() socket: Socket, @MessageBody() body: { matchId: string; action: GameActionDto }) {
-    const match = await this.games.act(body.matchId, socket.data.userId as string, body.action);
-    void this.broadcast(body.matchId);
-    return match;
+    return this.games.act(body.matchId, socket.data.userId as string, body.action);
   }
 
   private async broadcast(matchId: string): Promise<void> {
