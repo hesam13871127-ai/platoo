@@ -86,10 +86,29 @@ class OchoGameBoard extends StatelessWidget {
   }
 
   Future<void> _playCard(BuildContext context, int index, Map<String, dynamic> card) async {
+    final hands = state['hands'] as List? ?? const [];
+    final seat = match.viewerSeat;
+    final hand = seat >= 0 && seat < hands.length ? hands[seat] as List? ?? const [] : const [];
+    var callOcho = true;
+    if (hand.length == 2) {
+      final decision = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Call Ocho?'),
+          content: const Text('You will have one card after this play. Call Ocho to avoid the two-card penalty.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Play without calling')),
+            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Call Ocho')),
+          ],
+        ),
+      );
+      if (decision == null) return;
+      callOcho = decision;
+    }
     String? color;
     if (card['color'] == 'wild') color = await _chooseColor(context);
     if (card['color'] == 'wild' && color == null) return;
-    final action = <String, dynamic>{'type': 'play', 'index': index, 'call': true};
+    final action = <String, dynamic>{'type': 'play', 'index': index, 'call': callOcho};
     if (color != null) action['color'] = color;
     onAction(action);
   }
