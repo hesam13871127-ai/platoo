@@ -4,13 +4,13 @@
   "private": true,
   "scripts": {
     "build": "nest build",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
-    "db:migrate": "node dist/database/migrate.js",
-    "db:seed": "node dist/database/seed.js"
+    "db:migrate": "node dist/src/database/migrate.js",
+    "db:seed": "node dist/src/database/seed.js"
   },
   "dependencies": {
     "livekit-server-sdk": "^2.7.0",
