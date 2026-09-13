@@ -17,6 +17,12 @@ class _ChessGameBoardState extends State<ChessGameBoard> {
   int? selected;
 
   @override
+  void didUpdateWidget(covariant ChessGameBoard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.match.revision != widget.match.revision) selected = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final board = (widget.state['board'] as List? ?? const []).map<List<dynamic>>((row) => (row as List).toList()).toList();
     final viewer = widget.match.players.where((player) => player['seat'] == widget.match.viewerSeat).toList();

@@ -24,7 +24,10 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
   void didUpdateWidget(covariant PoolGameBoard oldWidget) {
     super.didUpdateWidget(oldWidget);
     final remaining = _remaining;
-    if (selectedBall != null && !remaining.contains(selectedBall)) selectedBall = null;
+    if (oldWidget.match.revision != widget.match.revision || (selectedBall != null && !remaining.contains(selectedBall))) {
+      selectedBall = null;
+      scratch = false;
+    }
   }
 
   @override

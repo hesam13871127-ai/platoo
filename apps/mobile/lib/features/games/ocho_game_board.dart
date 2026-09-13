@@ -21,7 +21,7 @@ class OchoGameBoard extends StatelessWidget {
     final drawnIndex = (state['drawnCardIndex'] as num?)?.toInt();
     final awaitingColor = state['awaitingColor'] == true;
     final ownPlayers = match.players.where((player) => player['seat'] == seat).toList();
-    final isTurn = ownPlayers.isNotEmpty && state['turnPlayerId'] == ownPlayers.first['id'];
+    final isTurn = match.status == 'active' && ownPlayers.isNotEmpty && state['turnPlayerId'] == ownPlayers.first['id'];
 
     return Card(
       child: Padding(

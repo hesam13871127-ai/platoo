@@ -17,19 +17,90 @@ import '../social/social_screen.dart';
 
 class GameRoomScreen extends ConsumerStatefulWidget { const GameRoomScreen({super.key, required this.matchId, required this.game}); final String matchId; final GameDescriptor game; @override ConsumerState<GameRoomScreen> createState() => _GameRoomScreenState(); }
 class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
-  MatchModel? match; String? error; Timer? poller; late final GameSocket socket; bool completionSynced = false; bool actionPending = false;
-  @override void initState() { super.initState(); socket = GameSocket(ref.read(tokenStoreProvider)); _load(); socket.connect(matchId: widget.matchId, onUpdate: _acceptMatch, onError: (message) { if (mounted) setState(() => error = message); }); poller = Timer.periodic(const Duration(seconds: 3), (_) => _load()); }
-  @override void dispose() { poller?.cancel(); socket.dispose(); super.dispose(); }
-  void _acceptMatch(Map<String, dynamic> data) {
-    final next = MatchModel.fromJson(Map<String, dynamic>.from(data));
-    if (!mounted) return;
-    if (match != null && next.revision < match!.revision) return;
-    setState(() { match = next; error = null; });
-    if (next.status == 'finished' && !completionSynced) { completionSynced = true; unawaited(ref.read(authProvider.notifier).refreshProfile()); }
+  MatchModel? match;
+  String? error;
+  Timer? poller;
+  Timer? completionGrace;
+  late final GameSocket socket;
+  bool completionSynced = false;
+  bool rewardProfileSynced = false;
+  bool actionPending = false;
+  bool loadInFlight = false;
+  GameSocketStatus socketStatus = GameSocketStatus.connecting;
+
+  @override
+  void initState() {
+    super.initState();
+    socket = GameSocket(ref.read(tokenStoreProvider));
+    unawaited(socket.connect(matchId: widget.matchId, onUpdate: _acceptMatch, onError: _handleSocketError, onStatus: _handleSocketStatus));
+    unawaited(_load());
+    poller = Timer.periodic(const Duration(seconds: 3), (_) => unawaited(_load()));
   }
-  Future<void> _load() async { try { final data = await ref.read(apiClientProvider).get('/matches/${widget.matchId}') as Map; _acceptMatch(Map<String, dynamic>.from(data)); } catch (e) { if (mounted) setState(() => error = e.toString()); } }
+
+  @override
+  void dispose() {
+    poller?.cancel();
+    completionGrace?.cancel();
+    socket.dispose();
+    super.dispose();
+  }
+
+  void _handleSocketStatus(GameSocketStatus status) {
+    if (!mounted) return;
+    setState(() => socketStatus = status);
+  }
+
+  void _handleSocketError(String message) {
+    if (!mounted) return;
+    setState(() => error = message);
+  }
+
+  void _acceptMatch(Map<String, dynamic> data) {
+    try {
+      final next = MatchModel.fromJson(Map<String, dynamic>.from(data));
+      if (!mounted) return;
+      if (match != null && next.revision < match!.revision) return;
+      setState(() {
+        match = next;
+        error = null;
+      });
+      if (next.status == 'finished') {
+        if (next.reward != null) {
+          poller?.cancel();
+          completionGrace?.cancel();
+          completionGrace = null;
+        } else {
+          completionGrace ??= Timer(const Duration(seconds: 20), () { poller?.cancel(); completionGrace = null; });
+        }
+        if (!completionSynced) {
+          completionSynced = true;
+          rewardProfileSynced = next.reward != null;
+          unawaited(ref.read(authProvider.notifier).refreshProfile());
+        } else if (next.reward != null && !rewardProfileSynced) {
+          rewardProfileSynced = true;
+          unawaited(ref.read(authProvider.notifier).refreshProfile());
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => error = 'The match update could not be read.');
+    }
+  }
+
+  Future<void> _load() async {
+    if (loadInFlight) return;
+    loadInFlight = true;
+    try {
+      final data = await ref.read(apiClientProvider).get('/matches/${widget.matchId}') as Map;
+      _acceptMatch(Map<String, dynamic>.from(data));
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    } finally {
+      loadInFlight = false;
+    }
+  }
+
   Future<void> _action(Map<String, dynamic> action) async {
-    if (actionPending) return;
+    if (actionPending || match?.status != 'active') return;
     setState(() => actionPending = true);
     try {
       final data = await ref.read(apiClientProvider).post('/matches/${widget.matchId}/actions', data: action) as Map;
@@ -40,26 +111,219 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
       if (mounted) setState(() => actionPending = false);
     }
   }
-  @override Widget build(BuildContext context) { final current = match; return Scaffold(appBar: AppBar(leading: IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_rounded)), title: Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 34), const SizedBox(width: 10), Expanded(child: Text(widget.game.name, style: const TextStyle(fontWeight: FontWeight.w900))), if (current?.status == 'finished') const Icon(Icons.emoji_events_rounded, color: AppTheme.gold)]), actions: [VoiceRoomButton(api: ref.read(apiClientProvider), matchId: widget.matchId), IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded))]), body: current == null ? Center(child: error == null ? const CircularProgressIndicator() : Padding(padding: const EdgeInsets.all(24), child: Text(error!))) : _MatchBody(match: current, game: widget.game, onAction: _action)); }
+
+  void _retryLiveUpdates() {
+    socket.retry();
+    unawaited(_load());
+  }
+
+  String? get _syncMessage {
+    if (error != null) return 'Showing the last confirmed state. ${error!}';
+    return switch (socketStatus) {
+      GameSocketStatus.connected => actionPending ? 'Sending your move…' : null,
+      GameSocketStatus.connecting => 'Connecting to the live table…',
+      GameSocketStatus.reconnecting => 'Live updates paused · reconnecting…',
+      GameSocketStatus.disconnected => 'Live updates are offline · REST sync is still available.',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = match;
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_rounded)),
+        title: Row(children: [
+          GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 34),
+          const SizedBox(width: 10),
+          Expanded(child: Text(widget.game.name, style: const TextStyle(fontWeight: FontWeight.w900))),
+          if (current?.status == 'finished') const Icon(Icons.emoji_events_rounded, color: AppTheme.gold),
+        ]),
+        actions: [
+          VoiceRoomButton(api: ref.read(apiClientProvider), matchId: widget.matchId),
+          IconButton(onPressed: () => unawaited(_load()), icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh match'),
+        ],
+      ),
+      body: current == null
+          ? _RoomLoading(error: error, onRetry: _retryLiveUpdates)
+          : _MatchBody(match: current, game: widget.game, onAction: _action, syncMessage: _syncMessage, onRetrySync: _retryLiveUpdates),
+    );
+  }
 }
 
-class _MatchBody extends StatelessWidget { const _MatchBody({required this.match, required this.game, required this.onAction}); final MatchModel match; final GameDescriptor game; final ValueChanged<Map<String, dynamic>> onAction; @override Widget build(BuildContext context) { return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 30), children: [SizedBox(height: 58, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: match.players.length, separatorBuilder: (_, __) => const SizedBox(width: 10), itemBuilder: (_, index) { final player = match.players[index]; final isWinner = match.winnerIds.contains(player['id']); return _PlayerChip(name: player['displayName']?.toString() ?? 'Player', bot: player['isBot'] as bool? ?? false, active: match.state['turnPlayerId'] == player['id'], winner: isWinner, color: index.isEven ? AppTheme.violet : AppTheme.coral); })), const SizedBox(height: 14), if (match.status == 'finished') _ResultBanner(match: match), GameCanvas(game: game, state: match.state, match: match, onAction: onAction), const SizedBox(height: 14), _TurnHint(match: match), const SizedBox(height: 18), _RoomChatHint(onTap: match.conversationId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConversationScreen(conversation: {'id': match.conversationId, 'title': '${game.name} table'})))), ]); }
+class _RoomLoading extends StatelessWidget {
+  const _RoomLoading({required this.error, required this.onRetry});
+  final String? error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const CircularProgressIndicator(),
+        const SizedBox(height: 18),
+        Text(error == null ? 'Loading your table…' : 'We could not load this table.', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        if (error != null) ...[
+          const SizedBox(height: 8),
+          Text(error!, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('Try again')),
+        ],
+      ]),
+    ),
+  );
 }
 
-class _PlayerChip extends StatelessWidget { const _PlayerChip({required this.name, required this.bot, required this.active, required this.winner, required this.color}); final String name; final bool bot; final bool active; final bool winner; final Color color; @override Widget build(BuildContext context) => AnimatedContainer(duration: const Duration(milliseconds: 250), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: active ? color.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: active ? color : Theme.of(context).dividerColor, width: active ? 1.5 : .6)), child: Row(children: [CircleAvatar(radius: 14, backgroundColor: color.withOpacity(.2), child: Icon(bot ? Icons.smart_toy_rounded : Icons.person_rounded, size: 15, color: color)), const SizedBox(width: 7), Text(name, style: const TextStyle(fontWeight: FontWeight.w800)), if (winner) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.emoji_events_rounded, size: 16, color: AppTheme.gold))])); }
+class _MatchBody extends StatelessWidget {
+  const _MatchBody({required this.match, required this.game, required this.onAction, required this.syncMessage, required this.onRetrySync});
+  final MatchModel match;
+  final GameDescriptor game;
+  final ValueChanged<Map<String, dynamic>> onAction;
+  final String? syncMessage;
+  final VoidCallback onRetrySync;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+      children: [
+        SizedBox(
+          height: 58,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: match.players.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, index) {
+              final player = match.players[index];
+              return _PlayerChip(
+                name: player['displayName']?.toString() ?? 'Player',
+                bot: player['isBot'] as bool? ?? false,
+                active: match.status == 'active' && match.state['turnPlayerId'] == player['id'],
+                winner: match.winnerIds.contains(player['id']),
+                color: index.isEven ? AppTheme.violet : AppTheme.coral,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (syncMessage != null) _SyncBanner(message: syncMessage!, onRetry: onRetrySync),
+        if (match.status == 'finished') _ResultBanner(match: match),
+        GameCanvas(game: game, state: match.state, match: match, onAction: onAction),
+        const SizedBox(height: 14),
+        _TurnHint(match: match),
+        const SizedBox(height: 18),
+        _RoomChatHint(onTap: match.conversationId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConversationScreen(conversation: {'id': match.conversationId, 'title': '${game.name} table'})))),
+      ],
+    );
+  }
+}
+
+class _SyncBanner extends StatelessWidget {
+  const _SyncBanner({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+    decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.14), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.gold.withOpacity(.35))),
+    child: Row(children: [
+      const Icon(Icons.sync_problem_rounded, size: 19, color: AppTheme.gold),
+      const SizedBox(width: 9),
+      Expanded(child: Text(message, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+      TextButton(onPressed: onRetry, child: const Text('Retry')),
+    ]),
+  );
+}
+
+class _PlayerChip extends StatelessWidget {
+  const _PlayerChip({required this.name, required this.bot, required this.active, required this.winner, required this.color});
+  final String name;
+  final bool bot;
+  final bool active;
+  final bool winner;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: const Duration(milliseconds: 250),
+    constraints: const BoxConstraints(maxWidth: 170),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(color: active ? color.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: active ? color : Theme.of(context).dividerColor, width: active ? 1.5 : .6)),
+    child: Row(children: [
+      CircleAvatar(radius: 14, backgroundColor: color.withOpacity(.2), child: Icon(bot ? Icons.smart_toy_rounded : Icons.person_rounded, size: 15, color: color)),
+      const SizedBox(width: 7),
+      Flexible(child: Text(name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
+      if (winner) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.emoji_events_rounded, size: 16, color: AppTheme.gold)),
+    ]),
+  );
+}
 
 class _ResultBanner extends StatelessWidget {
   const _ResultBanner({required this.match});
   final MatchModel match;
+
   @override
   Widget build(BuildContext context) {
+    final viewer = match.players.where((player) => player['seat'] == match.viewerSeat).toList();
+    final viewerResult = viewer.isEmpty ? null : viewer.first['result']?.toString();
     final winners = match.players.where((player) => match.winnerIds.contains(player['id'])).map((player) => player['displayName']?.toString() ?? 'Player').toList();
-    final headline = match.draw ? 'It’s a draw!' : winners.isEmpty ? 'The table has a winner!' : '${winners.join(' and ')} won';
-    return Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(17), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF2D2264), Color(0xFF7957F2)]), borderRadius: BorderRadius.circular(22)), child: Row(children: [const Icon(Icons.celebration_rounded, color: AppTheme.gold, size: 32), const SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(headline, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)), const SizedBox(height: 4), const Text('Result saved · ranking, XP, and coins synced', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700))]))]));
+    final headline = match.draw ? 'It’s a draw' : viewerResult == 'win' ? 'You won!' : viewerResult == 'loss' ? 'Match complete' : winners.isEmpty ? 'Match complete' : '${winners.join(' and ')} won';
+    final reward = match.reward;
+    final xp = (reward?['xp'] as num?)?.toInt();
+    final coins = (reward?['coins'] as num?)?.toInt();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF2D2264), Color(0xFF7957F2)]), borderRadius: BorderRadius.circular(22)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.celebration_rounded, color: AppTheme.gold, size: 32),
+          const SizedBox(width: 13),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(headline, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 19)),
+            if (winners.isNotEmpty && !match.draw) Text(winners.join(' · '), overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
+          ])),
+        ]),
+        const SizedBox(height: 14),
+        if (xp != null && coins != null) ...[
+          const Text('Rewards added to your profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 9),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            _RewardPill(icon: Icons.bolt_rounded, label: '+$xp XP'),
+            _RewardPill(icon: Icons.circle, label: '+$coins coins'),
+          ]),
+        ] else const Text('Result saved · rewards will appear after the next sync.', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.home_rounded, color: Colors.white), label: const Text('Back to games', style: TextStyle(color: Colors.white))),
+      ]),
+    );
   }
 }
 
-class _TurnHint extends StatelessWidget { const _TurnHint({required this.match}); final MatchModel match; @override Widget build(BuildContext context) { final turnPlayers = match.players.where((player) => player['id'] == match.state['turnPlayerId']).toList(); final turn = turnPlayers.isEmpty ? null : turnPlayers.first['displayName']; return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16)), child: Row(children: [Icon(Icons.timelapse_rounded, size: 20, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 9), Text(turn == null ? 'Set up your board' : 'Turn: $turn', style: const TextStyle(fontWeight: FontWeight.w800))])); } }
+class _RewardPill extends StatelessWidget {
+  const _RewardPill({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white.withOpacity(.16), borderRadius: BorderRadius.circular(99)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 16, color: AppTheme.gold), const SizedBox(width: 5), Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12))]));
+}
+
+class _TurnHint extends StatelessWidget {
+  const _TurnHint({required this.match});
+  final MatchModel match;
+
+  @override
+  Widget build(BuildContext context) {
+    final turnPlayers = match.players.where((player) => player['id'] == match.state['turnPlayerId']).toList();
+    final turn = turnPlayers.isEmpty ? null : turnPlayers.first['displayName']?.toString();
+    final message = match.status == 'finished' ? 'Match finished' : turn == null ? 'Waiting for the table state' : 'Turn: $turn';
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16)), child: Row(children: [Icon(match.status == 'finished' ? Icons.flag_rounded : Icons.timelapse_rounded, size: 20, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 9), Expanded(child: Text(message, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)))]));
+  }
+}
 
 class _RoomChatHint extends StatelessWidget { const _RoomChatHint({this.onTap}); final VoidCallback? onTap; @override Widget build(BuildContext context) => OutlinedButton.icon(onPressed: onTap, icon: const Icon(Icons.forum_outlined), label: const Text('Open table chat')); }
 

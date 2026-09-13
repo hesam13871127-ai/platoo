@@ -175,7 +175,9 @@ export class GameService {
   private publicMatch(match: MatchRow, players: MatchPlayerRow[], viewerId: string) {
     const parsed = this.parseState(match.state);
     const state = this.sanitizeState(match.game_id, parsed, players, viewerId, match.status);
-    return { id: match.id, gameId: match.game_id, mode: match.mode, status: match.status, revision: Number(match.revision), viewerSeat: players.find((player) => player.userId === viewerId)?.seat ?? 0, state, players: players.map((player) => ({ id: player.userId, displayName: player.displayName, avatarUrl: player.avatarUrl, seat: player.seat, team: player.team, isBot: false, result: player.result, ratingBefore: player.ratingBefore, ratingAfter: player.ratingAfter })), winnerIds: this.parseJsonArray(match.winner_ids), loserIds: this.parseJsonArray(match.loser_ids), draw: Boolean(match.draw), createdAt: match.created_at, startedAt: match.started_at, finishedAt: match.finished_at };
+    const viewer = players.find((player) => player.userId === viewerId);
+    const reward = match.status === 'finished' && viewer && viewer.result !== 'pending' && viewer.ratingBefore !== null ? { result: viewer.result, xp: viewer.result === 'win' ? 100 : viewer.result === 'draw' || Boolean(match.draw) ? 60 : 40, coins: viewer.result === 'win' ? 100 : viewer.result === 'draw' || Boolean(match.draw) ? 50 : 25 } : null;
+    return { id: match.id, gameId: match.game_id, mode: match.mode, status: match.status, revision: Number(match.revision), viewerSeat: viewer?.seat ?? 0, state, players: players.map((player) => ({ id: player.userId, displayName: player.displayName, avatarUrl: player.avatarUrl, seat: player.seat, team: player.team, isBot: false, result: player.result, ratingBefore: player.ratingBefore, ratingAfter: player.ratingAfter })), winnerIds: this.parseJsonArray(match.winner_ids), loserIds: this.parseJsonArray(match.loser_ids), draw: Boolean(match.draw), reward, createdAt: match.created_at, startedAt: match.started_at, finishedAt: match.finished_at };
   }
 
   private sanitizeState(gameId: string, original: GameState, players: MatchPlayerRow[], viewerId: string, status: string): GameState {

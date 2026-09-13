@@ -20,7 +20,7 @@ class _WerewolfGameBoardState extends State<WerewolfGameBoard> {
   void didUpdateWidget(covariant WerewolfGameBoard oldWidget) {
     super.didUpdateWidget(oldWidget);
     final alive = _alive;
-    if (selectedTarget != null && (selectedTarget! >= alive.length || !alive[selectedTarget!])) selectedTarget = null;
+    if (oldWidget.match.revision != widget.match.revision || (selectedTarget != null && (selectedTarget! >= alive.length || !alive[selectedTarget!]))) selectedTarget = null;
   }
 
   @override
