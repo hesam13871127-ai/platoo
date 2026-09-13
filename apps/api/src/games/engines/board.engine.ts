@@ -56,22 +56,304 @@ export class CheckersEngine implements GameEngine {
   private inside(r: number, c: number): boolean { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 }
 
-interface ChessState extends GameState { board: (string | null)[][]; turnIndex: number; turnPlayerId: string; castling: { K: boolean; Q: boolean; k: boolean; q: boolean }; enPassant: { r: number; c: number } | null; winnerId: string | null; finished: boolean; draw?: boolean; }
+interface ChessState extends GameState {
+  board: (string | null)[][];
+  turnIndex: number;
+  turnPlayerId: string;
+  castling: { K: boolean; Q: boolean; k: boolean; q: boolean };
+  enPassant: { r: number; c: number } | null;
+  winnerId: string | null;
+  finished: boolean;
+  draw?: boolean;
+  inCheck: boolean;
+  drawReason?: string;
+  halfmoveClock: number;
+  fullmoveNumber: number;
+  positionCounts: Record<string, number>;
+}
+
+interface ChessMove { fr: number; fc: number; tr: number; tc: number; promotion?: 'q' | 'r' | 'b' | 'n'; }
 
 export class ChessEngine implements GameEngine {
   readonly id: GameId = 'chess';
-  create(players: GamePlayer[]): ChessState { const board: (string | null)[][] = [['r','n','b','q','k','b','n','r'], Array(8).fill('p'), ...Array.from({ length: 4 }, () => Array(8).fill(null)), Array(8).fill('P'), ['R','N','B','Q','K','B','N','R']]; return { board, turnIndex: 0, turnPlayerId: players[0].id, castling: { K: true, Q: true, k: true, q: true }, enPassant: null, winnerId: null, finished: false }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { const s = state as ChessState; turnCheck(s, actorId); if (action.type !== 'move') throw new IllegalMoveError('Use the move action.'); const from = this.coord(action.fromRow, action.fromCol); const to = this.coord(action.toRow, action.toCol); const piece = s.board[from.r][from.c]; const color = players.findIndex((p) => p.id === actorId) === 0 ? 'w' : 'b'; if (!piece || this.color(piece) !== color) throw new IllegalMoveError('That is not your piece.'); const moves = this.legalMoves(s, color); if (!moves.some((move) => move.fr === from.r && move.fc === from.c && move.tr === to.r && move.tc === to.c)) throw new IllegalMoveError('That move would be illegal.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): ChessState { this.validate(state, actorId, action, players); const s = clone(state) as ChessState; const fr = action.fromRow as number; const fc = action.fromCol as number; const tr = action.toRow as number; const tc = action.toCol as number; const piece = s.board[fr][fc] as string; const captured = s.board[tr][tc]; s.board[fr][fc] = null; if ((piece === 'P' || piece === 'p') && s.enPassant && tr === s.enPassant.r && tc === s.enPassant.c) s.board[piece === 'P' ? tr + 1 : tr - 1][tc] = null; s.board[tr][tc] = piece; if (piece === 'K') { s.castling.K = false; s.castling.Q = false; if (fc === 4 && tc === 6) { s.board[7][7] = null; s.board[7][5] = 'R'; } if (fc === 4 && tc === 2) { s.board[7][0] = null; s.board[7][3] = 'R'; } } if (piece === 'k') { s.castling.k = false; s.castling.q = false; if (fc === 4 && tc === 6) { s.board[0][7] = null; s.board[0][5] = 'r'; } if (fc === 4 && tc === 2) { s.board[0][0] = null; s.board[0][3] = 'r'; } } if (piece === 'R' && fr === 7 && fc === 0) s.castling.Q = false; if (piece === 'R' && fr === 7 && fc === 7) s.castling.K = false; if (piece === 'r' && fr === 0 && fc === 0) s.castling.q = false; if (piece === 'r' && fr === 0 && fc === 7) s.castling.k = false; if (captured === 'R' && tr === 7 && tc === 0) s.castling.Q = false; if (captured === 'R' && tr === 7 && tc === 7) s.castling.K = false; if (captured === 'r' && tr === 0 && tc === 0) s.castling.q = false; if (captured === 'r' && tr === 0 && tc === 7) s.castling.k = false; if ((piece === 'P' || piece === 'p') && Math.abs(tr - fr) === 2) s.enPassant = { r: (tr + fr) / 2, c: fc }; else s.enPassant = null; if ((piece === 'P' && tr === 0) || (piece === 'p' && tr === 7)) { const promotion = typeof action.promotion === 'string' && ['q','r','b','n'].includes(action.promotion as string) ? action.promotion as string : 'q'; s.board[tr][tc] = piece === 'P' ? promotion.toUpperCase() : promotion; } const nextColor = players.findIndex((p) => p.id === actorId) === 0 ? 'b' : 'w'; rotateTurn(s, players); const legal = this.legalMoves(s, nextColor); const inCheck = this.inCheck(s.board, nextColor); if (!legal.length) { s.finished = true; if (inCheck) s.winnerId = actorId; else s.draw = true; } return s; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const color = players.findIndex((p) => p.id === botId) === 0 ? 'w' : 'b'; const moves = this.legalMoves(state as ChessState, color); const move = moves[randomInt(moves.length)]; return move ? { type: 'move', fromRow: move.fr, fromCol: move.fc, toRow: move.tr, toCol: move.tc } : { type: 'move', fromRow: 0, fromCol: 0, toRow: 0, toCol: 0 }; }
-  private coord(r: unknown, c: unknown) { return { r: asInt(r, 'row', 0, 7), c: asInt(c, 'column', 0, 7) }; }
+
+  create(players: GamePlayer[]): ChessState {
+    if (players.length !== 2) throw new IllegalMoveError('Chess requires exactly two players.');
+    const board: (string | null)[][] = [
+      ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+      Array(8).fill('p'),
+      ...Array.from({ length: 4 }, () => Array(8).fill(null)),
+      Array(8).fill('P'),
+      ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
+    ];
+    const state: ChessState = {
+      board,
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      castling: { K: true, Q: true, k: true, q: true },
+      enPassant: null,
+      winnerId: null,
+      finished: false,
+      inCheck: false,
+      halfmoveClock: 0,
+      fullmoveNumber: 1,
+      positionCounts: {},
+    };
+    state.positionCounts[this.positionKey(state, 'w')] = 1;
+    return state;
+  }
+
+  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const chess = state as ChessState;
+    turnCheck(chess, actorId);
+    if (action.type !== 'move') throw new IllegalMoveError('Use the move action.');
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    const color = side === 0 ? 'w' : 'b';
+    const from = this.coord(action.fromRow, action.fromCol);
+    const to = this.coord(action.toRow, action.toCol);
+    const requestedPromotion = this.promotion(action.promotion);
+    if (action.promotion !== undefined && !requestedPromotion) throw new IllegalMoveError('Promotion must be q, r, b, or n.');
+    if (!this.findLegalMove(chess, color, from.r, from.c, to.r, to.c, requestedPromotion)) throw new IllegalMoveError('That move is not legal.');
+  }
+
+  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): ChessState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as ChessState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const color = side === 0 ? 'w' : 'b';
+    const from = this.coord(action.fromRow, action.fromCol);
+    const to = this.coord(action.toRow, action.toCol);
+    const promotion = this.promotion(action.promotion) ?? 'q';
+    const move = this.findLegalMove(next, color, from.r, from.c, to.r, to.c, promotion);
+    if (!move) throw new IllegalMoveError('That move is not legal.');
+
+    const moving = next.board[move.fr][move.fc] as string;
+    const captured = next.board[move.tr][move.tc];
+    const enPassantCapture = moving.toLowerCase() === 'p' && next.enPassant?.r === move.tr && next.enPassant.c === move.tc && !captured;
+    this.applyBoardMove(next, move);
+    this.updateCastlingRights(next, moving, move, captured);
+    next.enPassant = moving.toLowerCase() === 'p' && Math.abs(move.tr - move.fr) === 2 ? { r: (move.tr + move.fr) / 2, c: move.fc } : null;
+    next.halfmoveClock = moving.toLowerCase() === 'p' || captured || enPassantCapture ? 0 : Number(next.halfmoveClock ?? 0) + 1;
+    if (color === 'b') next.fullmoveNumber = Number(next.fullmoveNumber ?? 1) + 1;
+    rotateTurn(next, players);
+
+    const nextColor = color === 'w' ? 'b' : 'w';
+    const key = this.positionKey(next, nextColor);
+    next.positionCounts = next.positionCounts ?? {};
+    next.positionCounts[key] = Number(next.positionCounts[key] ?? 0) + 1;
+    const inCheck = this.inCheck(next.board, nextColor);
+    next.inCheck = inCheck;
+    const legal = this.legalMoves(next, nextColor);
+    if (!legal.length) {
+      next.finished = true;
+      if (inCheck) {
+        next.winnerId = actorId;
+        next.drawReason = 'checkmate';
+      } else {
+        next.draw = true;
+        next.drawReason = 'stalemate';
+      }
+    } else if (Number(next.halfmoveClock) >= 100 || Number(next.positionCounts[key]) >= 3 || this.insufficientMaterial(next.board)) {
+      next.finished = true;
+      next.draw = true;
+      next.drawReason = Number(next.halfmoveClock) >= 100 ? 'fifty_move' : Number(next.positionCounts[key]) >= 3 ? 'threefold_repetition' : 'insufficient_material';
+    }
+    return next;
+  }
+
+  outcome(state: ChessState, players: GamePlayer[]): GameOutcome {
+    const winner = typeof state.winnerId === 'string' ? state.winnerId : '';
+    return {
+      finished: Boolean(state.finished),
+      winnerIds: winner ? [winner] : [],
+      loserIds: winner ? players.filter((player) => player.id !== winner).map((player) => player.id) : [],
+      draw: Boolean(state.draw),
+    };
+  }
+
+  botAction(state: GameState, botId: string, players: GamePlayer[]): Action {
+    const chess = state as ChessState;
+    const side = players.findIndex((player) => player.id === botId);
+    const color = side === 0 ? 'w' : 'b';
+    const moves = this.legalMoves(chess, color);
+    const move = moves[randomInt(moves.length)];
+    if (!move) throw new IllegalMoveError('The chess match has no legal moves.');
+    return {
+      type: 'move',
+      fromRow: move.fr,
+      fromCol: move.fc,
+      toRow: move.tr,
+      toCol: move.tc,
+      ...(move.promotion ? { promotion: move.promotion } : {}),
+    };
+  }
+
+  private findLegalMove(state: ChessState, color: 'w' | 'b', fr: number, fc: number, tr: number, tc: number, requestedPromotion?: 'q' | 'r' | 'b' | 'n'): ChessMove | undefined {
+    return this.legalMoves(state, color).find((move) => move.fr === fr && move.fc === fc && move.tr === tr && move.tc === tc && (!move.promotion || move.promotion === (requestedPromotion ?? 'q')));
+  }
+
+  private legalMoves(state: ChessState, color: 'w' | 'b'): ChessMove[] {
+    return this.pseudoMoves(state, color).filter((move) => {
+      const copy = clone(state) as ChessState;
+      this.applyBoardMove(copy, move);
+      return !this.inCheck(copy.board, color);
+    });
+  }
+
+  private pseudoMoves(state: ChessState, color: 'w' | 'b'): ChessMove[] {
+    const moves: ChessMove[] = [];
+    for (let r = 0; r < 8; r += 1) {
+      for (let c = 0; c < 8; c += 1) {
+        const piece = state.board[r][c];
+        if (!piece || this.color(piece) !== color) continue;
+        const lower = piece.toLowerCase();
+        if (lower === 'p') {
+          const direction = color === 'w' ? -1 : 1;
+          const start = color === 'w' ? 6 : 1;
+          const promotionRow = color === 'w' ? 0 : 7;
+          if (this.inside(r + direction, c) && !state.board[r + direction][c]) {
+            this.addPawnMove(moves, r, c, r + direction, c, promotionRow);
+            if (r === start && !state.board[r + 2 * direction][c]) moves.push({ fr: r, fc: c, tr: r + 2 * direction, tc: c });
+          }
+          for (const dc of [-1, 1]) {
+            const tr = r + direction;
+            const tc = c + dc;
+            if (!this.inside(tr, tc)) continue;
+            const target = state.board[tr][tc];
+            const isEnPassant = state.enPassant?.r === tr && state.enPassant.c === tc && !target && state.board[r][tc] === (color === 'w' ? 'p' : 'P');
+            if ((target && this.color(target) !== color && target.toLowerCase() !== 'k') || isEnPassant) this.addPawnMove(moves, r, c, tr, tc, promotionRow);
+          }
+        } else if (lower === 'n') {
+          for (const [dr, dc] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]]) this.addTargetMove(state, moves, r, c, r + dr, c + dc, color);
+        } else if (lower === 'k') {
+          for (const [dr, dc] of [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) this.addTargetMove(state, moves, r, c, r + dr, c + dc, color);
+          this.addCastlingMoves(state, moves, color, r, c);
+        } else {
+          const directions = lower === 'b'
+            ? [[1, 1], [1, -1], [-1, 1], [-1, -1]]
+            : lower === 'r'
+              ? [[1, 0], [-1, 0], [0, 1], [0, -1]]
+              : [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]];
+          for (const [dr, dc] of directions) {
+            let tr = r + dr;
+            let tc = c + dc;
+            while (this.inside(tr, tc)) {
+              const continues = this.addTargetMove(state, moves, r, c, tr, tc, color);
+              if (!continues || state.board[tr][tc]) break;
+              tr += dr;
+              tc += dc;
+            }
+          }
+        }
+      }
+    }
+    return moves;
+  }
+
+  private addPawnMove(moves: ChessMove[], fr: number, fc: number, tr: number, tc: number, promotionRow: number): void {
+    if (tr !== promotionRow) {
+      moves.push({ fr, fc, tr, tc });
+      return;
+    }
+    for (const promotion of ['q', 'r', 'b', 'n'] as const) moves.push({ fr, fc, tr, tc, promotion });
+  }
+
+  private addTargetMove(state: ChessState, moves: ChessMove[], fr: number, fc: number, tr: number, tc: number, color: 'w' | 'b'): boolean {
+    if (!this.inside(tr, tc)) return false;
+    const target = state.board[tr][tc];
+    if (!target || (this.color(target) !== color && target.toLowerCase() !== 'k')) moves.push({ fr, fc, tr, tc });
+    return !target;
+  }
+
+  private addCastlingMoves(state: ChessState, moves: ChessMove[], color: 'w' | 'b', row: number, column: number): void {
+    if (row !== (color === 'w' ? 7 : 0) || column !== 4 || this.inCheck(state.board, color)) return;
+    const enemy = color === 'w' ? 'b' : 'w';
+    const rights = color === 'w' ? state.castling : { K: state.castling.k, Q: state.castling.q };
+    const king = color === 'w' ? 'K' : 'k';
+    const rook = color === 'w' ? 'R' : 'r';
+    if (state.board[row][4] !== king) return;
+    if (rights.K && state.board[row][7] === rook && !state.board[row][5] && !state.board[row][6] && !this.attacked(state.board, row, 5, enemy) && !this.attacked(state.board, row, 6, enemy)) moves.push({ fr: row, fc: 4, tr: row, tc: 6 });
+    if (rights.Q && state.board[row][0] === rook && !state.board[row][1] && !state.board[row][2] && !state.board[row][3] && !this.attacked(state.board, row, 3, enemy) && !this.attacked(state.board, row, 2, enemy)) moves.push({ fr: row, fc: 4, tr: row, tc: 2 });
+  }
+
+  private applyBoardMove(state: ChessState, move: ChessMove): void {
+    const piece = state.board[move.fr][move.fc] as string;
+    const isEnPassant = piece.toLowerCase() === 'p' && state.enPassant?.r === move.tr && state.enPassant.c === move.tc && !state.board[move.tr][move.tc];
+    state.board[move.fr][move.fc] = null;
+    if (isEnPassant) state.board[move.fr][move.tc] = null;
+    const promoted = move.promotion ? (piece === 'P' ? move.promotion.toUpperCase() : move.promotion) : piece;
+    state.board[move.tr][move.tc] = promoted;
+    if (piece === 'K' && move.fr === 7 && move.fc === 4 && move.tc === 6) { state.board[7][7] = null; state.board[7][5] = 'R'; }
+    if (piece === 'K' && move.fr === 7 && move.fc === 4 && move.tc === 2) { state.board[7][0] = null; state.board[7][3] = 'R'; }
+    if (piece === 'k' && move.fr === 0 && move.fc === 4 && move.tc === 6) { state.board[0][7] = null; state.board[0][5] = 'r'; }
+    if (piece === 'k' && move.fr === 0 && move.fc === 4 && move.tc === 2) { state.board[0][0] = null; state.board[0][3] = 'r'; }
+  }
+
+  private updateCastlingRights(state: ChessState, piece: string, move: ChessMove, captured: string | null): void {
+    if (piece === 'K') { state.castling.K = false; state.castling.Q = false; }
+    if (piece === 'k') { state.castling.k = false; state.castling.q = false; }
+    if (piece === 'R' && move.fr === 7 && move.fc === 0) state.castling.Q = false;
+    if (piece === 'R' && move.fr === 7 && move.fc === 7) state.castling.K = false;
+    if (piece === 'r' && move.fr === 0 && move.fc === 0) state.castling.q = false;
+    if (piece === 'r' && move.fr === 0 && move.fc === 7) state.castling.k = false;
+    if (captured === 'R' && move.tr === 7 && move.tc === 0) state.castling.Q = false;
+    if (captured === 'R' && move.tr === 7 && move.tc === 7) state.castling.K = false;
+    if (captured === 'r' && move.tr === 0 && move.tc === 0) state.castling.q = false;
+    if (captured === 'r' && move.tr === 0 && move.tc === 7) state.castling.k = false;
+  }
+
+  private inCheck(board: (string | null)[][], color: 'w' | 'b'): boolean {
+    const king = color === 'w' ? 'K' : 'k';
+    for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) if (board[r][c] === king) return this.attacked(board, r, c, color === 'w' ? 'b' : 'w');
+    return true;
+  }
+
+  private attacked(board: (string | null)[][], r: number, c: number, by: 'w' | 'b'): boolean {
+    const pawnRow = r + (by === 'w' ? 1 : -1);
+    for (const dc of [-1, 1]) if (this.inside(pawnRow, c + dc) && board[pawnRow][c + dc] === (by === 'w' ? 'P' : 'p')) return true;
+    for (const [dr, dc] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]]) if (this.inside(r + dr, c + dc) && board[r + dr][c + dc] === (by === 'w' ? 'N' : 'n')) return true;
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      let nr = r + dr; let nc = c + dc;
+      while (this.inside(nr, nc)) { const piece = board[nr][nc]; if (piece) { if (piece === (by === 'w' ? 'R' : 'r') || piece === (by === 'w' ? 'Q' : 'q')) return true; break; } nr += dr; nc += dc; }
+    }
+    for (const [dr, dc] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      let nr = r + dr; let nc = c + dc;
+      while (this.inside(nr, nc)) { const piece = board[nr][nc]; if (piece) { if (piece === (by === 'w' ? 'B' : 'b') || piece === (by === 'w' ? 'Q' : 'q')) return true; break; } nr += dr; nc += dc; }
+    }
+    for (const [dr, dc] of [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]) if (this.inside(r + dr, c + dc) && board[r + dr][c + dc] === (by === 'w' ? 'K' : 'k')) return true;
+    return false;
+  }
+
+  private insufficientMaterial(board: (string | null)[][]): boolean {
+    const pieces: Array<{ piece: string; row: number; column: number }> = [];
+    for (let row = 0; row < 8; row += 1) for (let column = 0; column < 8; column += 1) { const piece = board[row][column]; if (piece && piece.toLowerCase() !== 'k') pieces.push({ piece, row, column }); }
+    if (pieces.some(({ piece }) => ['p', 'q', 'r'].includes(piece.toLowerCase()))) return false;
+    if (pieces.length === 0 || pieces.length === 1) return true;
+    if (pieces.every(({ piece }) => piece.toLowerCase() === 'b')) {
+      const colors = new Set(pieces.map(({ row, column }) => (row + column) % 2));
+      return colors.size === 1;
+    }
+    return false;
+  }
+
+  private positionKey(state: ChessState, turn: 'w' | 'b'): string {
+    const board = state.board.map((row) => row.map((piece) => piece ?? '.').join('')).join('/');
+    const rights = `${state.castling.K ? 'K' : ''}${state.castling.Q ? 'Q' : ''}${state.castling.k ? 'k' : ''}${state.castling.q ? 'q' : ''}` || '-';
+    const enPassant = state.enPassant ? `${state.enPassant.r},${state.enPassant.c}` : '-';
+    return `${board}|${turn}|${rights}|${enPassant}`;
+  }
+
+  private promotion(value: unknown): 'q' | 'r' | 'b' | 'n' | undefined {
+    if (typeof value !== 'string') return undefined;
+    const normalized = value.toLowerCase();
+    return ['q', 'r', 'b', 'n'].includes(normalized) ? normalized as 'q' | 'r' | 'b' | 'n' : undefined;
+  }
+
+  private coord(row: unknown, column: unknown): { r: number; c: number } {
+    return { r: asInt(row, 'row', 0, 7), c: asInt(column, 'column', 0, 7) };
+  }
+
   private color(piece: string): 'w' | 'b' { return piece === piece.toUpperCase() ? 'w' : 'b'; }
-  private legalMoves(s: ChessState, color: 'w' | 'b'): Array<{ fr: number; fc: number; tr: number; tc: number }> { const pseudo = this.pseudoMoves(s, color); return pseudo.filter((move) => { const copy = clone(s); this.makeForCheck(copy, move); return !this.inCheck(copy.board, color); }); }
-  private pseudoMoves(s: ChessState, color: 'w' | 'b') { const moves: Array<{ fr: number; fc: number; tr: number; tc: number }> = []; for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) { const piece = s.board[r][c]; if (!piece || this.color(piece) !== color) continue; const lower = piece.toLowerCase(); if (lower === 'p') { const dir = color === 'w' ? -1 : 1; const start = color === 'w' ? 6 : 1; if (this.inside(r + dir, c) && !s.board[r + dir][c]) { moves.push({ fr: r, fc: c, tr: r + dir, tc: c }); if (r === start && !s.board[r + 2 * dir][c]) moves.push({ fr: r, fc: c, tr: r + 2 * dir, tc: c }); } for (const dc of [-1, 1]) if (this.inside(r + dir, c + dc) && ((s.board[r + dir][c + dc] && this.color(s.board[r + dir][c + dc] as string) !== color) || (s.enPassant?.r === r + dir && s.enPassant.c === c + dc))) moves.push({ fr: r, fc: c, tr: r + dir, tc: c + dc }); } else if (lower === 'n') { for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) this.addIfValid(s, moves, r, c, r + dr, c + dc, color); } else if (lower === 'k') { for (const [dr, dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) this.addIfValid(s, moves, r, c, r + dr, c + dc, color); const row = color === 'w' ? 7 : 0; if (r === row && c === 4 && !this.inCheck(s.board, color)) { const rights = color === 'w' ? s.castling : { K: s.castling.k, Q: s.castling.q }; if (rights.K && !s.board[row][5] && !s.board[row][6] && !this.attacked(s.board, row, 5, color === 'w' ? 'b' : 'w') && !this.attacked(s.board, row, 6, color === 'w' ? 'b' : 'w')) moves.push({ fr: row, fc: 4, tr: row, tc: 6 }); if (rights.Q && !s.board[row][1] && !s.board[row][2] && !s.board[row][3] && !this.attacked(s.board, row, 3, color === 'w' ? 'b' : 'w') && !this.attacked(s.board, row, 2, color === 'w' ? 'b' : 'w')) moves.push({ fr: row, fc: 4, tr: row, tc: 2 }); } } else { const directions = lower === 'b' ? [[1,1],[1,-1],[-1,1],[-1,-1]] : lower === 'r' ? [[1,0],[-1,0],[0,1],[0,-1]] : [[1,1],[1,-1],[-1,1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]]; for (const [dr, dc] of directions) { let nr = r + dr; let nc = c + dc; while (this.inside(nr, nc)) { if (!this.addIfValid(s, moves, r, c, nr, nc, color)) break; if (s.board[nr][nc]) break; nr += dr; nc += dc; } } } } return moves; }
-  private addIfValid(s: ChessState, moves: Array<{ fr: number; fc: number; tr: number; tc: number }>, fr: number, fc: number, tr: number, tc: number, color: 'w' | 'b'): boolean { if (!this.inside(tr, tc)) return false; const target = s.board[tr][tc]; if (!target || this.color(target) !== color) moves.push({ fr, fc, tr, tc }); return !target; }
-  private makeForCheck(s: ChessState, move: { fr: number; fc: number; tr: number; tc: number }): void { const piece = s.board[move.fr][move.fc]; s.board[move.tr][move.tc] = piece; s.board[move.fr][move.fc] = null; }
-  private inCheck(board: (string | null)[][], color: 'w' | 'b'): boolean { let kr = -1; let kc = -1; for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) if (board[r][c] === (color === 'w' ? 'K' : 'k')) { kr = r; kc = c; } return kr < 0 || this.attacked(board, kr, kc, color === 'w' ? 'b' : 'w'); }
-  private attacked(board: (string | null)[][], r: number, c: number, by: 'w' | 'b'): boolean { const pawnRow = r + (by === 'w' ? 1 : -1); for (const dc of [-1, 1]) if (this.inside(pawnRow, c + dc) && board[pawnRow][c + dc] === (by === 'w' ? 'P' : 'p')) return true; for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) if (this.inside(r + dr, c + dc) && board[r + dr][c + dc] === (by === 'w' ? 'N' : 'n')) return true; const lines = [[1,0],[-1,0],[0,1],[0,-1]]; for (const [dr, dc] of lines) { let nr = r + dr; let nc = c + dc; while (this.inside(nr, nc)) { const piece = board[nr][nc]; if (piece) { if (piece === (by === 'w' ? 'R' : 'r') || piece === (by === 'w' ? 'Q' : 'q')) return true; break; } nr += dr; nc += dc; } } const diagonals = [[1,1],[1,-1],[-1,1],[-1,-1]]; for (const [dr, dc] of diagonals) { let nr = r + dr; let nc = c + dc; while (this.inside(nr, nc)) { const piece = board[nr][nc]; if (piece) { if (piece === (by === 'w' ? 'B' : 'b') || piece === (by === 'w' ? 'Q' : 'q')) return true; break; } nr += dr; nc += dc; } } for (const [dr, dc] of [...lines, ...diagonals]) if (this.inside(r + dr, c + dc) && board[r + dr][c + dc] === (by === 'w' ? 'K' : 'k')) return true; return false; }
-  private inside(r: number, c: number): boolean { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+  private inside(row: number, column: number): boolean { return row >= 0 && row < 8 && column >= 0 && column < 8; }
 }

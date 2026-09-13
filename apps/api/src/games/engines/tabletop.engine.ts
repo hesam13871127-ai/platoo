@@ -2,13 +2,196 @@ import { Action, asInt, GameEngine, GameId, GameOutcome, GamePlayer, GameState, 
 
 const ensureTurn = (state: GameState, actorId: string) => { if (state.turnPlayerId !== actorId) throw new IllegalMoveError('It is not your turn.'); if (state.finished) throw new IllegalMoveError('This game has finished.'); };
 
+const LUDO_HOME = -1;
+const LUDO_FINISHED = 57;
+const LUDO_TRACK_SIZE = 52;
+
+interface LudoState extends GameState {
+  positions: number[][];
+  pendingRoll: number | null;
+  consecutiveSixes: number;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  winnerIds: string[];
+  draw?: boolean;
+}
+
 export class LudoEngine implements GameEngine {
   readonly id: GameId = 'ludo';
-  create(players: GamePlayer[]): GameState { return { positions: players.map(() => [-1, -1, -1, -1]), rolls: players.map(() => 0), pendingRoll: null, turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { ensureTurn(state, actorId); const side = players.findIndex((p) => p.id === actorId); if (action.type === 'roll') { if (state.pendingRoll) throw new IllegalMoveError('Move a token before rolling again.'); return; } if (action.type !== 'move' || !state.pendingRoll) throw new IllegalMoveError('Roll the dice first.'); const token = asInt(action.token, 'token', 0, 3); const position = (state.positions as number[][])[side][token]; const die = Number(state.pendingRoll); if (position === 99 || (position === -1 && die !== 6) || (position >= 0 && position + die > 56)) throw new IllegalMoveError('That token cannot move with this roll.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); if (action.type === 'roll') { next.pendingRoll = randomInt(6) + 1; return next; } const die = Number(next.pendingRoll); const tokens = next.positions as number[][]; const token = action.token as number; tokens[side][token] = tokens[side][token] === -1 ? 0 : tokens[side][token] + die; if (tokens[side][token] >= 56) tokens[side][token] = 99; const absolute = tokens[side][token] >= 0 && tokens[side][token] < 52 ? (side * 13 + tokens[side][token]) % 52 : -1; for (let other = 0; other < tokens.length; other += 1) if (other !== side) for (let t = 0; t < 4; t += 1) { const otherPos = tokens[other][t]; if (absolute >= 0 && otherPos >= 0 && otherPos < 52 && (other * 13 + otherPos) % 52 === absolute) tokens[other][t] = -1; } const won = tokens[side].every((value) => value === 99); next.pendingRoll = null; if (won) { next.finished = true; next.winnerId = actorId; } else if (die !== 6) rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const side = players.findIndex((p) => p.id === botId); if (!state.pendingRoll) return { type: 'roll' }; const die = Number(state.pendingRoll); const tokens = (state.positions as number[][])[side]; const valid = tokens.map((position, token) => position !== 99 && (position === -1 ? die === 6 : position + die <= 56) ? token : -1).filter((token) => token >= 0); return { type: 'move', token: valid[randomInt(valid.length)] ?? 0 }; }
+
+  create(players: GamePlayer[]): LudoState {
+    if (players.length < 2 || players.length > 4) throw new IllegalMoveError('Ludo supports two to four players.');
+    return {
+      positions: players.map(() => [LUDO_HOME, LUDO_HOME, LUDO_HOME, LUDO_HOME]),
+      pendingRoll: null,
+      consecutiveSixes: 0,
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+      winnerIds: [],
+    };
+  }
+
+  validate(state: LudoState, actorId: string, action: Action, players: GamePlayer[]): void {
+    ensureTurn(state, actorId);
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+
+    if (action.type === 'roll') {
+      if (state.pendingRoll !== null) throw new IllegalMoveError('Move a token before rolling again.');
+      return;
+    }
+    if (action.type === 'pass') {
+      if (state.pendingRoll === null) throw new IllegalMoveError('Roll the dice first.');
+      if (this.legalTokens(state, side, Number(state.pendingRoll), players).length) throw new IllegalMoveError('You still have a legal token move.');
+      return;
+    }
+    if (action.type !== 'move' || state.pendingRoll === null) throw new IllegalMoveError('Roll the dice first.');
+    const token = asInt(action.token, 'token', 0, 3);
+    if (!this.canMove(state, side, token, Number(state.pendingRoll), players)) throw new IllegalMoveError('That token cannot move with this roll.');
+  }
+
+  apply(state: LudoState, actorId: string, action: Action, players: GamePlayer[]): LudoState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as LudoState;
+    const side = players.findIndex((player) => player.id === actorId);
+
+    if (action.type === 'roll') {
+      const die = randomInt(6) + 1;
+      if (die === 6 && Number(next.consecutiveSixes) >= 2) {
+        next.pendingRoll = null;
+        next.consecutiveSixes = 0;
+        rotateTurn(next, players);
+      } else {
+        next.pendingRoll = die;
+        next.consecutiveSixes = die === 6 ? Number(next.consecutiveSixes) + 1 : 0;
+      }
+      return next;
+    }
+
+    const die = Number(next.pendingRoll);
+    if (action.type === 'pass') {
+      next.pendingRoll = null;
+      if (die !== 6) {
+        next.consecutiveSixes = 0;
+        rotateTurn(next, players);
+      }
+      return next;
+    }
+
+    const token = action.token as number;
+    const oldPosition = next.positions[side][token];
+    const newPosition = oldPosition === LUDO_HOME ? 0 : oldPosition + die;
+    next.positions[side][token] = newPosition === LUDO_FINISHED ? LUDO_FINISHED : newPosition;
+    this.captureOpponents(next, side, newPosition, players);
+    next.pendingRoll = null;
+
+    const winners = this.winners(next, players);
+    if (winners.length) {
+      next.finished = true;
+      next.winnerIds = winners;
+      next.winnerId = winners[0];
+      return next;
+    }
+
+    if (die !== 6) {
+      next.consecutiveSixes = 0;
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: LudoState, players: GamePlayer[]): GameOutcome {
+    const winners = Array.isArray(state.winnerIds) ? state.winnerIds : state.winnerId ? [state.winnerId] : [];
+    return {
+      finished: Boolean(state.finished),
+      winnerIds: winners,
+      loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [],
+      draw: Boolean(state.draw),
+    };
+  }
+
+  botAction(state: LudoState, botId: string, players: GamePlayer[]): Action {
+    const side = players.findIndex((player) => player.id === botId);
+    if (state.pendingRoll === null) return { type: 'roll' };
+    const die = Number(state.pendingRoll);
+    const legal = this.legalTokens(state, side, die, players);
+    if (!legal.length) return { type: 'pass' };
+    const finishing = legal.find((token) => {
+      const position = state.positions[side][token];
+      return (position === LUDO_HOME ? 0 : position + die) === LUDO_FINISHED;
+    });
+    return { type: 'move', token: finishing ?? legal[0] };
+  }
+
+  private legalTokens(state: LudoState, side: number, die: number, players: GamePlayer[]): number[] {
+    return state.positions[side].map((_, token) => this.canMove(state, side, token, die, players) ? token : -1).filter((token) => token >= 0);
+  }
+
+  private canMove(state: LudoState, side: number, token: number, die: number, players: GamePlayer[]): boolean {
+    const position = state.positions[side][token];
+    if (position === LUDO_FINISHED) return false;
+    if (position === LUDO_HOME && die !== 6) return false;
+    const destination = position === LUDO_HOME ? 0 : position + die;
+    if (destination > LUDO_FINISHED) return false;
+    const firstTrackProgress = position === LUDO_HOME ? destination : position + 1;
+    for (let progress = firstTrackProgress; progress <= Math.min(destination, LUDO_TRACK_SIZE - 1); progress += 1) {
+      if (this.hasOpponentBlockade(state, side, progress, players)) return false;
+    }
+    return true;
+  }
+
+  private hasOpponentBlockade(state: LudoState, side: number, progress: number, players: GamePlayer[]): boolean {
+    if (progress >= LUDO_TRACK_SIZE) return false;
+    const absolute = this.absolutePosition(side, progress);
+    const opponents = state.positions
+      .map((positions, other) => other === side || this.sameTeam(players, side, other) ? 0 : positions.filter((position) => position >= 0 && position < LUDO_TRACK_SIZE && this.absolutePosition(other, position) === absolute).length)
+      .reduce((sum, count) => sum + count, 0);
+    return opponents >= 2;
+  }
+
+  private captureOpponents(state: LudoState, side: number, progress: number, players: GamePlayer[]): void {
+    if (progress < 0 || progress >= LUDO_TRACK_SIZE || this.isSafeSquare(side, progress)) return;
+    const absolute = this.absolutePosition(side, progress);
+    for (let other = 0; other < players.length; other += 1) {
+      if (other === side || this.sameTeam(players, side, other)) continue;
+      const matching = state.positions[other].filter((position) => position >= 0 && position < LUDO_TRACK_SIZE && this.absolutePosition(other, position) === absolute);
+      if (matching.length === 1) {
+        const token = state.positions[other].findIndex((position) => position >= 0 && position < LUDO_TRACK_SIZE && this.absolutePosition(other, position) === absolute);
+        if (token >= 0) state.positions[other][token] = LUDO_HOME;
+      }
+    }
+  }
+
+  private sameTeam(players: GamePlayer[], first: number, second: number): boolean {
+    return players.length === 4 && players[first].team !== undefined && players[first].team === players[second].team;
+  }
+
+  private winners(state: LudoState, players: GamePlayer[]): string[] {
+    const completed = (side: number) => state.positions[side].every((position) => position === LUDO_FINISHED);
+    if (players.length === 4 && players.every((player) => player.team !== undefined)) {
+      const teams = [...new Set(players.map((player) => player.team as number))];
+      for (const team of teams) {
+        const members = players.map((player, index) => player.team === team ? index : -1).filter((index) => index >= 0);
+        if (members.length && members.every(completed)) return members.map((index) => players[index].id);
+      }
+    }
+    const winner = players.findIndex((_, index) => completed(index));
+    return winner >= 0 ? [players[winner].id] : [];
+  }
+
+  private absolutePosition(side: number, progress: number): number {
+    return (side * 13 + progress) % LUDO_TRACK_SIZE;
+  }
+
+  private isSafeSquare(side: number, progress: number): boolean {
+    if (progress < 0 || progress >= LUDO_TRACK_SIZE) return true;
+    const absolute = this.absolutePosition(side, progress);
+    return [0, 8, 13, 21, 26, 34, 39, 47].includes(absolute);
+  }
 }
 
 interface DominoState extends GameState { hands: number[][][]; chain: number[]; boneyard: number[][]; turnIndex: number; turnPlayerId: string; finished: boolean; winnerId: string | null; draw?: boolean; }
