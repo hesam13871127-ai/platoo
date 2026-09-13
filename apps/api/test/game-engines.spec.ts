@@ -1,6 +1,6 @@
 import { ChessEngine, FourInARowEngine, MancalaEngine } from '../src/games/engines/board.engine';
-import { LudoEngine, PoolEngine } from '../src/games/engines/tabletop.engine';
-import { WerewolfEngine } from '../src/games/engines/party.engine';
+import { CarromEngine, DominoesEngine, LudoEngine, PoolEngine } from '../src/games/engines/tabletop.engine';
+import { BingoEngine, WerewolfEngine } from '../src/games/engines/party.engine';
 import { OchoEngine } from '../src/games/engines/cards.engine';
 import { GamePlayer } from '../src/games/game.types';
 import { GameRegistry } from '../src/games/game.registry';
@@ -247,6 +247,88 @@ describe('authoritative game engines', () => {
         state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
       }
       expect(state.finished).toBe(true);
+    }
+  });
+
+  it('draws authoritative Bingo numbers, marks cards, and resolves multiple winners', () => {
+    const engine = new BingoEngine(); const roster = players(2); const state = engine.create(roster) as any;
+    expect(state.cards[0].marked[12]).toBe(true);
+    expect(() => engine.apply(state, 'player-0', { type: 'call', number: state.cards[0].values[0] }, roster)).toThrow();
+    state.cards[0].marked = Array(25).fill(true); state.cards[0].marked[0] = false; state.cards[0].values[0] = 7;
+    state.cards[1].marked = Array(25).fill(false); state.cards[1].marked[12] = true; for (const index of [0, 1, 2, 3, 4]) state.cards[1].marked[index] = index !== 0; state.cards[1].values[0] = 7;
+    state.bag = [7]; state.called = []; state.lastNumber = null; state.turnPlayerId = 'player-0'; state.turnIndex = 0;
+    const finished = engine.apply(state, 'player-0', { type: 'draw' }, roster) as any;
+    expect(finished.called).toEqual([7]); expect(finished.cards[0].marked[0]).toBe(true);
+    expect(finished.finished).toBe(true); expect(finished.winnerIds).toEqual(['player-0', 'player-1']); expect(finished.draw).toBe(true);
+  });
+
+  it('lets Bingo bot turns consume the cage and settle a match', () => {
+    const engine = new BingoEngine(); const roster = players(4).map((player) => ({ ...player, isBot: true }));
+    let state = engine.create(roster) as any;
+    for (let move = 0; move < 100 && !state.finished; move += 1) {
+      const actor = state.turnPlayerId as string;
+      state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
+    }
+    expect(state.finished).toBe(true); expect(state.called.length).toBeGreaterThan(0); expect(state.winnerIds.length).toBeGreaterThan(0);
+  });
+
+  it('enforces Dominoes opening, legal end placement, draw-until-playable, and blocked scoring', () => {
+    const engine = new DominoesEngine(); const roster = players(2); const created = engine.create(roster) as any;
+    expect(created.chain).toHaveLength(2); expect(created.handSizes.reduce((sum: number, size: number) => sum + size, 0)).toBe(13); expect(created.boneyard).toHaveLength(14);
+
+    const placement = engine.create(roster) as any;
+    placement.hands = [[[3, 5]], [[6, 6]]]; placement.handSizes = [1, 1]; placement.chain = [3, 4]; placement.boneyard = []; placement.turnIndex = 0; placement.turnPlayerId = 'player-0';
+    expect(() => engine.apply(placement, 'player-0', { type: 'play', index: 0, side: 'right' }, roster)).toThrow();
+    const placed = engine.apply(placement, 'player-0', { type: 'play', index: 0, side: 'left' }, roster) as any;
+    expect(placed.chain).toEqual([5, 3, 4]); expect(placed.winnerIds).toEqual(['player-0']);
+
+    const blocked = engine.create(roster) as any;
+    blocked.hands = [[[6, 6]], [[0, 0]]]; blocked.handSizes = [1, 1]; blocked.chain = [1, 2]; blocked.boneyard = [[3, 3]]; blocked.passCount = 0; blocked.turnIndex = 0; blocked.turnPlayerId = 'player-0';
+    const drawn = engine.apply(blocked, 'player-0', { type: 'draw' }, roster) as any;
+    expect(drawn.turnPlayerId).toBe('player-0'); expect(drawn.lastDrawn).toEqual([3, 3]);
+    const passed = engine.apply(drawn, 'player-0', { type: 'pass' }, roster) as any;
+    const finished = engine.apply(passed, 'player-1', { type: 'pass' }, roster) as any;
+    expect(finished.finished).toBe(true); expect(finished.winnerIds).toEqual(['player-1']);
+  });
+
+  it('lets Dominoes bot actions finish complete matches', () => {
+    const engine = new DominoesEngine(); const roster = players(2).map((player) => ({ ...player, isBot: true }));
+    for (let trial = 0; trial < 10; trial += 1) {
+      let state = engine.create(roster) as any;
+      for (let move = 0; move < 1000 && !state.finished; move += 1) {
+        const actor = state.turnPlayerId as string;
+        state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
+      }
+      expect(state.finished).toBe(true); expect(state.winnerIds.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('assigns Carrom colors and requires a covered queen before winning', () => {
+    const engine = new CarromEngine(); const roster = players(2); let state = engine.create(roster) as any;
+    state = engine.apply(state, 'player-0', { type: 'strike', power: 70, pocketed: [1], queen: false }, roster) as any;
+    expect(state.groups).toEqual(['white', 'black']); expect(state.scores[0]).toBe(1); expect(state.turnPlayerId).toBe('player-0');
+    expect(() => engine.apply(state, 'player-0', { type: 'strike', power: 70, pocketed: [10], queen: false }, roster)).toThrow();
+    state = engine.apply(state, 'player-0', { type: 'strike', power: 40, pocketed: [], queen: false }, roster) as any;
+    expect(state.turnPlayerId).toBe('player-1');
+    state.turnIndex = 0; state.turnPlayerId = 'player-0';
+    const foul = engine.apply(state, 'player-0', { type: 'strike', power: 20, pocketed: [], queen: false, foul: true }, roster) as any;
+    expect(foul.remainingCoins).toContain(1); expect(foul.scores[0]).toBe(0); expect(foul.turnPlayerId).toBe('player-1'); expect(foul.lastShot.foul).toBe(true);
+
+    const queen = engine.create(roster) as any;
+    queen.groups = ['white', 'black']; queen.remainingCoins = [1, 10]; queen.turnIndex = 0; queen.turnPlayerId = 'player-0';
+    const called = engine.apply(queen, 'player-0', { type: 'strike', power: 70, pocketed: [1], queen: true }, roster) as any;
+    expect(called.queenRemaining).toBe(false); expect(called.queenPendingFor).toBeNull(); expect(called.finished).toBe(true); expect(called.winnerIds).toEqual(['player-0']);
+  });
+
+  it('lets Carrom bot actions finish complete matches', () => {
+    const engine = new CarromEngine(); const roster = players(2).map((player) => ({ ...player, isBot: true }));
+    for (let trial = 0; trial < 10; trial += 1) {
+      let state = engine.create(roster) as any;
+      for (let move = 0; move < 1000 && !state.finished; move += 1) {
+        const actor = state.turnPlayerId as string;
+        state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
+      }
+      expect(state.finished).toBe(true); expect(state.winnerIds.length).toBeGreaterThan(0);
     }
   });
 

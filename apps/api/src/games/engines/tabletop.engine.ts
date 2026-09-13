@@ -194,15 +194,171 @@ export class LudoEngine implements GameEngine {
   }
 }
 
-interface DominoState extends GameState { hands: number[][][]; chain: number[]; boneyard: number[][]; turnIndex: number; turnPlayerId: string; finished: boolean; winnerId: string | null; draw?: boolean; }
+interface DominoState extends GameState {
+  hands: number[][][];
+  handSizes: number[];
+  chain: number[];
+  boneyard: number[][];
+  passCount: number;
+  lastDrawn: number[] | null;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  winnerIds: string[];
+  draw?: boolean;
+}
+
 export class DominoesEngine implements GameEngine {
   readonly id: GameId = 'dominoes';
-  create(players: GamePlayer[]): DominoState { const deck: number[][] = []; for (let a = 0; a <= 6; a += 1) for (let b = a; b <= 6; b += 1) deck.push([a, b]); for (let i = deck.length - 1; i > 0; i -= 1) { const j = randomInt(i + 1); [deck[i], deck[j]] = [deck[j], deck[i]]; } const hands = players.map(() => deck.splice(0, 7)); return { hands, chain: [], boneyard: deck, turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: DominoState, actorId: string, action: Action, players: GamePlayer[]): void { ensureTurn(state, actorId); const side = players.findIndex((p) => p.id === actorId); if (action.type === 'draw') { if (!state.boneyard.length) throw new IllegalMoveError('The boneyard is empty.'); return; } if (action.type !== 'play') throw new IllegalMoveError('Use play or draw.'); const index = asInt(action.index, 'index', 0, state.hands[side].length - 1); const tile = state.hands[side][index]; const left = state.chain[0]; const right = state.chain[state.chain.length - 1]; if (state.chain.length && tile[0] !== left && tile[1] !== left && tile[0] !== right && tile[1] !== right) throw new IllegalMoveError('That tile does not match either end.'); if (action.side !== undefined && action.side !== 'left' && action.side !== 'right') throw new IllegalMoveError('side must be left or right.'); }
-  apply(state: DominoState, actorId: string, action: Action, players: GamePlayer[]): DominoState { this.validate(state, actorId, action, players); const next = clone(state) as DominoState; const side = players.findIndex((p) => p.id === actorId); if (action.type === 'draw') { next.hands[side].push(next.boneyard.pop() as number[]); return next; } const tile = next.hands[side].splice(action.index as number, 1)[0]; if (!next.chain.length) next.chain.push(...tile); else { const place = action.side === 'left' ? 'left' : action.side === 'right' ? 'right' : tile.includes(next.chain[0]) ? 'left' : 'right'; if (place === 'left') { const value = next.chain[0]; const oriented = tile[0] === value ? [tile[1], tile[0]] : [tile[0], tile[1]]; next.chain.unshift(...oriented); } else { const value = next.chain[next.chain.length - 1]; const oriented = tile[0] === value ? tile : [tile[1], tile[0]]; next.chain.push(...oriented); } } if (!next.hands[side].length) { next.finished = true; next.winnerId = actorId; } else if (!this.hasAnyMove(next.hands, next.chain) && !next.boneyard.length) { next.finished = true; const scores = next.hands.map((hand) => hand.reduce((sum, tile) => sum + tile[0] + tile[1], 0)); const min = Math.min(...scores); const winner = scores.indexOf(min); next.winnerId = players[winner].id; next.draw = scores.filter((score) => score === min).length > 1; } else rotateTurn(next, players); return next; }
-  outcome(state: DominoState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
-  botAction(state: DominoState, botId: string, players: GamePlayer[]): Action { const side = players.findIndex((p) => p.id === botId); const legal = state.hands[side].map((tile, index) => ({ tile, index })).filter(({ tile }) => !state.chain.length || tile.some((v) => v === state.chain[0] || v === state.chain[state.chain.length - 1])); return legal.length ? { type: 'play', index: legal[0].index, side: 'right' } : { type: 'draw' }; }
-  private hasAnyMove(hands: number[][][], chain: number[]): boolean { return hands.some((hand) => hand.some((tile) => !chain.length || tile.some((v) => v === chain[0] || v === chain[chain.length - 1]))); }
+
+  create(players: GamePlayer[]): DominoState {
+    if (players.length < 2 || players.length > 4) throw new IllegalMoveError('Dominoes supports two to four players.');
+    const deck = this.shuffle(this.fullDeck());
+    const hands = players.map(() => deck.splice(0, 7));
+    let starter = 0;
+    let starterTile: number[] | null = null;
+    let starterScore = -1;
+    for (let side = 0; side < hands.length; side += 1) {
+      for (const tile of hands[side]) {
+        const score = tile[0] === tile[1] ? 100 + tile[0] : tile[0] + tile[1];
+        if (score > starterScore) { starterScore = score; starter = side; starterTile = tile; }
+      }
+    }
+    if (!starterTile) throw new IllegalMoveError('Could not choose an opening domino.');
+    const starterIndex = hands[starter].findIndex((tile) => tile[0] === starterTile![0] && tile[1] === starterTile![1]);
+    hands[starter].splice(starterIndex, 1);
+    return {
+      hands,
+      handSizes: hands.map((hand) => hand.length),
+      chain: [...starterTile],
+      boneyard: deck,
+      passCount: 0,
+      lastDrawn: null,
+      turnIndex: (starter + 1) % players.length,
+      turnPlayerId: players[(starter + 1) % players.length].id,
+      finished: false,
+      winnerId: null,
+      winnerIds: [],
+    };
+  }
+
+  validate(state: DominoState, actorId: string, action: Action, players: GamePlayer[]): void {
+    ensureTurn(state, actorId);
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    const legal = this.legalIndices(state.hands[side], state.chain);
+    if (action.type === 'draw') {
+      if (legal.length) throw new IllegalMoveError('Play a matching tile before drawing.');
+      if (!state.boneyard.length) throw new IllegalMoveError('The boneyard is empty. Pass your turn.');
+      return;
+    }
+    if (action.type === 'pass') {
+      if (legal.length || state.boneyard.length) throw new IllegalMoveError('Draw or play a tile before passing.');
+      return;
+    }
+    if (action.type !== 'play') throw new IllegalMoveError('Use play, draw, or pass.');
+    const index = asInt(action.index, 'index', 0, state.hands[side].length - 1);
+    const tile = state.hands[side][index];
+    const leftMatch = tile.includes(state.chain[0]);
+    const rightMatch = tile.includes(state.chain[state.chain.length - 1]);
+    if (!leftMatch && !rightMatch) throw new IllegalMoveError('That tile does not match either end.');
+    if (leftMatch && rightMatch && action.side !== 'left' && action.side !== 'right') throw new IllegalMoveError('Choose the left or right end.');
+    if (action.side === 'left' && !leftMatch) throw new IllegalMoveError('That tile does not match the left end.');
+    if (action.side === 'right' && !rightMatch) throw new IllegalMoveError('That tile does not match the right end.');
+    if (action.side !== undefined && action.side !== 'left' && action.side !== 'right') throw new IllegalMoveError('side must be left or right.');
+  }
+
+  apply(state: DominoState, actorId: string, action: Action, players: GamePlayer[]): DominoState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as DominoState;
+    const side = players.findIndex((player) => player.id === actorId);
+    next.lastDrawn = null;
+    if (action.type === 'draw') {
+      const tile = next.boneyard.pop() as number[];
+      next.hands[side].push(tile);
+      next.handSizes[side] = next.hands[side].length;
+      next.lastDrawn = tile;
+      return next;
+    }
+    if (action.type === 'pass') {
+      next.passCount += 1;
+      if (next.passCount >= players.length) this.finishBlocked(next, players);
+      else rotateTurn(next, players);
+      return next;
+    }
+    const tile = next.hands[side].splice(action.index as number, 1)[0];
+    next.handSizes[side] = next.hands[side].length;
+    const place = action.side === 'left' ? 'left' : action.side === 'right' ? 'right' : tile.includes(next.chain[0]) ? 'left' : 'right';
+    if (place === 'left') {
+      const value = next.chain[0];
+      next.chain.unshift(tile[0] === value ? tile[1] : tile[0]);
+    } else {
+      const value = next.chain[next.chain.length - 1];
+      next.chain.push(tile[0] === value ? tile[1] : tile[0]);
+    }
+    next.passCount = 0;
+    if (!next.hands[side].length) {
+      next.finished = true;
+      next.winnerId = players[side].id;
+      next.winnerIds = [players[side].id];
+    } else if (!this.hasAnyMove(next.hands, next.chain) && !next.boneyard.length) {
+      this.finishBlocked(next, players);
+    } else {
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: DominoState, players: GamePlayer[]): GameOutcome {
+    return { finished: Boolean(state.finished), winnerIds: state.winnerIds, loserIds: state.winnerIds.length ? players.filter((player) => !state.winnerIds.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(state: DominoState, botId: string, players: GamePlayer[]): Action {
+    const side = players.findIndex((player) => player.id === botId);
+    const legal = this.legalIndices(state.hands[side], state.chain);
+    if (legal.length) {
+      const index = legal[0];
+      const tile = state.hands[side][index];
+      const left = tile.includes(state.chain[0]);
+      const right = tile.includes(state.chain[state.chain.length - 1]);
+      return { type: 'play', index, side: left && right ? 'right' : left ? 'left' : 'right' };
+    }
+    return state.boneyard.length ? { type: 'draw' } : { type: 'pass' };
+  }
+
+  private finishBlocked(state: DominoState, players: GamePlayer[]): void {
+    const scores = state.hands.map((hand) => hand.reduce((sum, tile) => sum + tile[0] + tile[1], 0));
+    const minimum = Math.min(...scores);
+    const winners = scores.map((score, index) => score === minimum ? players[index].id : null).filter((id): id is string => id !== null);
+    state.finished = true;
+    state.winnerIds = winners;
+    state.winnerId = winners[0] ?? null;
+    state.draw = winners.length > 1;
+  }
+
+  private legalIndices(hand: number[][], chain: number[]): number[] {
+    if (!chain.length) return hand.map((_, index) => index);
+    const left = chain[0];
+    const right = chain[chain.length - 1];
+    return hand.map((tile, index) => tile.includes(left) || tile.includes(right) ? index : -1).filter((index) => index >= 0);
+  }
+
+  private hasAnyMove(hands: number[][][], chain: number[]): boolean { return hands.some((hand) => this.legalIndices(hand, chain).length > 0); }
+
+  private fullDeck(): number[][] {
+    const deck: number[][] = [];
+    for (let first = 0; first <= 6; first += 1) for (let second = first; second <= 6; second += 1) deck.push([first, second]);
+    return deck;
+  }
+
+  private shuffle<T>(values: T[]): T[] {
+    for (let index = values.length - 1; index > 0; index -= 1) {
+      const swap = randomInt(index + 1);
+      [values[index], values[swap]] = [values[swap], values[index]];
+    }
+    return values;
+  }
 }
 
 interface BackgammonState extends GameState { points: number[]; bar: number[]; borneOff: number[]; dice: number[]; turnIndex: number; turnPlayerId: string; finished: boolean; winnerId: string | null; }
@@ -365,11 +521,197 @@ export class PoolEngine implements GameEngine {
   }
 }
 
+type CarromColor = 'white' | 'black';
+interface CarromState extends GameState {
+  remainingCoins: number[];
+  groups: Array<CarromColor | null>;
+  pocketed: number[][];
+  queenRemaining: boolean;
+  queenPendingFor: number | null;
+  queenCoveredBy: number | null;
+  scores: number[];
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  winnerIds: string[];
+  lastShot: { actorId: string; pocketed: number[]; queen: boolean; foul: boolean } | null;
+  draw?: boolean;
+}
+
 export class CarromEngine implements GameEngine {
   readonly id: GameId = 'carrom';
-  create(players: GamePlayer[]): GameState { return { coinsRemaining: 19, queenRemaining: true, scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { ensureTurn(state, actorId); if (action.type !== 'strike') throw new IllegalMoveError('Use strike.'); asInt(action.power, 'power', 1, 100); asInt(action.pocketed, 'pocketed', 0, 3); if (Number(state.coinsRemaining) <= 0) throw new IllegalMoveError('The board has no coins left.'); if (!players.some((p) => p.id === actorId)) throw new IllegalMoveError('You are not in this game.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); const pocketed = Math.min(Number(action.pocketed), Number(next.coinsRemaining)); next.coinsRemaining = Number(next.coinsRemaining) - pocketed; (next.scores as number[])[side] += pocketed; if (action.queen === true && next.queenRemaining && pocketed > 0) { next.queenRemaining = false; (next.scores as number[])[side] += 3; } if ((next.scores as number[])[side] >= 9 || (Number(next.coinsRemaining) === 0 && !next.queenRemaining)) { next.finished = true; next.winnerId = actorId; } else if (pocketed === 0) rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(): Action { return { type: 'strike', power: 65, pocketed: 1, queen: false }; }
+
+  create(players: GamePlayer[]): CarromState {
+    if (players.length < 2 || players.length > 4) throw new IllegalMoveError('Carrom supports two to four players.');
+    return {
+      remainingCoins: Array.from({ length: 18 }, (_, index) => index + 1),
+      groups: players.map(() => null),
+      pocketed: players.map(() => []),
+      queenRemaining: true,
+      queenPendingFor: null,
+      queenCoveredBy: null,
+      scores: players.map(() => 0),
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+      winnerIds: [],
+      lastShot: null,
+    };
+  }
+
+  validate(state: CarromState, actorId: string, action: Action, players: GamePlayer[]): void {
+    ensureTurn(state, actorId);
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    if (action.type !== 'strike') throw new IllegalMoveError('Use the strike action.');
+    asInt(action.power, 'power', 1, 100);
+    if (action.queen !== undefined && typeof action.queen !== 'boolean') throw new IllegalMoveError('queen must be true or false.');
+    if (action.foul !== undefined && typeof action.foul !== 'boolean') throw new IllegalMoveError('foul must be true or false.');
+    const pocketed = this.pocketedCoins(action);
+    if (pocketed.length > 3) throw new IllegalMoveError('A strike may pocket at most three coins.');
+    if (action.foul === true && (pocketed.length > 0 || action.queen === true)) throw new IllegalMoveError('A foul strike cannot also pocket a coin or call the queen.');
+    for (const coin of pocketed) if (!state.remainingCoins.includes(coin)) throw new IllegalMoveError('That coin is no longer on the board.');
+    if (action.queen === true && !state.queenRemaining) throw new IllegalMoveError('The queen is not on the board.');
+    const group = this.groupForSide(state, side);
+    if (group && pocketed.some((coin) => this.coinColor(coin) !== group)) throw new IllegalMoveError('Pocket only coins from your assigned color.');
+    const finalColorCoin = group && pocketed.length > 0 && !state.remainingCoins.some((coin) => this.coinColor(coin) === group && !pocketed.includes(coin));
+    if (group && state.queenRemaining && finalColorCoin && action.queen !== true) throw new IllegalMoveError('Pocket your final color coin with the queen to cover it.');
+    if (action.queen === true && group && !pocketed.some((coin) => this.coinColor(coin) === group) && !state.remainingCoins.some((coin) => this.coinColor(coin) === group)) throw new IllegalMoveError('Pocket your final color coin with the queen to cover it.');
+  }
+
+  apply(state: CarromState, actorId: string, action: Action, players: GamePlayer[]): CarromState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as CarromState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const pocketed = this.pocketedCoins(action);
+    const queenShot = action.queen === true;
+    const foul = action.foul === true;
+    if (foul) {
+      const returned = next.pocketed[side].pop();
+      if (returned !== undefined) {
+        next.remainingCoins.push(returned);
+        next.scores[side] = Math.max(0, next.scores[side] - 1);
+      }
+      if (next.queenPendingFor === side) {
+        next.queenRemaining = true;
+        next.queenPendingFor = null;
+        next.queenCoveredBy = null;
+      }
+      next.lastShot = { actorId, pocketed: [], queen: false, foul: true };
+      rotateTurn(next, players);
+      return next;
+    }
+    const groupBefore = this.groupForSide(next, side);
+    for (const coin of pocketed) {
+      next.remainingCoins = next.remainingCoins.filter((value) => value !== coin);
+      next.pocketed[side].push(coin);
+    }
+    if (!groupBefore && pocketed.length) this.assignGroup(next, side, this.coinColor(pocketed[0]), players);
+    const group = this.groupForSide(next, side);
+    next.scores[side] += pocketed.filter((coin) => !group || this.coinColor(coin) === group).length;
+
+    let keepsTurn = pocketed.length > 0;
+    if (next.queenPendingFor !== null && next.queenPendingFor === side) {
+      const covered = Boolean(group) && pocketed.some((coin) => this.coinColor(coin) === group);
+      if (covered) {
+        next.queenPendingFor = null;
+        next.queenCoveredBy = side;
+        next.scores[side] += 3;
+        keepsTurn = true;
+      } else {
+        next.queenRemaining = true;
+        next.queenPendingFor = null;
+        next.queenCoveredBy = null;
+        keepsTurn = false;
+      }
+    }
+    if (queenShot) {
+      next.queenRemaining = false;
+      next.queenPendingFor = side;
+      next.queenCoveredBy = null;
+      keepsTurn = true;
+      if (group && pocketed.some((coin) => this.coinColor(coin) === group)) {
+        next.queenPendingFor = null;
+        next.queenCoveredBy = side;
+        next.scores[side] += 3;
+      }
+    }
+    next.lastShot = { actorId, pocketed, queen: queenShot, foul: false };
+    const winner = this.findWinner(next, players);
+    if (winner.length) {
+      next.finished = true;
+      next.winnerIds = winner;
+      next.winnerId = winner[0] ?? null;
+      next.draw = winner.length > 1;
+    } else if (keepsTurn) {
+      next.turnPlayerId = players[side].id;
+      next.turnIndex = side;
+    } else {
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: CarromState, players: GamePlayer[]): GameOutcome {
+    return { finished: Boolean(state.finished), winnerIds: state.winnerIds, loserIds: state.winnerIds.length ? players.filter((player) => !state.winnerIds.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(state: CarromState, botId: string, players: GamePlayer[]): Action {
+    const side = players.findIndex((player) => player.id === botId);
+    const group = this.groupForSide(state, side);
+    const own = state.remainingCoins.filter((coin) => !group || this.coinColor(coin) === group);
+    if (state.queenPendingFor === side && own.length) return { type: 'strike', power: 65, pocketed: [own[0]], queen: false };
+    if (state.queenRemaining && own.length === 1) return { type: 'strike', power: 65, pocketed: [own[0]], queen: true };
+    if (own.length) return { type: 'strike', power: 65, pocketed: [own[0]], queen: false };
+    if (state.queenRemaining && state.remainingCoins.length === 0 && !group) return { type: 'strike', power: 65, pocketed: [], queen: true };
+    return { type: 'strike', power: 50, pocketed: [], queen: false };
+  }
+
+  private pocketedCoins(action: Action): number[] {
+    const raw = action.pocketed ?? [];
+    if (!Array.isArray(raw)) throw new IllegalMoveError('pocketed must be an array of coin numbers.');
+    const coins = raw.map((value) => asInt(value, 'coin', 1, 18));
+    if (new Set(coins).size !== coins.length) throw new IllegalMoveError('A coin may only be pocketed once per strike.');
+    return coins;
+  }
+
+  private coinColor(coin: number): CarromColor { return coin <= 9 ? 'white' : 'black'; }
+
+  private groupForSide(state: CarromState, side: number): CarromColor | null { return state.groups[side] ?? null; }
+
+  private assignGroup(state: CarromState, side: number, group: CarromColor, players: GamePlayer[]): void {
+    const opposite = group === 'white' ? 'black' : 'white';
+    const team = players[side].team;
+    for (let index = 0; index < players.length; index += 1) {
+      if (index === side || players.length === 4 && team !== undefined && players[index].team === team) state.groups[index] = group;
+      else if (state.groups[index] === null) state.groups[index] = opposite;
+    }
+  }
+
+  private findWinner(state: CarromState, players: GamePlayer[]): string[] {
+    if (state.queenRemaining || state.queenPendingFor !== null) return [];
+    if (state.remainingCoins.length) {
+      const sides = players.map((_, index) => index).filter((index) => {
+        const group = this.groupForSide(state, index);
+        return group !== null && !state.remainingCoins.some((coin) => this.coinColor(coin) === group);
+      });
+      if (!sides.length) return [];
+      const best = Math.max(...sides.map((side) => state.scores[side]));
+      const winningSides = sides.filter((side) => state.scores[side] === best);
+      return this.expandWinners(winningSides, players);
+    }
+    const best = Math.max(...state.scores);
+    return this.expandWinners(state.scores.map((score, index) => score === best ? index : -1).filter((index) => index >= 0), players);
+  }
+
+  private expandWinners(sides: number[], players: GamePlayer[]): string[] {
+    const winners = new Set<string>();
+    for (const side of sides) {
+      const team = players[side].team;
+      for (let index = 0; index < players.length; index += 1) if (index === side || players.length === 4 && team !== undefined && players[index].team === team) winners.add(players[index].id);
+    }
+    return [...winners];
+  }
 }

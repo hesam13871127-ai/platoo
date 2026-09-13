@@ -11,14 +11,105 @@ export class DicePartyEngine implements GameEngine {
   botAction(): Action { return { type: 'roll' }; }
 }
 
+interface BingoCard { values: number[]; marked: boolean[]; }
+interface BingoState extends GameState {
+  cards: BingoCard[];
+  called: number[];
+  bag: number[];
+  lastNumber: number | null;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  winnerIds: string[];
+  draw?: boolean;
+}
+
 export class BingoEngine implements GameEngine {
   readonly id: GameId = 'bingo';
-  create(players: GamePlayer[]): GameState { const cards = players.map(() => { const values = Array.from({ length: 25 }, (_, i) => i + 1).sort(() => Math.random() - 0.5); return { values, marked: Array(25).fill(false) as boolean[] }; }); return { cards, called: [], bag: Array.from({ length: 75 }, (_, i) => i + 1).sort(() => Math.random() - 0.5), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { checkTurn(state, actorId); if (action.type !== 'call') throw new IllegalMoveError('Use call.'); const number = asInt(action.number, 'number', 1, 75); if (!(state.bag as number[]).includes(number)) throw new IllegalMoveError('That number has already been called.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const number = action.number as number; next.bag = (next.bag as number[]).filter((value) => value !== number); (next.called as number[]).push(number); for (const card of next.cards as Array<{ values: number[]; marked: boolean[] }>) { const position = card.values.indexOf(number); if (position >= 0) card.marked[position] = true; } const winnerIndex = (next.cards as Array<{ values: number[]; marked: boolean[] }>).findIndex((card) => this.hasBingo(card.marked)); if (winnerIndex >= 0) { next.finished = true; next.winnerId = players[winnerIndex].id; } else if (!(next.bag as number[]).length) { next.finished = true; next.draw = true; } else rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const bag = state.bag as number[]; return { type: 'call', number: bag[randomInt(bag.length)] ?? 1 }; }
-  private hasBingo(marked: boolean[]): boolean { return [0,1,2,3,4].some((r) => [0,1,2,3,4].every((c) => marked[r * 5 + c])) || [0,1,2,3,4].some((c) => [0,1,2,3,4].every((r) => marked[r * 5 + c])) || [0,1,2,3,4].every((i) => marked[i * 5 + i]) || [0,1,2,3,4].every((i) => marked[i * 5 + (4 - i)]); }
+
+  create(players: GamePlayer[]): BingoState {
+    if (players.length < 2 || players.length > 8) throw new IllegalMoveError('Bingo supports two to eight players.');
+    return {
+      cards: players.map(() => this.createCard()),
+      called: [],
+      bag: this.shuffle(Array.from({ length: 75 }, (_, index) => index + 1)),
+      lastNumber: null,
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+      winnerIds: [],
+    };
+  }
+
+  validate(state: BingoState, actorId: string, action: Action, players: GamePlayer[]): void {
+    if (state.finished) throw new IllegalMoveError('This game has finished.');
+    if (state.turnPlayerId !== actorId) throw new IllegalMoveError('It is not your turn to draw.');
+    if (!players.some((player) => player.id === actorId)) throw new IllegalMoveError('You are not in this game.');
+    if (action.type !== 'draw') throw new IllegalMoveError('Draw the next bingo number.');
+    if (!state.bag.length) throw new IllegalMoveError('The bingo cage is empty.');
+  }
+
+  apply(state: BingoState, actorId: string, action: Action, players: GamePlayer[]): BingoState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as BingoState;
+    const number = next.bag.shift() as number;
+    next.called.push(number);
+    next.lastNumber = number;
+    for (const card of next.cards) {
+      const position = card.values.indexOf(number);
+      if (position >= 0) card.marked[position] = true;
+    }
+    const winnerIndexes = next.cards.map((card, index) => this.hasBingo(card.marked) ? index : -1).filter((index) => index >= 0);
+    if (winnerIndexes.length) {
+      next.finished = true;
+      next.winnerIds = winnerIndexes.map((index) => players[index].id);
+      next.winnerId = next.winnerIds[0] ?? null;
+      next.draw = next.winnerIds.length > 1;
+    } else if (!next.bag.length) {
+      next.finished = true;
+      next.draw = true;
+    } else {
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: BingoState, players: GamePlayer[]): GameOutcome {
+    const winners = Array.isArray(state.winnerIds) && state.winnerIds.length ? state.winnerIds : typeof state.winnerId === 'string' ? [state.winnerId] : [];
+    return { finished: Boolean(state.finished), winnerIds: winners, loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(_state: BingoState, _botId: string, _players: GamePlayer[]): Action { return { type: 'draw' }; }
+
+  private createCard(): BingoCard {
+    const values: number[] = [];
+    for (let column = 0; column < 5; column += 1) {
+      const start = column * 15 + 1;
+      const numbers = this.shuffle(Array.from({ length: 15 }, (_, index) => start + index)).slice(0, 5);
+      for (let row = 0; row < 5; row += 1) values[row * 5 + column] = numbers[row];
+    }
+    values[12] = 0;
+    const marked = Array(25).fill(false) as boolean[];
+    marked[12] = true;
+    return { values, marked };
+  }
+
+  private hasBingo(marked: boolean[]): boolean {
+    return [0, 1, 2, 3, 4].some((row) => [0, 1, 2, 3, 4].every((column) => marked[row * 5 + column]))
+      || [0, 1, 2, 3, 4].some((column) => [0, 1, 2, 3, 4].every((row) => marked[row * 5 + column]))
+      || [0, 1, 2, 3, 4].every((index) => marked[index * 5 + index])
+      || [0, 1, 2, 3, 4].every((index) => marked[index * 5 + (4 - index)]);
+  }
+
+  private shuffle<T>(values: T[]): T[] {
+    for (let index = values.length - 1; index > 0; index -= 1) {
+      const swap = randomInt(index + 1);
+      [values[index], values[swap]] = [values[swap], values[index]];
+    }
+    return values;
+  }
 }
 
 type WerewolfRole = 'werewolf' | 'seer' | 'doctor' | 'villager';

@@ -184,6 +184,22 @@ export class GameService {
     const state = JSON.parse(JSON.stringify(original)) as GameState;
     if (gameId === 'ocho' && Array.isArray(state.hands)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat || status === 'finished' ? hand : []); delete state.wildFourLegal; }
     if (gameId === 'sea_battle' && Array.isArray(state.boards)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.boards = (state.boards as unknown[]).map((board, index) => index === viewerSeat || status === 'finished' ? board : (board as number[][]).map((row) => row.map((cell) => cell < 0 ? -1 : 0))); }
+    if (gameId === 'bingo' && Array.isArray(state.cards)) {
+      const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
+      if (status !== 'finished') {
+        state.cards = (state.cards as unknown[]).map((card, index) => index === viewerSeat ? card : { values: [], marked: [] });
+        if (Array.isArray(state.bag)) state.bag = [];
+      }
+    }
+    if (gameId === 'dominoes' && Array.isArray(state.hands)) {
+      const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
+      state.handSizes = (state.hands as unknown[]).map((hand) => Array.isArray(hand) ? hand.length : 0);
+      if (status !== 'finished') {
+        state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat ? hand : []);
+        if (Array.isArray(state.boneyard)) state.boneyard = state.boneyard.map(() => null);
+        state.lastDrawn = null;
+      }
+    }
     if (gameId === 'werewolf' && Array.isArray(state.roles)) {
       const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
       if (status !== 'finished') {
