@@ -133,7 +133,7 @@ class GameSocket {
   void _joinMatch(io.Socket socket) {
     final matchId = _matchId;
     if (!_isCurrent(socket) || matchId == null || !socket.connected) return;
-    socket.emitWithAck('match:join', {'matchId': matchId}).then((data) {
+    socket.emitWithAckAsync('match:join', {'matchId': matchId}).then((data) {
       if (!_isCurrent(socket)) return;
       if (data is Map && data['id'] != null) {
         _onUpdate?.call(Map<String, dynamic>.from(data));
