@@ -433,6 +433,23 @@ export class GameService implements OnModuleInit {
       }
     }
     if (gameId === 'memory_race' && Array.isArray(state.values)) { state.values = (state.values as unknown[]).map((value, index) => (state.revealed as boolean[])[index] || (state.matched as boolean[])[index] ? value : null); }
+    if (gameId === 'emoji_charades') {
+      delete state.usedWords;
+      if (status !== 'finished') {
+        const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
+        if (Number(state.presenterIndex) !== viewerSeat) {
+          state.prompt = null;
+          state.clueOptions = [];
+          state.answer = null;
+        }
+      }
+    }
+    if (gameId === 'impostor_light' && status !== 'finished') {
+      const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
+      if (Number(state.impostor) === viewerSeat) state.word = null;
+      state.impostor = null;
+      if (Array.isArray(state.votes)) state.votes = (state.votes as unknown[]).map((vote, index) => index === viewerSeat ? vote : null);
+    }
     return state;
   }
 

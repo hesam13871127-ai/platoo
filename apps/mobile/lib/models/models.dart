@@ -99,6 +99,11 @@ const kGamesWithMobileBoard = <String>{
   'trivia_battle',
   'memory_race',
   'word_chain',
+  'dice_party',
+  'bowling',
+  'darts',
+  'emoji_charades',
+  'impostor_light',
 };
 
 bool gameHasMobileBoard(String id) => kGamesWithMobileBoard.contains(id);

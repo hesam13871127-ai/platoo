@@ -12,22 +12,245 @@ export class ArcheryEngine implements GameEngine {
   botAction(): Action { return { type: 'shoot', accuracy: 50 + randomInt(31) - 15 }; }
 }
 
+interface BowlingState extends GameState {
+  frame: number;
+  ball: number;
+  frames: number[][][];
+  totals: number[];
+  scorecard: (number | null)[][];
+  lastRoll: { playerId: string; frame: number; pins: number } | null;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  draw?: boolean;
+}
+
+const tenthFrameComplete = (rolls: number[]): boolean => {
+  if (rolls.length < 2) return false;
+  if (rolls.length >= 3) return true;
+  const [first, second] = rolls;
+  return first !== 10 && first + second !== 10; // An open tenth ends after two balls.
+};
+
+const bowlingFrameComplete = (rolls: number[], frameIndex: number): boolean =>
+  frameIndex < 9 ? rolls[0] === 10 || rolls.length >= 2 : tenthFrameComplete(rolls);
+
+const bowlingMaxPins = (rolls: number[], frameIndex: number): number => {
+  if (frameIndex < 9) {
+    if (!rolls.length) return 10;
+    return rolls[0] === 10 ? 0 : 10 - rolls[0];
+  }
+  const [first, second] = rolls;
+  if (!rolls.length) return 10;
+  if (rolls.length === 1) return first === 10 ? 10 : 10 - first;
+  if (first === 10 && second === 10) return 10;
+  if (first === 10) return 10 - second;
+  return 10; // A spare on the first two tenth-frame balls re-racks the pins.
+};
+
+const scoreBowlingFrames = (frames: number[][]): { frameScores: (number | null)[]; total: number } => {
+  const balls = frames.flat();
+  const frameScores: (number | null)[] = [];
+  let total = 0;
+  let ballIndex = 0;
+  for (let frame = 0; frame < 10; frame += 1) {
+    const rolls = frames[frame] ?? [];
+    if (frame === 9) {
+      if (tenthFrameComplete(rolls)) {
+        total += rolls.reduce((sum, pins) => sum + pins, 0);
+        frameScores.push(total);
+      } else frameScores.push(null);
+      continue;
+    }
+    if (!rolls.length) {
+      frameScores.push(null);
+      continue;
+    }
+    if (rolls[0] === 10) {
+      if (balls.length > ballIndex + 2) {
+        total += 10 + balls[ballIndex + 1] + balls[ballIndex + 2];
+        frameScores.push(total);
+      } else frameScores.push(null);
+      ballIndex += 1;
+      continue;
+    }
+    if (rolls.length < 2) {
+      frameScores.push(null);
+      ballIndex += 1;
+      continue;
+    }
+    if (rolls[0] + rolls[1] === 10) {
+      if (balls.length > ballIndex + 2) {
+        total += 10 + balls[ballIndex + 2];
+        frameScores.push(total);
+      } else frameScores.push(null);
+    } else {
+      total += rolls[0] + rolls[1];
+      frameScores.push(total);
+    }
+    ballIndex += 2;
+  }
+  return { frameScores, total };
+};
+
 export class BowlingEngine implements GameEngine {
   readonly id: GameId = 'bowling';
-  create(players: GamePlayer[]): GameState { return { frame: 1, roll: 1, frames: players.map(() => []), totals: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action): void { turn(state, actorId); if (action.type !== 'roll') throw new IllegalMoveError('Use roll.'); asInt(action.pins, 'pins', 0, 10); const pins = action.pins as number; const side = Number(state.turnIndex); const rolls = (state.frames as number[][][])[side][Number(state.frame) - 1] ?? []; if (rolls.length === 1 && rolls[0] < 10 && rolls[0] + pins > 10) throw new IllegalMoveError('Pins in a frame cannot exceed ten.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); const frameIndex = Number(next.frame) - 1; const frames = next.frames as number[][][]; if (!frames[side][frameIndex]) frames[side][frameIndex] = []; frames[side][frameIndex].push(action.pins as number); (next.totals as number[])[side] += action.pins as number; const finishedFrame = frames[side][frameIndex][0] === 10 || frames[side][frameIndex].length === 2; if (finishedFrame) { if (Number(next.frame) === 10 && Number(next.turnIndex) >= players.length - 1) { next.finished = true; const max = Math.max(...(next.totals as number[])); next.winnerId = players[(next.totals as number[]).indexOf(max)].id; next.draw = (next.totals as number[]).filter((score) => score === max).length > 1; } else if (Number(next.turnIndex) < players.length - 1) { next.turnIndex = Number(next.turnIndex) + 1; next.turnPlayerId = players[Number(next.turnIndex)].id; } else { next.frame = Number(next.frame) + 1; next.turnIndex = 0; next.turnPlayerId = players[0].id; } } else { next.turnIndex = side; next.turnPlayerId = actorId; } return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { return outcome(state, players); }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const index = players.findIndex((p) => p.id === botId); const side = index >= 0 ? index : Number(state.turnIndex); const rolls = ((state.frames as number[][][])[side] ?? [])[Number(state.frame) - 1] ?? []; const max = rolls.length === 1 && rolls[0] < 10 ? 10 - rolls[0] : 10; return { type: 'roll', pins: randomInt(max + 1) }; }
+
+  create(players: GamePlayer[]): BowlingState {
+    if (players.length < 1 || players.length > 4) throw new IllegalMoveError('Bowling supports one to four players.');
+    return {
+      frame: 1,
+      ball: 1,
+      frames: players.map(() => []),
+      totals: players.map(() => 0),
+      scorecard: players.map(() => Array(10).fill(null)),
+      lastRoll: null,
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+    };
+  }
+
+  validate(state: BowlingState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    turn(state, actorId);
+    if (action.type !== 'roll') throw new IllegalMoveError('Use roll.');
+    const frameIndex = Math.max(0, Number(state.frame) - 1);
+    const rolls = (state.frames[side] ?? [])[frameIndex] ?? [];
+    if (bowlingFrameComplete(rolls, frameIndex)) throw new IllegalMoveError('This frame is already complete.');
+    asInt(action.pins, 'pins', 0, bowlingMaxPins(rolls, frameIndex));
+  }
+
+  apply(state: BowlingState, actorId: string, action: Action, players: GamePlayer[]): BowlingState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as BowlingState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const frameIndex = Math.max(0, Number(next.frame) - 1);
+    if (!next.frames[side][frameIndex]) next.frames[side][frameIndex] = [];
+    next.frames[side][frameIndex].push(action.pins as number);
+    const scored = scoreBowlingFrames(next.frames[side]);
+    next.totals[side] = scored.total;
+    next.scorecard[side] = scored.frameScores;
+    next.lastRoll = { playerId: actorId, frame: frameIndex + 1, pins: action.pins as number };
+    if (bowlingFrameComplete(next.frames[side][frameIndex], frameIndex)) {
+      if (frameIndex === 9 && side >= players.length - 1) {
+        next.finished = true;
+        const max = Math.max(...next.totals);
+        next.winnerId = players[next.totals.indexOf(max)].id;
+        next.draw = next.totals.filter((total) => total === max).length > 1;
+      } else if (side < players.length - 1) {
+        next.turnIndex = side + 1;
+        next.turnPlayerId = players[side + 1].id;
+        next.ball = 1;
+      } else {
+        next.frame = frameIndex + 2;
+        next.turnIndex = 0;
+        next.turnPlayerId = players[0].id;
+        next.ball = 1;
+      }
+    } else {
+      next.turnIndex = side;
+      next.turnPlayerId = actorId;
+      next.ball = Number(next.ball) + 1;
+    }
+    return next;
+  }
+
+  outcome(state: BowlingState, players: GamePlayer[]): GameOutcome { return outcome(state, players); }
+
+  botAction(state: BowlingState, botId: string, players: GamePlayer[]): Action {
+    const index = players.findIndex((player) => player.id === botId);
+    const side = index >= 0 ? index : Number(state.turnIndex);
+    const frameIndex = Math.max(0, Number(state.frame) - 1);
+    const rolls = ((state.frames as number[][][])[side] ?? [])[frameIndex] ?? [];
+    const max = bowlingMaxPins(rolls, frameIndex);
+    const skilled = randomInt(10) < 6;
+    return { type: 'roll', pins: skilled ? Math.max(0, max - randomInt(4)) : randomInt(max + 1) };
+  }
+}
+
+interface DartsState extends GameState {
+  target: number;
+  scores: number[];
+  dartsLeft: number;
+  visitDarts: number[];
+  lastVisit: { playerId: string; darts: number[]; total: number } | null;
+  history: Array<{ playerId: string; darts: number[]; total: number }>;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
 }
 
 export class DartsEngine implements GameEngine {
   readonly id: GameId = 'darts';
-  create(players: GamePlayer[]): GameState { return { target: 301, scores: players.map(() => 301), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { turn(state, actorId); if (action.type !== 'throw') throw new IllegalMoveError('Use throw.'); const value = asInt(action.value, 'value', 0, 60); const side = players.findIndex((p) => p.id === actorId); const score = (state.scores as number[])[side]; if (score - value < 0) throw new IllegalMoveError('Bust: you cannot go below zero.'); if (score - value === 1) throw new IllegalMoveError('A score of one is a bust.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); (next.scores as number[])[side] -= action.value as number; if ((next.scores as number[])[side] === 0) { next.finished = true; next.winnerId = actorId; } else rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { return outcome(state, players); }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const score = (state.scores as number[])[players.findIndex((p) => p.id === botId)]; if (score <= 1) return { type: 'throw', value: Math.max(0, score) }; let value = randomInt(Math.min(60, score) + 1); if (score - value === 1) value -= 1; return { type: 'throw', value }; }
+
+  create(players: GamePlayer[]): DartsState {
+    if (players.length < 1 || players.length > 4) throw new IllegalMoveError('Darts supports one to four players.');
+    return {
+      target: 301,
+      scores: players.map(() => 301),
+      dartsLeft: 3,
+      visitDarts: [],
+      lastVisit: null,
+      history: [],
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+    };
+  }
+
+  validate(state: DartsState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    turn(state, actorId);
+    if (action.type !== 'throw') throw new IllegalMoveError('Use throw.');
+    const value = asInt(action.value, 'value', 0, 60);
+    const score = (state.scores as number[])[side];
+    if (score - value < 0) throw new IllegalMoveError('Bust: you cannot go below zero.');
+    if (score - value === 1) throw new IllegalMoveError('A score of one is a bust.');
+  }
+
+  apply(state: DartsState, actorId: string, action: Action, players: GamePlayer[]): DartsState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as DartsState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const value = action.value as number;
+    next.scores[side] -= value;
+    next.visitDarts.push(value);
+    next.dartsLeft = Number(next.dartsLeft) - 1;
+    const visit = { playerId: actorId, darts: [...next.visitDarts], total: next.visitDarts.reduce((sum, dart) => sum + dart, 0) };
+    if (next.scores[side] === 0) {
+      next.lastVisit = visit;
+      next.history.push(visit);
+      next.finished = true;
+      next.winnerId = actorId;
+      return next;
+    }
+    if (next.dartsLeft <= 0) {
+      next.lastVisit = visit;
+      next.history.push(visit);
+      next.visitDarts = [];
+      next.dartsLeft = 3;
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: DartsState, players: GamePlayer[]): GameOutcome { return outcome(state, players); }
+
+  botAction(state: DartsState, botId: string, players: GamePlayer[]): Action {
+    const index = players.findIndex((player) => player.id === botId);
+    const side = index >= 0 ? index : Number(state.turnIndex);
+    const score = (state.scores as number[])[side];
+    if (score >= 1 && score <= 60) return { type: 'throw', value: score };
+    if (score <= 0) return { type: 'throw', value: 0 };
+    return { type: 'throw', value: randomInt(Math.min(60, Math.max(0, score - 2)) + 1) };
+  }
 }
 
 interface MiniGolfState extends GameState {

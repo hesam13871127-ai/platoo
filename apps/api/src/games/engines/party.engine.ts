@@ -2,12 +2,77 @@ import { Action, asInt, asString, GameEngine, GameId, GameOutcome, GamePlayer, G
 
 const checkTurn = (state: GameState, actorId: string) => { if (state.finished) throw new IllegalMoveError('This game has finished.'); if (state.turnPlayerId !== actorId) throw new IllegalMoveError('It is not your turn.'); };
 
+interface DicePartyState extends GameState {
+  round: number;
+  maxRounds: number;
+  scores: number[];
+  rolls: (number | null)[];
+  lastRoll: { playerId: string; round: number; value: number } | null;
+  history: Array<{ playerId: string; round: number; value: number }>;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  draw?: boolean;
+}
+
 export class DicePartyEngine implements GameEngine {
   readonly id: GameId = 'dice_party';
-  create(players: GamePlayer[]): GameState { return { round: 1, maxRounds: 5, scores: players.map(() => 0), rolls: players.map(() => null), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { checkTurn(state, actorId); if (action.type !== 'roll') throw new IllegalMoveError('Use roll.'); if ((state.rolls as unknown[])[players.findIndex((p) => p.id === actorId)] !== null) throw new IllegalMoveError('You already rolled this round.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); const value = randomInt(6) + 1; (next.rolls as (number | null)[])[side] = value; (next.scores as number[])[side] += value; const allRolled = (next.rolls as unknown[]).every((roll) => roll !== null); if (allRolled) { if (Number(next.round) >= Number(next.maxRounds)) { next.finished = true; const max = Math.max(...(next.scores as number[])); next.winnerId = players[(next.scores as number[]).indexOf(max)].id; next.draw = (next.scores as number[]).filter((score) => score === max).length > 1; } else { next.round = Number(next.round) + 1; next.rolls = players.map(() => null); next.turnIndex = 0; next.turnPlayerId = players[0].id; } } else rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
+
+  create(players: GamePlayer[]): DicePartyState {
+    if (players.length < 2 || players.length > 6) throw new IllegalMoveError('Dice Party supports two to six players.');
+    return {
+      round: 1,
+      maxRounds: 5,
+      scores: players.map(() => 0),
+      rolls: players.map(() => null),
+      lastRoll: null,
+      history: [],
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+    };
+  }
+
+  validate(state: DicePartyState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    checkTurn(state, actorId);
+    if (action.type !== 'roll') throw new IllegalMoveError('Use roll.');
+    if (state.rolls[side] !== null) throw new IllegalMoveError('You already rolled this round.');
+  }
+
+  apply(state: DicePartyState, actorId: string, action: Action, players: GamePlayer[]): DicePartyState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as DicePartyState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const value = randomInt(6) + 1;
+    next.rolls[side] = value;
+    next.scores[side] += value;
+    next.lastRoll = { playerId: actorId, round: next.round, value };
+    next.history.push({ playerId: actorId, round: next.round, value });
+    if (next.rolls.every((roll) => roll !== null)) {
+      if (Number(next.round) >= Number(next.maxRounds)) {
+        next.finished = true;
+        const max = Math.max(...next.scores);
+        next.winnerId = players[next.scores.indexOf(max)].id;
+        next.draw = next.scores.filter((score) => score === max).length > 1;
+      } else {
+        next.round = Number(next.round) + 1;
+        next.rolls = players.map(() => null);
+        next.turnIndex = 0;
+        next.turnPlayerId = players[0].id;
+      }
+    } else rotateTurn(next, players);
+    return next;
+  }
+
+  outcome(state: DicePartyState, players: GamePlayer[]): GameOutcome {
+    const winner = typeof state.winnerId === 'string' ? state.winnerId : '';
+    return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) };
+  }
+
   botAction(): Action { return { type: 'roll' }; }
 }
 
@@ -360,16 +425,315 @@ export class KnowledgeEngine implements GameEngine {
   botAction(state: GameState): Action { return { type: 'answer', answer: randomInt(4) }; }
 }
 
-export class ImpostorLightEngine implements GameEngine {
-  readonly id: GameId = 'impostor_light';
-  create(players: GamePlayer[]): GameState { const impostor = randomInt(players.length); return { impostor, clues: players.map(() => null), votes: players.map(() => null), phase: 'clues', turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { checkTurn(state, actorId); const side = players.findIndex((p) => p.id === actorId); if (state.phase === 'clues' && action.type !== 'clue') throw new IllegalMoveError('Give a clue.'); if (state.phase === 'vote' && action.type !== 'vote') throw new IllegalMoveError('Vote for the impostor.'); if (state.phase === 'clues') asString(action.clue, 'clue'); else { const target = asInt(action.target, 'target', 0, players.length - 1); if (target === side) throw new IllegalMoveError('You cannot vote for yourself.'); } }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); if (next.phase === 'clues') { (next.clues as (string | null)[])[side] = (action.clue as string).slice(0, 100); if ((next.clues as unknown[]).every(Boolean)) { next.phase = 'vote'; next.votes = players.map(() => null); next.turnIndex = 0; next.turnPlayerId = players[0].id; } else rotateTurn(next, players); } else { (next.votes as (number | null)[])[side] = action.target as number; if ((next.votes as unknown[]).every((vote) => vote !== null)) { const target = (next.votes as number[]).sort((a, b) => (next.votes as number[]).filter((v) => v === b).length - (next.votes as number[]).filter((v) => v === a).length)[0]; next.finished = true; next.winnerId = target === Number(next.impostor) ? players.find((p) => p.id !== players[Number(next.impostor)].id)?.id ?? null : players[Number(next.impostor)].id; next.impostorCaught = target === Number(next.impostor); } else rotateTurn(next, players); } return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const side = players.findIndex((p) => p.id === botId); return state.phase === 'clues' ? { type: 'clue', clue: 'bright' } : { type: 'vote', target: players.findIndex((_, i) => i !== side) }; }
+const IMPOSTOR_WORDS = [
+  'pizza', 'rocket', 'castle', 'dragon', 'guitar', 'beach', 'forest', 'robot',
+  'pirate', 'circus', 'volcano', 'submarine', 'bakery', 'library', 'stadium',
+  'desert', 'island', 'garden', 'museum', 'carnival', 'lighthouse', 'waterfall',
+  'spaceship', 'treehouse', 'market', 'harbor', 'meadow', 'village', 'windmill', 'aquarium',
+];
+
+const IMPOSTOR_BLUFFS = [
+  'tricky one', 'I know this', 'classic', 'easy for me',
+  'good luck everyone', 'hmm, interesting', 'no doubt about it', 'love this game',
+];
+
+interface ImpostorLightState extends GameState {
+  impostor: number;
+  word: string;
+  clues: (string | null)[];
+  votes: (number | null)[];
+  phase: 'clues' | 'vote';
+  voteCount: number;
+  impostorCaught: boolean | null;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
 }
 
-export class EmojiCharadesEngine extends KnowledgeEngine { readonly id: GameId = 'emoji_charades'; constructor() { super('emoji_charades', 7); } }
+export class ImpostorLightEngine implements GameEngine {
+  readonly id: GameId = 'impostor_light';
+
+  create(players: GamePlayer[]): ImpostorLightState {
+    if (players.length < 4 || players.length > 10) throw new IllegalMoveError('Impostor Light supports four to ten players.');
+    return {
+      impostor: randomInt(players.length),
+      word: IMPOSTOR_WORDS[randomInt(IMPOSTOR_WORDS.length)],
+      clues: players.map(() => null),
+      votes: players.map(() => null),
+      phase: 'clues',
+      voteCount: 0,
+      impostorCaught: null,
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+    };
+  }
+
+  validate(state: ImpostorLightState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    checkTurn(state, actorId);
+    if (state.phase === 'clues') {
+      if (action.type !== 'clue') throw new IllegalMoveError('Give a clue.');
+      asString(action.clue, 'clue');
+      if ((action.clue as string).trim().length > 100) throw new IllegalMoveError('Keep your clue under 100 characters.');
+    } else {
+      if (action.type !== 'vote') throw new IllegalMoveError('Vote for the impostor.');
+      const target = asInt(action.target, 'target', 0, players.length - 1);
+      if (target === side) throw new IllegalMoveError('You cannot vote for yourself.');
+    }
+  }
+
+  apply(state: ImpostorLightState, actorId: string, action: Action, players: GamePlayer[]): ImpostorLightState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as ImpostorLightState;
+    const side = players.findIndex((player) => player.id === actorId);
+    if (next.phase === 'clues') {
+      next.clues[side] = (action.clue as string).trim().slice(0, 100);
+      if (next.clues.every(Boolean)) {
+        next.phase = 'vote';
+        next.votes = players.map(() => null);
+        next.voteCount = 0;
+        next.turnIndex = 0;
+        next.turnPlayerId = players[0].id;
+      } else rotateTurn(next, players);
+      return next;
+    }
+    next.votes[side] = action.target as number;
+    next.voteCount = next.votes.filter((vote) => vote !== null).length;
+    if (next.votes.every((vote) => vote !== null)) {
+      const counts = players.map((_, seat) => (next.votes as number[]).filter((vote) => vote === seat).length);
+      const top = Math.max(...counts);
+      const leaders = counts.map((count, seat) => (count === top ? seat : -1)).filter((seat) => seat >= 0);
+      // A tied vote lets the impostor slip away: no elimination without a plurality.
+      const caught = leaders.length === 1 && leaders[0] === Number(next.impostor);
+      next.impostorCaught = caught;
+      next.finished = true;
+      next.winnerId = caught
+        ? players.find((player, seat) => seat !== Number(next.impostor))?.id ?? null
+        : players[Number(next.impostor)].id;
+    } else rotateTurn(next, players);
+    return next;
+  }
+
+  outcome(state: ImpostorLightState, players: GamePlayer[]): GameOutcome {
+    if (!state.finished) return { finished: false, winnerIds: [], loserIds: [], draw: false };
+    const impostorId = players[Number(state.impostor)]?.id;
+    const winners = state.impostorCaught
+      ? players.filter((player) => player.id !== impostorId).map((player) => player.id)
+      : impostorId ? [impostorId] : [];
+    return { finished: true, winnerIds: winners, loserIds: players.filter((player) => !winners.includes(player.id)).map((player) => player.id), draw: false };
+  }
+
+  botAction(state: ImpostorLightState, botId: string, players: GamePlayer[]): Action {
+    const side = players.findIndex((player) => player.id === botId);
+    if (state.phase === 'clues') {
+      const isImpostor = Number(state.impostor) === side;
+      const word = String(state.word ?? 'mystery');
+      if (!isImpostor && randomInt(100) >= 25) {
+        const hints = [`starts with "${word[0].toUpperCase()}"`, `${word.length} letters`, `ends with "${word.slice(-1)}"`];
+        return { type: 'clue', clue: hints[randomInt(hints.length)] };
+      }
+      return { type: 'clue', clue: IMPOSTOR_BLUFFS[randomInt(IMPOSTOR_BLUFFS.length)] };
+    }
+    let target = randomInt(players.length);
+    while (target === side) target = randomInt(players.length);
+    return { type: 'vote', target };
+  }
+}
+
+interface EmojiEntry {
+  word: string;
+  clues: string[];
+  distractors: string[];
+}
+
+// Every entry: the secret word, three emoji the presenter can post, and three
+// wrong options for the multiple-choice guess. Options always hold 4 words.
+const EMOJI_BANK: EmojiEntry[] = [
+  { word: 'pizza', clues: ['🍕', '🧀🍅', '🇮🇹'], distractors: ['burger', 'sushi', 'taco'] },
+  { word: 'rocket', clues: ['🚀', '🌙🚀', '🔥🚀'], distractors: ['airplane', 'submarine', 'bicycle'] },
+  { word: 'cat', clues: ['🐱', '🐈‍⬛', '🥛🐱'], distractors: ['dog', 'rabbit', 'hamster'] },
+  { word: 'birthday', clues: ['🎂', '🎉🎁', '🕯️'], distractors: ['wedding', 'holiday', 'meeting'] },
+  { word: 'ocean', clues: ['🌊', '🏖️', '🐠'], distractors: ['desert', 'forest', 'mountain'] },
+  { word: 'soccer', clues: ['⚽', '🥅', '🏟️'], distractors: ['tennis', 'boxing', 'golf'] },
+  { word: 'music', clues: ['🎵', '🎸', '🎧'], distractors: ['movie', 'book', 'painting'] },
+  { word: 'airplane', clues: ['✈️', '🛫', '☁️✈️'], distractors: ['train', 'ship', 'bus'] },
+  { word: 'coffee', clues: ['☕', '🫘', '🌅☕'], distractors: ['tea', 'juice', 'milk'] },
+  { word: 'dragon', clues: ['🐉', '🔥🐲', '🏰'], distractors: ['unicorn', 'dinosaur', 'monster'] },
+  { word: 'snowman', clues: ['☃️', '❄️⛄', '🧣'], distractors: ['scarecrow', 'robot', 'ghost'] },
+  { word: 'treasure', clues: ['💰', '🗺️💎', '🏴‍☠️'], distractors: ['garbage', 'homework', 'laundry'] },
+  { word: 'camera', clues: ['📷', '🤳', '📸'], distractors: ['mirror', 'lamp', 'clock'] },
+  { word: 'rainbow', clues: ['🌈', '🌦️', '🦄'], distractors: ['storm', 'eclipse', 'fog'] },
+  { word: 'robot', clues: ['🤖', '⚙️', '🔋'], distractors: ['alien', 'zombie', 'vampire'] },
+  { word: 'popcorn', clues: ['🍿', '🎬', '🎪'], distractors: ['chips', 'candy', 'nachos'] },
+  { word: 'castle', clues: ['🏰', '👑', '🐉🏰'], distractors: ['tent', 'igloo', 'cabin'] },
+  { word: 'bicycle', clues: ['🚲', '🚴', '⛰️🚲'], distractors: ['motorcycle', 'skateboard', 'scooter'] },
+  { word: 'ghost', clues: ['👻', '🎃', '🌙'], distractors: ['witch', 'mummy', 'skeleton'] },
+  { word: 'sun', clues: ['☀️', '🌞', '🕶️'], distractors: ['moon', 'star', 'cloud'] },
+  { word: 'dog', clues: ['🐶', '🦴', '🐕‍🦺'], distractors: ['cat', 'fox', 'wolf'] },
+  { word: 'book', clues: ['📚', '📖', '🤓'], distractors: ['newspaper', 'magazine', 'letter'] },
+  { word: 'phone', clues: ['📱', '🤳', '💬'], distractors: ['laptop', 'tablet', 'radio'] },
+  { word: 'beach', clues: ['🏖️', '🦀', '🍹'], distractors: ['pool', 'lake', 'river'] },
+];
+
+const pickEmojiEntry = (used: string[]): EmojiEntry => {
+  const fresh = EMOJI_BANK.filter((entry) => !used.includes(entry.word));
+  const pool = fresh.length ? fresh : EMOJI_BANK;
+  return pool[randomInt(pool.length)];
+};
+
+const shuffledOptions = (items: string[]): string[] => {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swap = randomInt(index + 1);
+    [copy[index], copy[swap]] = [copy[swap], copy[index]];
+  }
+  return copy;
+};
+
+interface EmojiCharadesState extends GameState {
+  round: number;
+  rounds: number;
+  presenterIndex: number;
+  phase: 'clue' | 'guessing';
+  prompt: string | null;
+  clueOptions: string[];
+  clue: string | null;
+  options: string[];
+  answer: number | null;
+  guesses: (number | null)[];
+  scores: number[];
+  lastRound: { presenterId: string; word: string; clue: string; correctIds: string[] } | null;
+  usedWords: string[];
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  draw?: boolean;
+}
+
+const dealEmojiRound = (used: string[]): { prompt: string; clueOptions: string[]; options: string[]; answer: number; usedWords: string[] } => {
+  const entry = pickEmojiEntry(used);
+  const options = shuffledOptions([entry.word, ...entry.distractors]);
+  return { prompt: entry.word, clueOptions: [...entry.clues], options, answer: options.indexOf(entry.word), usedWords: [...used, entry.word] };
+};
+
+export class EmojiCharadesEngine implements GameEngine {
+  readonly id: GameId = 'emoji_charades';
+
+  create(players: GamePlayer[]): EmojiCharadesState {
+    if (players.length < 3 || players.length > 8) throw new IllegalMoveError('Emoji Charades supports three to eight players.');
+    const dealt = dealEmojiRound([]);
+    return {
+      round: 1,
+      rounds: players.length,
+      presenterIndex: 0,
+      phase: 'clue',
+      prompt: dealt.prompt,
+      clueOptions: dealt.clueOptions,
+      clue: null,
+      options: dealt.options,
+      answer: dealt.answer,
+      guesses: players.map(() => null),
+      scores: players.map(() => 0),
+      lastRound: null,
+      usedWords: dealt.usedWords,
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+    };
+  }
+
+  validate(state: EmojiCharadesState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    checkTurn(state, actorId);
+    if (state.phase === 'clue') {
+      if (action.type !== 'post_clue') throw new IllegalMoveError('Post an emoji clue.');
+      const emoji = asString(action.emoji, 'emoji');
+      if (!(state.clueOptions as string[]).includes(emoji)) throw new IllegalMoveError('Pick one of the suggested emoji.');
+    } else {
+      if (action.type !== 'guess') throw new IllegalMoveError('Guess the word.');
+      if (side === Number(state.presenterIndex)) throw new IllegalMoveError('The presenter does not guess.');
+      asInt(action.answer, 'answer', 0, 3);
+      if (state.guesses[side] !== null) throw new IllegalMoveError('You already guessed this round.');
+    }
+  }
+
+  apply(state: EmojiCharadesState, actorId: string, action: Action, players: GamePlayer[]): EmojiCharadesState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as EmojiCharadesState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const presenter = Number(next.presenterIndex);
+    if (next.phase === 'clue') {
+      next.clue = action.emoji as string;
+      next.phase = 'guessing';
+      const firstGuesser = (presenter + 1) % players.length;
+      next.turnIndex = firstGuesser;
+      next.turnPlayerId = players[firstGuesser].id;
+      return next;
+    }
+    next.guesses[side] = action.answer as number;
+    if ((action.answer as number) === Number(next.answer)) {
+      next.scores[side] += 100;
+      next.scores[presenter] += 50;
+    }
+    const pending = players.findIndex((_, seat) => seat !== presenter && next.guesses[seat] === null);
+    if (pending === -1) {
+      next.lastRound = {
+        presenterId: players[presenter].id,
+        word: String(next.prompt),
+        clue: String(next.clue),
+        correctIds: players.filter((_, seat) => next.guesses[seat] === Number(next.answer)).map((player) => player.id),
+      };
+      if (Number(next.round) >= Number(next.rounds)) {
+        next.finished = true;
+        const max = Math.max(...next.scores);
+        next.winnerId = players[next.scores.indexOf(max)].id;
+        next.draw = next.scores.filter((score) => score === max).length > 1;
+      } else {
+        const dealt = dealEmojiRound(next.usedWords);
+        next.round = Number(next.round) + 1;
+        next.presenterIndex = (presenter + 1) % players.length;
+        next.phase = 'clue';
+        next.prompt = dealt.prompt;
+        next.clueOptions = dealt.clueOptions;
+        next.clue = null;
+        next.options = dealt.options;
+        next.answer = dealt.answer;
+        next.guesses = players.map(() => null);
+        next.usedWords = dealt.usedWords;
+        next.turnIndex = Number(next.presenterIndex);
+        next.turnPlayerId = players[Number(next.presenterIndex)].id;
+      }
+      return next;
+    }
+    let turn = (Number(next.turnIndex) + 1) % players.length;
+    if (turn === presenter) turn = (turn + 1) % players.length;
+    next.turnIndex = turn;
+    next.turnPlayerId = players[turn].id;
+    return next;
+  }
+
+  outcome(state: EmojiCharadesState, players: GamePlayer[]): GameOutcome {
+    const winner = typeof state.winnerId === 'string' ? state.winnerId : '';
+    return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(state: EmojiCharadesState, _botId: string): Action {
+    if (state.phase === 'clue') {
+      const options = state.clueOptions as string[];
+      return { type: 'post_clue', emoji: options[randomInt(options.length)] ?? '🎲' };
+    }
+    // Bots read emoji about as well as a casual player: usually right, sometimes fooled.
+    const answer = Number(state.answer);
+    return { type: 'guess', answer: randomInt(100) < 55 ? answer : randomInt(4) };
+  }
+}
 interface SketchGuessState extends GameState {
   round: number;
   rounds: number;
