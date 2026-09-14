@@ -49,3 +49,22 @@ INSERT INTO season_rewards (id, season_id, min_rank, max_rank, coins, pips, shop
 ('21000000-0000-4000-8000-000000000002','20000000-0000-4000-8000-000000000001',2,10,5000,150,'10000000-0000-4000-8000-000000000003'),
 ('21000000-0000-4000-8000-000000000003','20000000-0000-4000-8000-000000000001',11,100,1500,50,NULL)
 ON DUPLICATE KEY UPDATE coins=VALUES(coins), pips=VALUES(pips), shop_item_id=VALUES(shop_item_id);
+
+-- Shared bot pool: matches reuse these 12 accounts instead of inserting a new
+-- users row per bot per match. The API self-heals this pool at startup on
+-- databases created before the is_bot column existed.
+INSERT IGNORE INTO users (id, username, display_name, role, status, is_bot) VALUES
+('30000000-0000-4000-8000-000000000001','bot_aria','Aria','player','active',TRUE),
+('30000000-0000-4000-8000-000000000002','bot_mina','Mina','player','active',TRUE),
+('30000000-0000-4000-8000-000000000003','bot_noah','Noah','player','active',TRUE),
+('30000000-0000-4000-8000-000000000004','bot_sami','Sami','player','active',TRUE),
+('30000000-0000-4000-8000-000000000005','bot_nika','Nika','player','active',TRUE),
+('30000000-0000-4000-8000-000000000006','bot_milo','Milo','player','active',TRUE),
+('30000000-0000-4000-8000-000000000007','bot_lina','Lina','player','active',TRUE),
+('30000000-0000-4000-8000-000000000008','bot_raya','Raya','player','active',TRUE),
+('30000000-0000-4000-8000-000000000009','bot_kian','Kian','player','active',TRUE),
+('30000000-0000-4000-8000-000000000010','bot_dara','Dara','player','active',TRUE),
+('30000000-0000-4000-8000-000000000011','bot_tara','Tara','player','active',TRUE),
+('30000000-0000-4000-8000-000000000012','bot_eli','Eli','player','active',TRUE);
+INSERT IGNORE INTO wallets (user_id, coins, pips)
+SELECT id, 0, 0 FROM users WHERE is_bot = TRUE;

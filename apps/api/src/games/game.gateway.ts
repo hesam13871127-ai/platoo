@@ -1,15 +1,20 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer, WsException } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
 import { GameActionDto } from './game.dto';
+import { SocketFloodGuard } from '../common/rate-limit/socket-flood';
+import { socketCorsOrigin } from '../common/cors.util';
 
-@WebSocketGateway({ namespace: '/games', cors: { origin: true, credentials: true }, transports: ['websocket'] })
+const MINUTE = 60_000;
+
+@WebSocketGateway({ namespace: '/games', cors: { origin: socketCorsOrigin(), credentials: true }, transports: ['websocket'] })
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(GameGateway.name);
+  private readonly flood = new SocketFloodGuard();
   constructor(private readonly games: GameService, private readonly jwt: JwtService, private readonly config: ConfigService) {
     this.games.onMatchUpdated((matchId) => { void this.broadcast(matchId); });
   }
@@ -24,10 +29,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await socket.join(`user:${payload.sub}`);
     } catch { this.logger.warn(`Rejected game socket ${socket.id}`); socket.disconnect(true); }
   }
-  handleDisconnect(_socket: Socket): void { return; }
+  handleDisconnect(socket: Socket): void { this.flood.release(socket.id); }
 
   @SubscribeMessage('match:join')
   async join(@ConnectedSocket() socket: Socket, @MessageBody() body: { matchId: string }) {
+    if (!this.flood.check(socket.id, 'match:join', 60, MINUTE)) throw new WsException('Too many requests. Slow down for a moment.');
     const match = await this.games.getMatch(body.matchId, socket.data.userId as string);
     await socket.join(`match:${body.matchId}`);
     return match;
@@ -35,11 +41,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('game:action')
   async action(@ConnectedSocket() socket: Socket, @MessageBody() body: { matchId: string; action: GameActionDto }) {
+    if (!this.flood.check(socket.id, 'game:action', 180, MINUTE)) throw new WsException('Too many requests. Slow down for a moment.');
     return this.games.act(body.matchId, socket.data.userId as string, body.action);
   }
 
   @SubscribeMessage('game:resign')
   async resign(@ConnectedSocket() socket: Socket, @MessageBody() body: { matchId: string }) {
+    if (!this.flood.check(socket.id, 'game:resign', 30, MINUTE)) throw new WsException('Too many requests. Slow down for a moment.');
     return this.games.resign(body.matchId, socket.data.userId as string);
   }
 

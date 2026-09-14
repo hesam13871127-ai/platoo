@@ -16,7 +16,7 @@ export class VerifyOtpDto {
 }
 
 export class SocialLoginDto {
-  @IsString()
+  @IsIn(['google', 'apple'])
   provider!: 'google' | 'apple';
 
   @IsString()

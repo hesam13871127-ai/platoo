@@ -1,18 +1,23 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer, WsException } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { UsersService } from '../users/users.service';
 import { SendMessageDto } from './chat.dto';
+import { SocketFloodGuard } from '../common/rate-limit/socket-flood';
+import { socketCorsOrigin } from '../common/cors.util';
 
 interface SocketAuth { token?: string; }
 
-@WebSocketGateway({ namespace: '/chat', cors: { origin: true, credentials: true }, transports: ['websocket'] })
+const MINUTE = 60_000;
+
+@WebSocketGateway({ namespace: '/chat', cors: { origin: socketCorsOrigin(), credentials: true }, transports: ['websocket'] })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(ChatGateway.name);
+  private readonly flood = new SocketFloodGuard();
 
   constructor(private readonly chat: ChatService, private readonly users: UsersService, private readonly jwt: JwtService, private readonly config: ConfigService) {}
 
@@ -33,11 +38,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   async handleDisconnect(socket: Socket): Promise<void> {
+    this.flood.release(socket.id);
     if (socket.data.userId) await this.users.touchPresence(socket.data.userId as string);
   }
 
   @SubscribeMessage('conversation:join')
   async join(@ConnectedSocket() socket: Socket, @MessageBody() body: { conversationId: string }) {
+    if (!this.flood.check(socket.id, 'conversation:join', 60, MINUTE)) throw new WsException('Too many requests. Slow down for a moment.');
     await this.chat.assertMember(socket.data.userId as string, body.conversationId);
     await socket.join(`conversation:${body.conversationId}`);
     return { success: true, conversationId: body.conversationId };
@@ -45,6 +52,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('message:send')
   async message(@ConnectedSocket() socket: Socket, @MessageBody() dto: SendMessageDto) {
+    if (!this.flood.check(socket.id, 'message:send', 40, MINUTE)) throw new WsException('Too many messages. Slow down for a moment.');
     const message = await this.chat.send(socket.data.userId as string, dto);
     this.server.to(`conversation:${dto.conversationId}`).emit('message:new', message);
     return message;
@@ -57,6 +65,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('typing')
   async typing(@ConnectedSocket() socket: Socket, @MessageBody() body: { conversationId: string; isTyping: boolean }) {
+    if (!this.flood.check(socket.id, 'typing', 120, MINUTE)) throw new WsException('Too many requests. Slow down for a moment.');
     await this.chat.assertMember(socket.data.userId as string, body.conversationId);
     socket.to(`conversation:${body.conversationId}`).emit('typing', { userId: socket.data.userId, isTyping: body.isTyping });
     return { success: true };

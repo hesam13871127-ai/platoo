@@ -57,3 +57,21 @@ npm test
 ```
 
 The authoritative engine tests cover four-in-a-row wins, chess legality, Mancala turn flow, and Ocho card legality. The application keeps game rules in `apps/api/src/games/engines`, separate from transport and persistence.
+
+## Production readiness checklist
+
+The API refuses to boot with `NODE_ENV=production` unless these hold:
+
+- `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` are unique and at least 32 characters.
+- `CORS_ORIGINS` lists the allowed web origins (mobile apps are unaffected).
+- `DEV_OTP_ENABLED=false` and `OTP_WEBHOOK_URL` points at the approved SMS provider.
+
+Also recommended before launch: non-default `DB_USER`/`DB_PASSWORD` (or `DATABASE_URL`), Verified LiveKit credentials, and the shop/season seed reviewed in `database/seed.sql`.
+
+## Operations
+
+- Health: `GET /api/v1/health` (liveness, always 200) and `GET /api/v1/health/ready` (readiness, 503 while MySQL is unreachable). Point load-balancer checks at `/ready`.
+- Rate limits: per-route fixed windows (auth 5–30/min by IP, chat sends 60/min, game actions 180/min, polling endpoints 300/min), plus per-socket flood guards on `message:send`, `typing`, and `game:action`. Responses carry `X-RateLimit-*` and `Retry-After` headers; `RATE_LIMIT_ENABLED=false` disables them in an emergency.
+- Bots: matches share a pool of 12 `bot_*` accounts instead of minting a `users` row per bot per match. Fresh databases get the pool from `database/seed.sql`; older databases self-heal at startup (`users.is_bot` is added automatically when DDL is permitted). To add the column manually: `ALTER TABLE users ADD COLUMN is_bot TINYINT(1) NOT NULL DEFAULT 0, ADD KEY idx_users_bot (is_bot);`
+- Errors: every failure returns `{ error: { code, message, requestId? } }` with an `x-request-id` header for log correlation — include it in bug reports.
+- Existing databases pick up schema changes by re-running `npm run db:migrate` (wholesale `CREATE TABLE IF NOT EXISTS` plus the self-healing `ALTER`s above); `npm run db:seed` is idempotent.

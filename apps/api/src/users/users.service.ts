@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { RowDataPacket } from 'mysql2/promise';
 import { MysqlService } from '../database/mysql.service';
+import { ensureUsersBotColumn } from '../common/bot-pool';
 import { conflict, forbidden, invalid, notFound } from '../common/errors';
 import { CreateGroupDto, FriendshipDto, ReportUserDto, UpdateProfileDto } from './users.dto';
 
@@ -27,7 +28,8 @@ export class UsersService {
   async search(userId: string, query: string) {
     const term = query.trim();
     if (term.length < 2) throw invalid('Search must contain at least two characters.');
-    const rows = await this.mysql.query<RowDataPacket[]>(`SELECT id, username, display_name AS displayName, avatar_url AS avatarUrl, level, last_seen_at AS lastSeenAt FROM users WHERE id <> ? AND status = 'active' AND (username LIKE ? OR display_name LIKE ?) ORDER BY display_name ASC LIMIT 30`, [userId, `%${term}%`, `%${term}%`]);
+    const botFilter = await ensureUsersBotColumn(this.mysql) ? ' AND is_bot = FALSE' : '';
+    const rows = await this.mysql.query<RowDataPacket[]>(`SELECT id, username, display_name AS displayName, avatar_url AS avatarUrl, level, last_seen_at AS lastSeenAt FROM users WHERE id <> ? AND status = 'active'${botFilter} AND (username LIKE ? OR display_name LIKE ?) ORDER BY display_name ASC LIMIT 30`, [userId, `%${term}%`, `%${term}%`]);
     return rows.map((row) => ({ ...row, isOnline: this.isOnline(row.lastSeenAt as string | null) }));
   }
 

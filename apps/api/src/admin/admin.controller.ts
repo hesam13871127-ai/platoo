@@ -5,9 +5,11 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { AdminService } from './admin.service';
 import { AdjustWalletDto, BanUserDto, CreateSeasonDto, CreateSeasonRewardDto, CreateShopItemDto, ResolveReportDto, UpdateGameDto, UpdateSeasonDto, UpdateShopItemDto, UpdateUserAdminDto } from './admin.dto';
+import { RateLimit } from '../common/rate-limit/rate-limit.decorator';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('moderator', 'admin')
+@RateLimit({ limit: 300, windowMs: 60_000 })
 @Controller('admin')
 export class AdminController {
   constructor(private readonly admin: AdminService) {}

@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { EventEmitter } from 'node:events';
 import { randomInt as cryptoRandomInt, randomUUID } from 'node:crypto';
 import { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { MysqlService } from '../database/mysql.service';
+import { BOT_POOL_SEED, BOT_POOL_SIZE, botPoolId, ensureUsersBotColumn } from '../common/bot-pool';
 import { conflict, forbidden, invalid, notFound } from '../common/errors';
 import { GameActionDto } from './game.dto';
 import { GameRegistry } from './game.registry';
@@ -20,13 +21,23 @@ const RANKED_IDLE_STRIKES = 3;
 interface MatchPlayerRow extends RowDataPacket { id: string; userId: string; displayName: string; avatarUrl: string | null; seat: number; team: number | null; isBot: number; result: string; ratingBefore: number | null; ratingAfter: number | null; }
 
 @Injectable()
-export class GameService {
+export class GameService implements OnModuleInit {
   private readonly logger = new Logger(GameService.name);
   private readonly updates = new EventEmitter();
   private readonly botRuns = new Set<string>();
   private sweeping = false;
+  private botPool: string[] | null = null;
 
   constructor(private readonly mysql: MysqlService, private readonly registry: GameRegistry, private readonly ranking: RankingService) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      const pool = await this.ensureBotPool();
+      this.logger.log(`Shared bot pool ready (${pool.length} accounts)`);
+    } catch (error) {
+      this.logger.warn(`Shared bot pool unavailable at startup, matches will mint single-use bots: ${(error as Error)?.message ?? error}`);
+    }
+  }
 
   onMatchUpdated(listener: (matchId: string) => void): () => void {
     this.updates.on('match.updated', listener);
@@ -432,14 +443,35 @@ export class GameService {
     return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [];
   }
 
+  private async ensureBotPool(): Promise<string[]> {
+    if (this.botPool?.length) return this.botPool;
+    if (!await ensureUsersBotColumn(this.mysql)) throw new Error('users.is_bot is unavailable');
+    const placeholders = BOT_POOL_SEED.map(() => `(?, ?, ?, 'player', 'active', TRUE)`).join(', ');
+    const params = BOT_POOL_SEED.flatMap(([username, displayName], index) => [botPoolId(index), username, displayName]);
+    await this.mysql.execute(`INSERT IGNORE INTO users (id, username, display_name, role, status, is_bot) VALUES ${placeholders}`, params);
+    const ids = BOT_POOL_SEED.map((_, index) => botPoolId(index));
+    await this.mysql.execute(`INSERT IGNORE INTO wallets (user_id, coins, pips) VALUES ${ids.map(() => '(?, 0, 0)').join(', ')}`, ids);
+    const rows = await this.mysql.query<RowDataPacket[]>(`SELECT id FROM users WHERE is_bot = TRUE ORDER BY id LIMIT ${BOT_POOL_SIZE}`);
+    if (rows.length < BOT_POOL_SIZE) throw new Error('bot pool is incomplete');
+    this.botPool = rows.map((row) => row.id as string);
+    return this.botPool;
+  }
+
   private async createBotUser(ordinal: number): Promise<string> {
-    const id = randomUUID();
-    const username = `player_${id.replace(/-/g, '').slice(0, 20)}`;
-    const names = ['Ari', 'Mina', 'Noah', 'Sami', 'Nika', 'Milo', 'Lina', 'Raya'];
-    const displayName = names[(cryptoRandomInt(names.length) + ordinal) % names.length];
-    await this.mysql.execute(`INSERT INTO users (id, username, display_name, role, status) VALUES (?, ?, ?, 'player', 'active')`, [id, username, displayName]);
-    await this.mysql.execute(`INSERT INTO wallets (user_id, coins, pips) VALUES (?, 0, 0)`, [id]);
-    return id;
+    try {
+      const pool = await this.ensureBotPool();
+      // Ordinals are unique inside a match and botCount never exceeds the pool.
+      return pool[ordinal % pool.length];
+    } catch (error) {
+      this.logger.warn(`Bot pool unavailable, minting a single-use bot: ${(error as Error)?.message ?? error}`);
+      const id = randomUUID();
+      const username = `player_${id.replace(/-/g, '').slice(0, 20)}`;
+      const names = ['Ari', 'Mina', 'Noah', 'Sami', 'Nika', 'Milo', 'Lina', 'Raya'];
+      const displayName = names[(cryptoRandomInt(names.length) + ordinal) % names.length];
+      await this.mysql.execute(`INSERT INTO users (id, username, display_name, role, status) VALUES (?, ?, ?, 'player', 'active')`, [id, username, displayName]);
+      await this.mysql.execute(`INSERT INTO wallets (user_id, coins, pips) VALUES (?, 0, 0)`, [id]);
+      return id;
+    }
   }
 
   private sleep(milliseconds: number): Promise<void> {

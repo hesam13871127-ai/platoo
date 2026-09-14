@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   theme ENUM('light','dark','system') NOT NULL DEFAULT 'system',
   role ENUM('player','moderator','admin') NOT NULL DEFAULT 'player',
   status ENUM('active','suspended','deleted') NOT NULL DEFAULT 'active',
+  is_bot TINYINT(1) NOT NULL DEFAULT 0,
   level SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   experience INT UNSIGNED NOT NULL DEFAULT 0,
   last_seen_at DATETIME(3) NULL,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE KEY uq_users_phone (phone_e164),
   UNIQUE KEY uq_users_email (email),
   KEY idx_users_status_seen (status, last_seen_at),
+  KEY idx_users_bot (is_bot),
   CONSTRAINT chk_users_username CHECK (CHAR_LENGTH(username) BETWEEN 3 AND 32),
   CONSTRAINT chk_users_level CHECK (level BETWEEN 1 AND 100)
 ) ENGINE=InnoDB;
