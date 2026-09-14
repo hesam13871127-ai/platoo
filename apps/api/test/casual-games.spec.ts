@@ -1,5 +1,5 @@
-import { DicePartyEngine, EmojiCharadesEngine, ImpostorLightEngine } from '../src/games/engines/party.engine';
-import { BowlingEngine, DartsEngine } from '../src/games/engines/sport.engine';
+import { DicePartyEngine, EmojiCharadesEngine, ImpostorLightEngine, QuickChallengesEngine } from '../src/games/engines/party.engine';
+import { ArcheryEngine, BowlingEngine, DartsEngine } from '../src/games/engines/sport.engine';
 import { GamePlayer } from '../src/games/game.types';
 
 const players = (count: number): GamePlayer[] => Array.from({ length: count }, (_, seat) => ({ id: `player-${seat}`, seat, isBot: false }));
@@ -287,5 +287,99 @@ describe('impostor light: bluffing and team justice', () => {
     expect(state.finished).toBe(true);
     expect(state.voteCount).toBe(5);
     expect(typeof state.impostorCaught).toBe('boolean');
+  });
+});
+
+describe('archery: wind compensation', () => {
+  it('pushes arrows by the wind and rewards compensation', () => {
+    const engine = new ArcheryEngine();
+    const roster = players(2);
+    const windy = { ...(engine.create(roster) as any), wind: 10 };
+    let state = engine.apply(windy, 'player-0', { type: 'shoot', accuracy: 40 }, roster) as any;
+    expect(state.lastShot).toMatchObject({ accuracy: 40, wind: 10, effective: 50, points: 10, label: 'Bullseye!' });
+    expect(state.scores[0]).toBe(10);
+
+    const windy2 = { ...(engine.create(roster) as any), wind: -8 };
+    state = engine.apply(windy2, 'player-0', { type: 'shoot', accuracy: 50 }, roster) as any;
+    expect(state.lastShot).toMatchObject({ effective: 42, points: 8, label: 'Gold' });
+  });
+
+  it('clamps wild shots and calls a miss a miss', () => {
+    const engine = new ArcheryEngine();
+    const roster = players(1);
+    const state = engine.apply({ ...(engine.create(roster) as any), wind: 10 }, 'player-0', { type: 'shoot', accuracy: 95 }, roster) as any;
+    expect(state.lastShot).toMatchObject({ effective: 100, points: 0, label: 'Miss' });
+  });
+
+  it('gives every archer five arrows and finishes with a winner', () => {
+    const engine = new ArcheryEngine();
+    const roster = players(3);
+    let state = engine.create(roster) as any;
+    for (let turn = 0; turn < 60 && !state.finished; turn += 1) {
+      const actor = state.turnPlayerId as string;
+      state = engine.apply(state, actor, engine.botAction(state), roster);
+    }
+    expect(state.finished).toBe(true);
+    expect(state.shots).toEqual([5, 5, 5]);
+    expect(state.history).toHaveLength(15);
+    expect(['player-0', 'player-1', 'player-2']).toContain(state.winnerId);
+  });
+});
+
+describe('quick challenges: arcade trio', () => {
+  it('scores a bullseye stop at 100 and near misses by distance', () => {
+    const engine = new QuickChallengesEngine();
+    const roster = players(2);
+    const stop = { ...(engine.create(roster) as any), challenge: { kind: 'stop', zone: [45, 55] } };
+    let state = engine.apply(stop, 'player-0', { type: 'play', value: 50 }, roster) as any;
+    expect(state.lastResult).toMatchObject({ kind: 'stop', points: 100 });
+    expect(state.scores[0]).toBe(100);
+
+    const stop2 = { ...(engine.create(roster) as any), challenge: { kind: 'stop', zone: [45, 55] } };
+    state = engine.apply(stop2, 'player-0', { type: 'play', value: 30 }, roster) as any;
+    expect(state.lastResult.points).toBe(30);
+  });
+
+  it('plays high-low and cups without ever throwing on legal moves', () => {
+    const engine = new QuickChallengesEngine();
+    const roster = players(2);
+    for (let trial = 0; trial < 20; trial += 1) {
+      const highlow = { ...(engine.create(roster) as any), challenge: { kind: 'highlow', card: 1 + (trial % 13) } };
+      const done = engine.apply(highlow, 'player-0', engine.botAction(highlow), roster) as any;
+      expect([0, 50, 100]).toContain(done.lastResult.points);
+      expect(done.lastResult.detail).toContain('then');
+      const cups = { ...(engine.create(roster) as any), challenge: { kind: 'cups' } };
+      const cupped = engine.apply(cups, 'player-0', engine.botAction(cups), roster) as any;
+      expect([10, 100]).toContain(cupped.lastResult.points);
+    }
+  });
+
+  it('rejects wrong-challenge payloads and double plays', () => {
+    const engine = new QuickChallengesEngine();
+    const roster = players(2);
+    const stop = { ...(engine.create(roster) as any), challenge: { kind: 'stop', zone: [45, 55] } };
+    expect(() => engine.apply(stop, 'player-0', { type: 'play', cup: 1 }, roster)).toThrow('value');
+    const highlow = { ...(engine.create(roster) as any), challenge: { kind: 'highlow', card: 7 } };
+    expect(() => engine.apply(highlow, 'player-0', { type: 'play', guess: 'sideways' }, roster)).toThrow('high or low');
+    const played = engine.apply(stop, 'player-0', { type: 'play', value: 50 }, roster) as any;
+    expect(played.turnPlayerId).toBe('player-1');
+    expect(() => engine.apply(played, 'player-0', { type: 'play', value: 50 }, roster)).toThrow('not your turn');
+  });
+
+  it('rotates seven rounds and finishes a full bot game', () => {
+    const engine = new QuickChallengesEngine();
+    const roster = players(3);
+    let state = engine.create(roster) as any;
+    const kinds = new Set<string>();
+    for (let turn = 0; turn < 120 && !state.finished; turn += 1) {
+      kinds.add((state.challenge as { kind: string }).kind);
+      const actor = state.turnPlayerId as string;
+      state = engine.apply(state, actor, engine.botAction(state), roster);
+    }
+    expect(state.finished).toBe(true);
+    expect(state.round).toBe(7);
+    expect(state.history).toHaveLength(21);
+    expect(kinds.size).toBeGreaterThan(1);
+    expect(['player-0', 'player-1', 'player-2']).toContain(state.winnerId);
   });
 });

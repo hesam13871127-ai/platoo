@@ -3,13 +3,96 @@ import { Action, asInt, GameEngine, GameId, GameOutcome, GamePlayer, GameState, 
 const turn = (state: GameState, actorId: string) => { if (state.finished) throw new IllegalMoveError('This game has finished.'); if (state.turnPlayerId !== actorId) throw new IllegalMoveError('It is not your turn.'); };
 const outcome = (state: GameState, players: GamePlayer[]): GameOutcome => { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; };
 
+interface ArcheryState extends GameState {
+  round: number;
+  rounds: number;
+  scores: number[];
+  shots: number[];
+  wind: number;
+  lastShot: { playerId: string; accuracy: number; wind: number; effective: number; points: number; label: string } | null;
+  history: Array<{ playerId: string; accuracy: number; wind: number; effective: number; points: number }>;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  draw?: boolean;
+}
+
+const archeryLabel = (points: number): string => {
+  if (points <= 0) return 'Miss';
+  if (points >= 10) return 'Bullseye!';
+  if (points >= 8) return 'Gold';
+  if (points >= 5) return 'Red';
+  if (points >= 3) return 'Blue';
+  return 'Outer ring';
+};
+
+// Fresh wind (-10..+10) is dealt for every arrow and shown before the shot, so
+// archers compensate their aim instead of tapping the same spot every turn.
+const dealWind = (): number => randomInt(21) - 10;
+
 export class ArcheryEngine implements GameEngine {
   readonly id: GameId = 'archery';
-  create(players: GamePlayer[]): GameState { return { round: 1, rounds: 5, scores: players.map(() => 0), shots: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action): void { turn(state, actorId); if (action.type !== 'shoot') throw new IllegalMoveError('Use shoot.'); asInt(action.accuracy, 'accuracy', 0, 100); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); const accuracy = action.accuracy as number; (next.scores as number[])[side] += Math.max(0, Math.round(10 - Math.abs(50 - accuracy) / 5)); const shots = (Array.isArray(next.shots) ? next.shots : players.map(() => 0)) as number[]; shots[side] = (shots[side] ?? 0) + 1; next.shots = shots; if (shots.every((count) => count >= Number(next.rounds))) { next.finished = true; const max = Math.max(...(next.scores as number[])); next.winnerId = players[(next.scores as number[]).indexOf(max)].id; next.draw = (next.scores as number[]).filter((score) => score === max).length > 1; } else { next.round = Math.min(...shots) + 1; rotateTurn(next, players); } return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { return outcome(state, players); }
-  botAction(): Action { return { type: 'shoot', accuracy: 50 + randomInt(31) - 15 }; }
+
+  create(players: GamePlayer[]): ArcheryState {
+    if (players.length < 1 || players.length > 4) throw new IllegalMoveError('Archery supports one to four players.');
+    return {
+      round: 1,
+      rounds: 5,
+      scores: players.map(() => 0),
+      shots: players.map(() => 0),
+      wind: dealWind(),
+      lastShot: null,
+      history: [],
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+    };
+  }
+
+  validate(state: ArcheryState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    turn(state, actorId);
+    if (action.type !== 'shoot') throw new IllegalMoveError('Use shoot.');
+    asInt(action.accuracy, 'accuracy', 0, 100);
+  }
+
+  apply(state: ArcheryState, actorId: string, action: Action, players: GamePlayer[]): ArcheryState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as ArcheryState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const accuracy = action.accuracy as number;
+    const wind = Number(next.wind) || 0;
+    const effective = Math.min(100, Math.max(0, accuracy + wind));
+    const points = Math.max(0, Math.round(10 - Math.abs(50 - effective) / 5));
+    next.scores[side] += points;
+    const shots = (Array.isArray(next.shots) ? next.shots : players.map(() => 0)) as number[];
+    shots[side] = (shots[side] ?? 0) + 1;
+    next.shots = shots;
+    next.lastShot = { playerId: actorId, accuracy, wind, effective, points, label: archeryLabel(points) };
+    next.history.push({ playerId: actorId, accuracy, wind, effective, points });
+    if (shots.every((count) => count >= Number(next.rounds))) {
+      next.finished = true;
+      const max = Math.max(...next.scores);
+      next.winnerId = players[next.scores.indexOf(max)].id;
+      next.draw = next.scores.filter((score) => score === max).length > 1;
+    } else {
+      next.round = Math.min(...shots) + 1;
+      next.wind = dealWind();
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: ArcheryState, players: GamePlayer[]): GameOutcome { return outcome(state, players); }
+
+  botAction(state: ArcheryState): Action {
+    const wind = Number(state.wind) || 0;
+    const aim = Math.min(100, Math.max(0, 50 - wind + (randomInt(13) - 6)));
+    return { type: 'shoot', accuracy: aim };
+  }
 }
 
 interface BowlingState extends GameState {

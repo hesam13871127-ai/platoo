@@ -414,17 +414,6 @@ export class MemoryRaceEngine implements GameEngine {
   botAction(state: GameState): Action { const available = (state.matched as boolean[]).map((matched, i) => !matched && !(state.revealed as boolean[])[i] ? i : -1).filter((i) => i >= 0); return { type: 'flip', index: available[randomInt(available.length)] ?? 0 }; }
 }
 
-export class KnowledgeEngine implements GameEngine {
-  readonly id: GameId;
-  private readonly questionCount: number;
-  constructor(id: GameId, questionCount = 10) { this.id = id; this.questionCount = questionCount; }
-  create(players: GamePlayer[]): GameState { return { question: 1, questionCount: this.questionCount, answered: players.map(() => false), scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { checkTurn(state, actorId); if (action.type !== 'answer') throw new IllegalMoveError('Answer the current challenge.'); asInt(action.answer, 'answer', 0, 3); const side = players.findIndex((p) => p.id === actorId); if ((state.answered as boolean[])[side]) throw new IllegalMoveError('You already answered this question.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); (next.answered as boolean[])[side] = true; if ((action.answer as number) === Number(next.question) % 4) (next.scores as number[])[side] += 100 + randomInt(50); if ((next.answered as boolean[]).every(Boolean)) { if (Number(next.question) >= Number(next.questionCount)) { next.finished = true; const max = Math.max(...(next.scores as number[])); next.winnerId = players[(next.scores as number[]).indexOf(max)].id; next.draw = (next.scores as number[]).filter((score) => score === max).length > 1; } else { next.question = Number(next.question) + 1; next.answered = players.map(() => false); next.turnIndex = 0; next.turnPlayerId = players[0].id; } } else rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
-  botAction(state: GameState): Action { return { type: 'answer', answer: randomInt(4) }; }
-}
-
 const IMPOSTOR_WORDS = [
   'pizza', 'rocket', 'castle', 'dragon', 'guitar', 'beach', 'forest', 'robot',
   'pirate', 'circus', 'volcano', 'submarine', 'bakery', 'library', 'stadium',
@@ -1002,4 +991,157 @@ export class TriviaBattleEngine implements GameEngine {
   }
 }
 
-export class QuickChallengesEngine extends KnowledgeEngine { readonly id: GameId = 'quick_challenges'; constructor() { super('quick_challenges', 7); } }
+type QuickKind = 'stop' | 'highlow' | 'cups';
+
+interface QuickChallengeState extends GameState {
+  round: number;
+  rounds: number;
+  challenge: { kind: QuickKind; zone?: [number, number]; card?: number };
+  scores: number[];
+  acted: boolean[];
+  lastResult: { playerId: string; kind: string; detail: string; points: number } | null;
+  history: Array<{ playerId: string; round: number; kind: string; points: number }>;
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+  draw?: boolean;
+}
+
+const cardName = (rank: number): string => (rank === 1 ? 'A' : rank === 11 ? 'J' : rank === 12 ? 'Q' : rank === 13 ? 'K' : String(rank));
+
+// Every turn deals a fresh public mini-challenge. Anything hidden (the next card,
+// the prize cup) is drawn inside apply and revealed in lastResult, so the state
+// never stores a secret and needs no per-viewer sanitizing.
+const dealChallenge = (): { kind: QuickKind; zone?: [number, number]; card?: number } => {
+  const roll = randomInt(3);
+  if (roll === 0) {
+    const center = 20 + randomInt(61);
+    return { kind: 'stop', zone: [center - 5, center + 5] };
+  }
+  if (roll === 1) return { kind: 'highlow', card: 1 + randomInt(13) };
+  return { kind: 'cups' };
+};
+
+export class QuickChallengesEngine implements GameEngine {
+  readonly id: GameId = 'quick_challenges';
+
+  create(players: GamePlayer[]): QuickChallengeState {
+    if (players.length < 1 || players.length > 6) throw new IllegalMoveError('Quick Challenges supports one to six players.');
+    return {
+      round: 1,
+      rounds: 7,
+      challenge: dealChallenge(),
+      scores: players.map(() => 0),
+      acted: players.map(() => false),
+      lastResult: null,
+      history: [],
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      finished: false,
+      winnerId: null,
+    };
+  }
+
+  validate(state: QuickChallengeState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    checkTurn(state, actorId);
+    if (action.type !== 'play') throw new IllegalMoveError('Play the challenge.');
+    if (state.acted[side]) throw new IllegalMoveError('You already played this round.');
+    const kind = state.challenge.kind;
+    if (kind === 'stop') asInt(action.value, 'value', 0, 100);
+    else if (kind === 'highlow') {
+      const guess = asString(action.guess, 'guess');
+      if (guess !== 'high' && guess !== 'low') throw new IllegalMoveError('Guess high or low.');
+    } else if (kind === 'cups') asInt(action.cup, 'cup', 0, 3);
+    else throw new IllegalMoveError('Unknown challenge.');
+  }
+
+  apply(state: QuickChallengeState, actorId: string, action: Action, players: GamePlayer[]): QuickChallengeState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as QuickChallengeState;
+    const side = players.findIndex((player) => player.id === actorId);
+    const kind = next.challenge.kind;
+    let points = 0;
+    let detail = '';
+    if (kind === 'stop') {
+      const value = action.value as number;
+      const [lo, hi] = (next.challenge.zone ?? [45, 55]) as number[];
+      if (value >= lo && value <= hi) {
+        points = 100;
+        detail = `Stopped at ${value} — dead in the zone!`;
+      } else {
+        const distance = Math.min(Math.abs(value - lo), Math.abs(value - hi));
+        points = Math.max(0, 60 - distance * 2);
+        detail = `Stopped at ${value} (zone ${lo}-${hi})`;
+      }
+    } else if (kind === 'highlow') {
+      const card = Number(next.challenge.card) || 7;
+      const nextCard = 1 + randomInt(13);
+      const guessHigh = (action.guess as string) === 'high';
+      if (nextCard === card) {
+        points = 50;
+        detail = `${cardName(card)} then ${cardName(nextCard)} — a push!`;
+      } else if ((nextCard > card) === guessHigh) {
+        points = 100;
+        detail = `${cardName(card)} then ${cardName(nextCard)} — called it!`;
+      } else {
+        detail = `${cardName(card)} then ${cardName(nextCard)} — wrong way.`;
+      }
+    } else {
+      const prize = randomInt(4);
+      const cup = action.cup as number;
+      if (cup === prize) {
+        points = 100;
+        detail = `Cup ${cup + 1} hid the prize!`;
+      } else {
+        points = 10;
+        detail = `The prize was under cup ${prize + 1}.`;
+      }
+    }
+    next.scores[side] += points;
+    next.acted[side] = true;
+    next.lastResult = { playerId: actorId, kind, detail, points };
+    next.history.push({ playerId: actorId, round: Number(next.round), kind, points });
+    if (next.acted.every(Boolean)) {
+      if (Number(next.round) >= Number(next.rounds)) {
+        next.finished = true;
+        const max = Math.max(...next.scores);
+        next.winnerId = players[next.scores.indexOf(max)].id;
+        next.draw = next.scores.filter((score) => score === max).length > 1;
+      } else {
+        next.round = Number(next.round) + 1;
+        next.acted = players.map(() => false);
+        next.turnIndex = 0;
+        next.turnPlayerId = players[0].id;
+        next.challenge = dealChallenge();
+      }
+    } else {
+      rotateTurn(next, players);
+      next.challenge = dealChallenge();
+    }
+    return next;
+  }
+
+  outcome(state: QuickChallengeState, players: GamePlayer[]): GameOutcome {
+    const winner = typeof state.winnerId === 'string' ? state.winnerId : '';
+    return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(state: QuickChallengeState): Action {
+    const challenge = state.challenge;
+    if (challenge.kind === 'stop') {
+      const [lo, hi] = (challenge.zone ?? [45, 55]) as number[];
+      const center = Math.round((lo + hi) / 2);
+      return { type: 'play', value: Math.min(100, Math.max(0, center + (randomInt(11) - 5))) };
+    }
+    if (challenge.kind === 'highlow') {
+      const card = Number(challenge.card) || 7;
+      if (card < 7) return { type: 'play', guess: 'high' };
+      if (card > 7) return { type: 'play', guess: 'low' };
+      return { type: 'play', guess: randomInt(2) === 0 ? 'high' : 'low' };
+    }
+    return { type: 'play', cup: randomInt(4) };
+  }
+}

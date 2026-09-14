@@ -3,7 +3,7 @@ import { GameEngine, GameId, GameState } from './game.types';
 import { OchoEngine, HeartsEngine, SpadesEngine } from './engines/cards.engine';
 import { FourInARowEngine, ChessEngine, CheckersEngine, MancalaEngine } from './engines/board.engine';
 import { LudoEngine, DominoesEngine, BackgammonEngine, SeaBattleEngine, PoolEngine, CarromEngine } from './engines/tabletop.engine';
-import { DicePartyEngine, BingoEngine, WerewolfEngine, WordChainEngine, MemoryRaceEngine, KnowledgeEngine, ImpostorLightEngine, SketchGuessEngine, TriviaBattleEngine, QuickChallengesEngine, EmojiCharadesEngine } from './engines/party.engine';
+import { DicePartyEngine, BingoEngine, WerewolfEngine, WordChainEngine, MemoryRaceEngine, ImpostorLightEngine, SketchGuessEngine, TriviaBattleEngine, QuickChallengesEngine, EmojiCharadesEngine } from './engines/party.engine';
 import { ArcheryEngine, BowlingEngine, DartsEngine, MiniGolfEngine, TableSoccerEngine } from './engines/sport.engine';
 import { GameDescriptor } from '@vibetable/contracts';
 

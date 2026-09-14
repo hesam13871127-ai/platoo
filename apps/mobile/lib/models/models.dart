@@ -104,6 +104,8 @@ const kGamesWithMobileBoard = <String>{
   'darts',
   'emoji_charades',
   'impostor_light',
+  'archery',
+  'quick_challenges',
 };
 
 bool gameHasMobileBoard(String id) => kGamesWithMobileBoard.contains(id);
