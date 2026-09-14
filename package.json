@@ -7,6 +7,7 @@
   "engines": { "node": ">=20.11.0" },
   "scripts": {
     "dev:api": "npm --workspace apps/api run start:dev",
+    "setup": "npm install && npm run build && npm run db:migrate && npm run db:seed",
     "build": "npm run build:contracts && npm --workspace apps/api run build",
     "build:contracts": "npm --workspace packages/contracts run build",
     "test": "npm --workspace apps/api run test",

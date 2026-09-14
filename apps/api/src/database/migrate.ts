@@ -14,7 +14,8 @@ async function migrate(): Promise<void> {
     multipleStatements: true,
   });
   try {
-    const sql = await readFile(join(process.cwd(), '../../database/schema.sql'), 'utf8');
+    // Script-relative so it works from a local checkout and from the Docker image.
+    const sql = await readFile(join(__dirname, '../../../../../database/schema.sql'), 'utf8');
     await connection.query(sql);
     console.log('VibeTable schema applied.');
   } finally {

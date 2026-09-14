@@ -1,0 +1,14 @@
+node_modules/
+npm-debug.log
+.git/
+.gitignore
+.env
+coverage/
+logs/
+apps/api/dist/
+apps/api/node_modules/
+apps/api/coverage/
+apps/mobile/build/
+apps/mobile/.dart_tool/
+packages/*/dist/
+packages/*/node_modules/

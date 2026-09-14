@@ -10,6 +10,8 @@ services:
     ports:
       - "3306:3306"
     volumes:
+      # Data persists here; init scripts below only run on an EMPTY volume.
+      # For a clean slate: docker compose down -v && docker compose up -d
       - vibetable_mysql:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
@@ -50,6 +52,7 @@ services:
       JWT_REFRESH_SECRET: replace-with-a-different-64-character-random-secret
       DEV_OTP_ENABLED: "true"
       REDIS_URL: redis://redis:6379
+    restart: unless-stopped
     ports:
       - "3000:3000"
     depends_on:
