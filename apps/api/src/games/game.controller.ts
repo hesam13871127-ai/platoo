@@ -12,5 +12,6 @@ export class GameController {
   @Post('matches') create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateMatchDto) { return this.games.createMatch(dto.gameId, dto.mode, [user.id, ...(dto.playerIds ?? []).filter((id) => id !== user.id)], dto.desiredPlayers); }
   @Get('matches/:id') match(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.games.getMatch(id, user.id); }
   @Post('matches/:id/actions') action(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: GameActionDto) { return this.games.act(id, user.id, dto); }
+  @Post('matches/:id/resign') resign(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.games.resign(id, user.id); }
   @Get('matches/:id/replay') replay(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.games.replay(id, user.id); }
 }

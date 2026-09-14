@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { EventEmitter } from 'node:events';
 import { randomInt as cryptoRandomInt, randomUUID } from 'node:crypto';
 import { PoolConnection, RowDataPacket } from 'mysql2/promise';
@@ -9,7 +10,13 @@ import { GameRegistry } from './game.registry';
 import { Action, GamePlayer, GameState } from './game.types';
 import { RankingService } from '../ranking/ranking.service';
 
-interface MatchRow extends RowDataPacket { id: string; game_id: string; mode: 'casual' | 'ranked' | 'private'; status: 'waiting' | 'active' | 'finished' | 'cancelled'; max_players: number; state: GameState; revision: number; winner_ids: string[] | null; loser_ids: string[] | null; draw: number; created_at: string; started_at: string | null; finished_at: string | null; }
+interface MatchRow extends RowDataPacket { id: string; game_id: string; mode: 'casual' | 'ranked' | 'private'; status: 'waiting' | 'active' | 'finished' | 'cancelled'; max_players: number; state: GameState; revision: number; winner_ids: string[] | null; loser_ids: string[] | null; draw: number; created_at: string; started_at: string | null; finished_at: string | null; updated_at: string; }
+
+const SWEEP_INTERVAL_MS = 10000;
+const SWEEP_CANDIDATE_IDLE_SECONDS = 30;
+const STUCK_MATCH_MS = 15 * 60 * 1000;
+const PLACING_TIMEOUT_MS = 10 * 60 * 1000;
+const RANKED_IDLE_STRIKES = 3;
 interface MatchPlayerRow extends RowDataPacket { id: string; userId: string; displayName: string; avatarUrl: string | null; seat: number; team: number | null; isBot: number; result: string; ratingBefore: number | null; ratingAfter: number | null; }
 
 @Injectable()
@@ -17,6 +24,7 @@ export class GameService {
   private readonly logger = new Logger(GameService.name);
   private readonly updates = new EventEmitter();
   private readonly botRuns = new Set<string>();
+  private sweeping = false;
 
   constructor(private readonly mysql: MysqlService, private readonly registry: GameRegistry, private readonly ranking: RankingService) {}
 
@@ -73,7 +81,7 @@ export class GameService {
     return { ...this.publicMatch(rows[0], players, viewerId), conversationId: conversations[0]?.id ?? null };
   }
 
-  async act(matchId: string, actorId: string, dto: GameActionDto, internalBot = false) {
+  async act(matchId: string, actorId: string, dto: GameActionDto, internalBot = false, idleStrike?: number) {
     let completed = false;
     let resultViewerId = actorId;
     let result: ReturnType<GameService['publicMatch']> | undefined;
@@ -92,6 +100,15 @@ export class GameService {
       const engine = this.registry.engine(match.game_id);
       const currentState = this.parseState(match.state);
       const updated = engine.apply(currentState, actorId, dto as Action, enginePlayers);
+      if (idleStrike !== undefined) {
+        const strikes = { ...((updated._idleStrikes as Record<string, number> | undefined) ?? {}) };
+        strikes[actorId] = idleStrike;
+        updated._idleStrikes = strikes;
+      } else if (!internalBot && updated._idleStrikes !== undefined) {
+        const strikes = { ...((updated._idleStrikes as Record<string, number> | undefined) ?? {}) };
+        delete strikes[actorId];
+        if (Object.keys(strikes).length) updated._idleStrikes = strikes; else delete updated._idleStrikes;
+      }
       const outcome = engine.outcome(updated, enginePlayers);
       const nextRevision = Number(match.revision) + 1;
       const status = outcome.finished ? 'finished' : 'active';
@@ -117,6 +134,31 @@ export class GameService {
     }
     if (result) this.updates.emit('match.updated', matchId);
     if (result && !internalBot) void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
+    return result;
+  }
+
+  async resign(matchId: string, actorId: string) {
+    let result: ReturnType<GameService['publicMatch']> | undefined;
+    await this.mysql.transaction(async (connection) => {
+      const [matchRows] = await connection.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1 FOR UPDATE`, [matchId]);
+      const match = matchRows[0];
+      if (!match) throw notFound('Match not found.');
+      if (match.status !== 'active') throw conflict('This match is no longer active.');
+      const players = await this.playersOnConnection(connection, matchId);
+      if (!players.some((player) => player.userId === actorId && !player.isBot)) throw forbidden('You are not a player in this match.');
+      const walkover = await this.walkoverOnConnection(connection, match, players, actorId, 'resign');
+      const refreshed = { ...match, status: 'finished', revision: walkover.revision, winner_ids: walkover.winnerIds, loser_ids: walkover.loserIds, draw: 0 } as MatchRow;
+      const visiblePlayers = players.map((player) => ({ ...player, result: walkover.winnerIds.includes(player.userId) ? 'win' : 'loss' }));
+      result = this.publicMatch(refreshed, visiblePlayers, actorId);
+    });
+    if (result) {
+      try {
+        result = await this.settleCompletedMatch(matchId, actorId);
+      } catch (error: unknown) {
+        this.logger.error(`Match completion side effects failed for ${matchId}`, error);
+      }
+      this.updates.emit('match.updated', matchId);
+    }
     return result;
   }
 
@@ -181,6 +223,139 @@ export class GameService {
     if (shouldRetry) setTimeout(() => { void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error)); }, 500);
   }
 
+  @Interval(SWEEP_INTERVAL_MS)
+  async sweepStaleMatches(): Promise<void> {
+    if (this.sweeping) return;
+    this.sweeping = true;
+    try {
+      const rows = await this.mysql.query<MatchRow[]>(`SELECT * FROM matches WHERE status = 'active' AND updated_at < DATE_SUB(UTC_TIMESTAMP(3), INTERVAL ? SECOND) LIMIT 50`, [SWEEP_CANDIDATE_IDLE_SECONDS]);
+      for (const row of rows) {
+        try {
+          await this.sweepMatch(row.id);
+        } catch (error: unknown) {
+          this.logger.warn(`Stale-match sweep failed for ${row.id}`, error instanceof Error ? error.message : String(error));
+        }
+      }
+    } catch (error: unknown) {
+      this.logger.warn('Stale-match sweep failed', error instanceof Error ? error.message : String(error));
+    } finally {
+      this.sweeping = false;
+    }
+  }
+
+  private async sweepMatch(matchId: string): Promise<void> {
+    const rows = await this.mysql.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1`, [matchId]);
+    const match = rows[0];
+    if (!match || match.status !== 'active') return;
+    const idleMs = Date.now() - new Date(String(match.updated_at)).getTime();
+    if (!Number.isFinite(idleMs) || idleMs < 0) return;
+    const state = this.parseState(match.state);
+    if (idleMs >= STUCK_MATCH_MS) {
+      await this.cancelStaleMatch(match.id, 'stuck');
+      return;
+    }
+    const turnId = typeof state.turnPlayerId === 'string' ? state.turnPlayerId : null;
+    if (!turnId) {
+      if (match.game_id === 'sea_battle' && state.phase === 'placing' && idleMs >= PLACING_TIMEOUT_MS) await this.cancelStaleMatch(match.id, 'placing-timeout');
+      return;
+    }
+    if (idleMs < this.registry.turnSeconds(match.game_id, state) * 1000) return;
+    const playerRows = await this.players(match.id);
+    const turnPlayer = playerRows.find((player) => player.userId === turnId);
+    if (!turnPlayer) return;
+    if (turnPlayer.isBot) {
+      void this.runBotTurns(match.id).catch((error: unknown) => this.logger.error(`Bot turn failed for ${match.id}`, error));
+      return;
+    }
+    const strikes = (state._idleStrikes as Record<string, number> | undefined) ?? {};
+    const count = (strikes[turnId] ?? 0) + 1;
+    if (match.mode === 'ranked' && count >= RANKED_IDLE_STRIKES) {
+      await this.forfeitIdlePlayer(match.id, turnId);
+      return;
+    }
+    await this.autoMoveForIdlePlayer(match.id, match.game_id, turnId, count);
+  }
+
+  private async autoMoveForIdlePlayer(matchId: string, gameId: string, userId: string, count: number): Promise<void> {
+    const rows = await this.mysql.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1`, [matchId]);
+    const match = rows[0];
+    if (!match || match.status !== 'active') return;
+    const state = this.parseState(match.state);
+    if (state.turnPlayerId !== userId) return;
+    const playerRows = await this.players(matchId);
+    const enginePlayers: GamePlayer[] = playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
+    let action: Action;
+    try {
+      action = this.registry.engine(gameId).botAction(state, userId, enginePlayers);
+    } catch {
+      return;
+    }
+    try {
+      await this.act(matchId, userId, action as GameActionDto, true, count);
+    } catch {
+      return;
+    }
+    void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
+  }
+
+  private async forfeitIdlePlayer(matchId: string, userId: string): Promise<void> {
+    let forfeited = false;
+    await this.mysql.transaction(async (connection) => {
+      const [matchRows] = await connection.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1 FOR UPDATE`, [matchId]);
+      const match = matchRows[0];
+      if (!match || match.status !== 'active') return;
+      const state = this.parseState(match.state);
+      if (state.turnPlayerId !== userId || match.mode !== 'ranked') return;
+      const strikes = (state._idleStrikes as Record<string, number> | undefined) ?? {};
+      if ((strikes[userId] ?? 0) + 1 < RANKED_IDLE_STRIKES) return;
+      const players = await this.playersOnConnection(connection, matchId);
+      await this.walkoverOnConnection(connection, match, players, userId, 'forfeit');
+      forfeited = true;
+    });
+    if (forfeited) {
+      try {
+        await this.settleCompletedMatch(matchId, userId);
+      } catch (error: unknown) {
+        this.logger.error(`Match completion side effects failed for ${matchId}`, error);
+      }
+      this.updates.emit('match.updated', matchId);
+    }
+  }
+
+  private async cancelStaleMatch(matchId: string, reason: 'stuck' | 'placing-timeout'): Promise<void> {
+    let cancelled = false;
+    await this.mysql.transaction(async (connection) => {
+      const [matchRows] = await connection.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1 FOR UPDATE`, [matchId]);
+      const match = matchRows[0];
+      if (!match || match.status !== 'active') return;
+      const idleMs = Date.now() - new Date(String(match.updated_at)).getTime();
+      const threshold = reason === 'stuck' ? STUCK_MATCH_MS : PLACING_TIMEOUT_MS;
+      if (!Number.isFinite(idleMs) || idleMs < threshold) return;
+      if (reason === 'placing-timeout') {
+        const state = this.parseState(match.state);
+        if (match.game_id !== 'sea_battle' || state.phase !== 'placing' || typeof state.turnPlayerId === 'string') return;
+      }
+      await connection.execute(`UPDATE matches SET status = 'cancelled', finished_at = UTC_TIMESTAMP(3) WHERE id = ?`, [matchId]);
+      await connection.execute(`INSERT INTO match_events (match_id, event_type, actor_id, payload) VALUES (?, 'match.cancelled', NULL, ?)`, [matchId, JSON.stringify({ reason })]);
+      cancelled = true;
+    });
+    if (cancelled) this.updates.emit('match.updated', matchId);
+  }
+
+  private async walkoverOnConnection(connection: PoolConnection, match: MatchRow, players: MatchPlayerRow[], resignerId: string, action: 'resign' | 'forfeit'): Promise<{ revision: number; winnerIds: string[]; loserIds: string[] }> {
+    const enginePlayers: GamePlayer[] = players.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
+    const otherHumans = enginePlayers.filter((player) => !player.isBot && player.id !== resignerId);
+    const winnerIds = otherHumans.length ? otherHumans.map((player) => player.id) : enginePlayers.filter((player) => player.isBot).map((player) => player.id);
+    const nextRevision = Number(match.revision) + 1;
+    await connection.execute(`UPDATE matches SET status = 'finished', revision = ?, winner_ids = ?, loser_ids = ?, draw = 0, finished_at = UTC_TIMESTAMP(3) WHERE id = ?`, [nextRevision, JSON.stringify(winnerIds), JSON.stringify([resignerId]), match.id]);
+    for (const player of enginePlayers) {
+      const result = winnerIds.includes(player.id) ? 'win' : 'loss';
+      await connection.execute(`UPDATE match_players SET result = ?, left_at = IF(user_id = ?, UTC_TIMESTAMP(3), left_at) WHERE match_id = ? AND user_id = ?`, [result, resignerId, match.id, player.id]);
+    }
+    await connection.execute(`INSERT INTO match_moves (match_id, revision, user_id, action, payload, state_after) VALUES (?, ?, ?, ?, ?, ?)`, [match.id, nextRevision, resignerId, action, JSON.stringify({ type: action }), JSON.stringify(this.parseState(match.state))]);
+    return { revision: nextRevision, winnerIds, loserIds: [resignerId] };
+  }
+
   private async players(matchId: string): Promise<MatchPlayerRow[]> {
     return this.mysql.query<MatchPlayerRow[]>(`SELECT mp.user_id AS userId, u.display_name AS displayName, u.avatar_url AS avatarUrl, mp.seat, mp.team, mp.is_bot AS isBot, mp.result, mp.rating_before AS ratingBefore, mp.rating_after AS ratingAfter FROM match_players mp JOIN users u ON u.id = mp.user_id WHERE mp.match_id = ? ORDER BY mp.seat`, [matchId]);
   }
@@ -195,11 +370,16 @@ export class GameService {
     const state = this.sanitizeState(match.game_id, parsed, players, viewerId, match.status);
     const viewer = players.find((player) => player.userId === viewerId);
     const reward = match.status === 'finished' && viewer && viewer.result !== 'pending' && viewer.ratingBefore !== null ? { result: viewer.result, xp: viewer.result === 'win' ? 100 : viewer.result === 'draw' || Boolean(match.draw) ? 60 : 40, coins: viewer.result === 'win' ? 100 : viewer.result === 'draw' || Boolean(match.draw) ? 50 : 25 } : null;
-    return { id: match.id, gameId: match.game_id, mode: match.mode, status: match.status, revision: Number(match.revision), viewerSeat: viewer?.seat ?? 0, state, players: players.map((player) => ({ id: player.userId, displayName: player.displayName, avatarUrl: player.avatarUrl, seat: player.seat, team: player.team, isBot: false, result: player.result, ratingBefore: player.ratingBefore, ratingAfter: player.ratingAfter })), winnerIds: this.parseJsonArray(match.winner_ids), loserIds: this.parseJsonArray(match.loser_ids), draw: Boolean(match.draw), reward, createdAt: match.created_at, startedAt: match.started_at, finishedAt: match.finished_at };
+    const turnSeconds = match.status === 'active' ? this.registry.turnSeconds(match.game_id, parsed) : 0;
+    const updatedMs = new Date(String(match.updated_at)).getTime();
+    const turnDeadline = match.status === 'active' && typeof parsed.turnPlayerId === 'string' && Number.isFinite(updatedMs) ? new Date(updatedMs + turnSeconds * 1000).toISOString() : null;
+    return { id: match.id, gameId: match.game_id, mode: match.mode, status: match.status, revision: Number(match.revision), viewerSeat: viewer?.seat ?? 0, state, players: players.map((player) => ({ id: player.userId, displayName: player.displayName, avatarUrl: player.avatarUrl, seat: player.seat, team: player.team, isBot: false, result: player.result, ratingBefore: player.ratingBefore, ratingAfter: player.ratingAfter })), winnerIds: this.parseJsonArray(match.winner_ids), loserIds: this.parseJsonArray(match.loser_ids), draw: Boolean(match.draw), turnSeconds, turnDeadline, serverTime: new Date().toISOString(), reward, createdAt: match.created_at, startedAt: match.started_at, finishedAt: match.finished_at };
   }
 
   private sanitizeState(gameId: string, original: GameState, players: MatchPlayerRow[], viewerId: string, status: string): GameState {
     const state = JSON.parse(JSON.stringify(original)) as GameState;
+    delete state._idleStrikes;
+    if ((gameId === 'hearts' || gameId === 'spades') && Array.isArray(state.hands)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat || status === 'finished' ? hand : []); }
     if (gameId === 'ocho' && Array.isArray(state.hands)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat || status === 'finished' ? hand : []); delete state.wildFourLegal; }
     if (gameId === 'sea_battle' && Array.isArray(state.boards)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.boards = (state.boards as unknown[]).map((board, index) => index === viewerSeat || status === 'finished' ? board : (board as number[][]).map((row) => row.map((cell) => cell < 0 ? -1 : 0))); }
     if (gameId === 'bingo' && Array.isArray(state.cards)) {

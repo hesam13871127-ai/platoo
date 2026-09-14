@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GameEngine, GameId } from './game.types';
+import { GameEngine, GameId, GameState } from './game.types';
 import { OchoEngine, HeartsEngine, SpadesEngine } from './engines/cards.engine';
 import { FourInARowEngine, ChessEngine, CheckersEngine, MancalaEngine } from './engines/board.engine';
 import { LudoEngine, DominoesEngine, BackgammonEngine, SeaBattleEngine, PoolEngine, CarromEngine } from './engines/tabletop.engine';
@@ -38,6 +38,18 @@ export const GAME_DESCRIPTORS: GameDescriptor[] = [
   { id: 'quick_challenges', name: 'Quick Challenges', category: 'arcade', minPlayers: 1, maxPlayers: 6, supportsTeams: false, accent: '#EAB308', icon: 'bolt' },
 ];
 
+const TURN_SECONDS: Partial<Record<GameId, number>> = {
+  four_in_a_row: 30, dice_party: 30, archery: 30, darts: 30, bowling: 30, memory_race: 30,
+  word_chain: 30, trivia_battle: 30, emoji_charades: 30, quick_challenges: 30,
+  ludo: 45, mancala: 45, dominoes: 45, mini_golf: 45, hearts: 45, spades: 45,
+  ocho: 60, pool_8_ball: 60, carrom: 60, bingo: 60, backgammon: 60, checkers: 60,
+  sea_battle: 60, table_soccer: 60, impostor_light: 60,
+  werewolf: 90, sketch_guess: 90,
+  chess: 180,
+};
+
+const DEFAULT_TURN_SECONDS = 60;
+
 @Injectable()
 export class GameRegistry {
   private readonly engines = new Map<GameId, GameEngine>([
@@ -46,4 +58,10 @@ export class GameRegistry {
   list(): GameDescriptor[] { return GAME_DESCRIPTORS; }
   descriptor(id: string): GameDescriptor { const descriptor = GAME_DESCRIPTORS.find((game) => game.id === id); if (!descriptor) throw new Error(`Unsupported game: ${id}`); return descriptor; }
   engine(id: string): GameEngine { const engine = this.engines.get(id as GameId); if (!engine) throw new Error(`Unsupported game: ${id}`); return engine; }
+  turnSeconds(id: string, state?: GameState): number {
+    // Sketch & Guess guessing rounds are quick, but the drawer submits a whole
+    // sketch in one action and needs a longer clock.
+    if (id === 'sketch_guess' && state) return state.phase === 'drawing' ? 120 : 30;
+    return TURN_SECONDS[id as GameId] ?? DEFAULT_TURN_SECONDS;
+  }
 }

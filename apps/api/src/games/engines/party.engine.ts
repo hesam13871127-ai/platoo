@@ -308,11 +308,36 @@ export class WerewolfEngine implements GameEngine {
 
 export class WordChainEngine implements GameEngine {
   readonly id: GameId = 'word_chain';
-  create(players: GamePlayer[]): GameState { return { words: [], used: [], requiredLetter: null, scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null, passCount: 0 }; }
+  create(players: GamePlayer[]): GameState { return { words: [], used: [], requiredLetter: null, scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null, draw: false, maxWords: players.length * 8 }; }
   validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { checkTurn(state, actorId); if (action.type !== 'word') throw new IllegalMoveError('Submit a word.'); const word = asString(action.word, 'word').toLowerCase(); if (!/^[a-zA-Z\u0600-\u06ff]{2,24}$/.test(word)) throw new IllegalMoveError('Use a word with two to twenty-four letters.'); if ((state.used as string[]).includes(word)) throw new IllegalMoveError('That word has already been used.'); if (state.requiredLetter && !word.startsWith(state.requiredLetter as string)) throw new IllegalMoveError(`Your word must start with ${state.requiredLetter}.`); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const word = (action.word as string).toLowerCase(); (next.words as string[]).push(word); (next.used as string[]).push(word); (next.scores as number[])[players.findIndex((p) => p.id === actorId)] += word.length; next.requiredLetter = word[word.length - 1]; next.passCount = 0; rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(state: GameState): Action { const letter = (state.requiredLetter as string | null) ?? 'v'; return { type: 'word', word: `${letter}ibe` }; }
+  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState {
+    this.validate(state, actorId, action, players); const next = clone(state); const word = (action.word as string).toLowerCase();
+    (next.words as string[]).push(word); (next.used as string[]).push(word);
+    (next.scores as number[])[players.findIndex((p) => p.id === actorId)] += word.length;
+    next.requiredLetter = word[word.length - 1];
+    const maxWords = Number(next.maxWords ?? 24);
+    if ((next.words as string[]).length >= maxWords) {
+      const scores = next.scores as number[]; const best = Math.max(...scores);
+      const leaders = scores.map((score, index) => score === best ? index : -1).filter((index) => index >= 0);
+      next.finished = true; next.winnerId = players[leaders[0]].id; next.draw = leaders.length > 1;
+      return next;
+    }
+    rotateTurn(next, players); return next;
+  }
+  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
+  botAction(state: GameState): Action {
+    const letter = ((state.requiredLetter as string | null) ?? 'v').toLowerCase();
+    const used = state.used as string[];
+    for (const tail of ['ibe', 'ora', 'ent', 'ash', 'oom', 'ell', 'art', 'ice', 'ace', 'end']) {
+      const word = `${letter}${tail}`;
+      if (!used.includes(word)) return { type: 'word', word };
+    }
+    for (let extra = 1; extra <= 22; extra += 1) {
+      const word = `${letter}${'a'.repeat(extra)}`;
+      if (!used.includes(word)) return { type: 'word', word };
+    }
+    return { type: 'word', word: `${letter}${'a'.repeat(1 + (used.length % 22))}` };
+  }
 }
 
 export class MemoryRaceEngine implements GameEngine {

@@ -152,6 +152,33 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
     }
   }
 
+  Future<void> _resign() async {
+    final current = match;
+    if (actionPending || current == null || current.status != 'active') return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Resign this match?'),
+        content: const Text('Resigning counts as a loss and your opponents win the table. This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Keep playing')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), style: FilledButton.styleFrom(backgroundColor: AppTheme.coral), child: const Text('Resign')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => actionPending = true);
+    try {
+      final data = await ref.read(apiClientProvider).post('/matches/${widget.matchId}/resign') as Map;
+      _acceptMatch(Map<String, dynamic>.from(data));
+    } catch (e) {
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
+    } finally {
+      if (mounted) setState(() => actionPending = false);
+    }
+  }
+
   void _retryLiveUpdates() {
     socket.retry();
     unawaited(_load());
@@ -171,7 +198,7 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
   Widget build(BuildContext context) {
     final current = match;
     return PopScope(
-      canPop: current == null || current.status == 'finished' || leaving,
+      canPop: current == null || current.status == 'finished' || current.status == 'cancelled' || leaving,
       onPopInvokedWithResult: (didPop, _) { if (!didPop) unawaited(_leave()); },
       child: Scaffold(
         appBar: AppBar(
@@ -185,6 +212,7 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
           actions: [
             VoiceRoomButton(api: ref.read(apiClientProvider), matchId: widget.matchId),
             IconButton(onPressed: () => unawaited(_load()), icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh match'),
+            if (current?.status == 'active') IconButton(onPressed: actionPending ? null : _resign, icon: const Icon(Icons.flag_outlined), tooltip: 'Resign match'),
           ],
         ),
         body: current == null
@@ -262,6 +290,7 @@ class _MatchBody extends StatelessWidget {
         const SizedBox(height: 12),
         if (syncMessage != null) _SyncBanner(message: syncMessage!, onRetry: onRetrySync),
         if (match.status == 'finished') _ResultBanner(match: match),
+        if (match.status == 'cancelled') const _CancelledBanner(),
         Stack(children: [
           GameCanvas(game: game, state: match.state, match: match, onAction: onAction),
           if (actionPending) const Positioned.fill(child: _SendingMoveOverlay()),
@@ -382,19 +411,85 @@ class _RewardPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white.withOpacity(.16), borderRadius: BorderRadius.circular(99)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 16, color: AppTheme.gold), const SizedBox(width: 5), Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12))]));
 }
 
-class _TurnHint extends StatelessWidget {
+class _CancelledBanner extends StatelessWidget {
+  const _CancelledBanner();
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(.6), borderRadius: BorderRadius.circular(14), border: Border.all(color: Theme.of(context).dividerColor)),
+    child: const Row(children: [
+      Icon(Icons.pause_circle_outline_rounded, size: 19),
+      SizedBox(width: 9),
+      Expanded(child: Text('This match was cancelled after too long without a move. No rating changed.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+    ]),
+  );
+}
+
+class _TurnHint extends StatefulWidget {
   const _TurnHint({required this.match});
   final MatchModel match;
+  @override
+  State<_TurnHint> createState() => _TurnHintState();
+}
+
+class _TurnHintState extends State<_TurnHint> {
+  Timer? ticker;
+  Duration skew = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSkew();
+    ticker = Timer.periodic(const Duration(seconds: 1), (_) { if (mounted) setState(() {}); });
+  }
+
+  @override
+  void didUpdateWidget(covariant _TurnHint oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.match.turnDeadline != widget.match.turnDeadline || oldWidget.match.serverTime != widget.match.serverTime) _syncSkew();
+  }
+
+  @override
+  void dispose() {
+    ticker?.cancel();
+    super.dispose();
+  }
+
+  void _syncSkew() {
+    final serverTime = widget.match.serverTime;
+    if (serverTime == null) {
+      skew = Duration.zero;
+      return;
+    }
+    skew = DateTime.tryParse(serverTime)?.difference(DateTime.now()) ?? Duration.zero;
+  }
+
+  Duration? _remaining() {
+    final deadline = widget.match.turnDeadline;
+    if (widget.match.status != 'active' || deadline == null) return null;
+    return DateTime.tryParse(deadline)?.difference(DateTime.now().add(skew));
+  }
+
+  String _format(Duration remaining) {
+    if (remaining <= Duration.zero) return '0:00';
+    return '${remaining.inMinutes}:${(remaining.inSeconds % 60).toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final match = widget.match;
     final turnPlayers = match.players.where((player) => player['id'] == match.state['turnPlayerId']).toList();
     final turn = turnPlayers.isEmpty ? null : turnPlayers.first['displayName']?.toString();
     final viewer = match.players.where((player) => player['seat'] == match.viewerSeat).toList();
     final isYourTurn = viewer.isNotEmpty && viewer.first['id'] == match.state['turnPlayerId'];
-    final message = match.status == 'finished' ? 'Match finished' : turn == null ? 'Waiting for the table state' : isYourTurn ? 'Your turn' : 'Turn: $turn';
-    final color = match.status == 'finished' ? AppTheme.gold : isYourTurn ? AppTheme.mint : Theme.of(context).colorScheme.primary;
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13), decoration: BoxDecoration(color: color.withOpacity(.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(.2))), child: Row(children: [Icon(match.status == 'finished' ? Icons.flag_rounded : isYourTurn ? Icons.touch_app_rounded : Icons.timelapse_rounded, size: 20, color: color), const SizedBox(width: 9), Expanded(child: Text(message, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: color))), if (match.status != 'finished') Text(isYourTurn ? 'Make your move' : 'Live', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w800))]));
+    final remaining = _remaining();
+    final urgent = remaining != null && remaining <= const Duration(seconds: 10);
+    final message = match.status == 'finished' ? 'Match finished' : match.status == 'cancelled' ? 'Match cancelled' : turn == null ? 'Waiting for the table state' : isYourTurn ? 'Your turn' : 'Turn: $turn';
+    final base = match.status == 'finished' ? AppTheme.gold : match.status == 'cancelled' ? Theme.of(context).disabledColor : isYourTurn ? AppTheme.mint : Theme.of(context).colorScheme.primary;
+    final color = urgent ? AppTheme.coral : base;
+    final trailing = match.status != 'active' ? null : remaining == null ? (isYourTurn ? 'Make your move' : 'Live') : _format(remaining);
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13), decoration: BoxDecoration(color: color.withOpacity(.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(.2))), child: Row(children: [Icon(match.status == 'finished' || match.status == 'cancelled' ? Icons.flag_rounded : isYourTurn ? Icons.touch_app_rounded : Icons.timelapse_rounded, size: 20, color: color), const SizedBox(width: 9), Expanded(child: Text(message, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: color))), if (trailing != null) Text(trailing, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w900))]));
   }
 }
 
@@ -402,7 +497,7 @@ class _RoomChatHint extends StatelessWidget { const _RoomChatHint({this.onTap});
 
 class GameCanvas extends StatefulWidget { const GameCanvas({super.key, required this.game, required this.state, required this.match, required this.onAction}); final GameDescriptor game; final Map<String, dynamic> state; final MatchModel match; final ValueChanged<Map<String, dynamic>> onAction; @override State<GameCanvas> createState() => _GameCanvasState(); }
 class _GameCanvasState extends State<GameCanvas> { int? selected; final word = TextEditingController(); @override void dispose() { word.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) { final id = widget.game.id; if (id == 'four_in_a_row') return _four(context); if (id == 'chess') return _chess(context); if (id == 'ludo') return _ludo(context); if (id == 'pool_8_ball') return _pool(context); if (id == 'werewolf') return _werewolf(context); if (id == 'bingo') return BingoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'dominoes') return DominoesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'carrom') return CarromGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'mini_golf') return MiniGolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'table_soccer') return TableSoccerGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'sketch_guess') return SketchGuessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'trivia_battle') return TriviaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'checkers') return _gridGame(context); if (id == 'memory_race') return _memory(context); if (id == 'sea_battle') return _sea(context); if (id == 'ocho') return _ocho(context); if (id == 'mancala') return _mancala(context); return _generic(context); }
+  @override Widget build(BuildContext context) { final id = widget.game.id; if (id == 'four_in_a_row') return _four(context); if (id == 'chess') return _chess(context); if (id == 'ludo') return _ludo(context); if (id == 'pool_8_ball') return _pool(context); if (id == 'werewolf') return _werewolf(context); if (id == 'bingo') return BingoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'dominoes') return DominoesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'carrom') return CarromGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'mini_golf') return MiniGolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'table_soccer') return TableSoccerGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'sketch_guess') return SketchGuessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'trivia_battle') return TriviaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'checkers') return _gridGame(context); if (id == 'memory_race') return _memory(context); if (id == 'sea_battle') return _sea(context); if (id == 'ocho') return _ocho(context); if (id == 'mancala') return _mancala(context); if (id == 'hearts' || id == 'spades') return _trick(context); return _generic(context); }
   Widget _four(BuildContext context) => FourInARowGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _chess(BuildContext context) => ChessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _ludo(BuildContext context) => LudoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
@@ -509,6 +604,43 @@ class _GameCanvasState extends State<GameCanvas> { int? selected; final word = T
   }
   Widget _ocho(BuildContext context) => OchoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _mancala(BuildContext context) { final pits = widget.state['pits'] as List? ?? const []; final mine = pits.isNotEmpty ? pits[0] as List : const []; final canAct = _canAct && widget.match.status != 'finished'; return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [Text(canAct ? 'Choose a pit' : 'Waiting for your turn', style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 14), Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [for (var i = 0; i < mine.length; i++) InkWell(onTap: canAct ? () => widget.onAction({'type': 'sow', 'pit': i}) : null, child: CircleAvatar(radius: 24, backgroundColor: AppTheme.coral.withOpacity(.16), child: Text('${mine[i]}', style: const TextStyle(fontWeight: FontWeight.w900))))])]))); }
+  Widget _trick(BuildContext context) {
+    final hands = widget.state['hands'] as List? ?? const [];
+    final mine = widget.match.viewerSeat < hands.length ? hands[widget.match.viewerSeat] as List? ?? const [] : const [];
+    final trick = widget.state['trick'] as List? ?? const [];
+    final scores = widget.state['scores'] as List? ?? const [];
+    final canAct = _canAct && widget.match.status == 'active';
+    final finished = widget.match.status == 'finished' || widget.state['finished'] == true;
+    final scoreLine = [for (var i = 0; i < scores.length && i < widget.match.players.length; i++) "${widget.match.players[i]['displayName'] ?? 'Player'}: ${scores[i]}"].join(' · ');
+    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 44), const SizedBox(width: 10), Expanded(child: Text(finished ? 'Match complete' : canAct ? 'Your turn — play a card' : 'Waiting for ${_turnName}…', style: Theme.of(context).textTheme.titleMedium))]),
+      if (scoreLine.isNotEmpty) ...[const SizedBox(height: 8), Text(scoreLine, style: Theme.of(context).textTheme.bodySmall)],
+      if (trick.isNotEmpty) ...[const SizedBox(height: 8), Text('On the table: ${trick.length} card${trick.length == 1 ? '' : 's'}', style: Theme.of(context).textTheme.bodySmall)],
+      const SizedBox(height: 12),
+      if (mine.isEmpty) Text(finished ? 'No cards left.' : 'Your hand is hidden until the deal reaches you.', style: Theme.of(context).textTheme.bodySmall)
+      else Wrap(spacing: 8, runSpacing: 8, children: [for (var i = 0; i < mine.length; i++) _trickCard(context, mine[i] as Map? ?? const {}, canAct ? () => widget.onAction({'type': 'play', 'index': i}) : null)]),
+    ])));
+  }
+
+  Widget _trickCard(BuildContext context, Map card, VoidCallback? onTap) {
+    final suit = card['suit']?.toString() ?? '';
+    final rank = (card['rank'] as num?)?.toInt() ?? 0;
+    final face = switch (rank) { 11 => 'J', 12 => 'Q', 13 => 'K', 14 => 'A', _ => '$rank' };
+    final pip = switch (suit) { 'H' => '♥', 'D' => '♦', 'S' => '♠', 'C' => '♣', _ => '·' };
+    final red = suit == 'H' || suit == 'D';
+    final color = red ? AppTheme.coral : Theme.of(context).colorScheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 52, height: 68,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: color.withOpacity(onTap == null ? .07 : .14), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(.4))),
+        child: Text('$face$pip', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color)),
+      ),
+    );
+  }
+
   Widget _generic(BuildContext context) {
     final id = widget.game.id;
     final type = switch (id) {
@@ -566,8 +698,52 @@ class _GameCanvasState extends State<GameCanvas> { int? selected; final word = T
     widget.onAction({'type': 'word', 'word': value});
     word.clear();
   }
-  Map<String, dynamic> _defaultAction(String type, String id) { if (type == 'roll' && id == 'bowling') return {'type': 'roll', 'pins': 8}; return switch (type) { 'roll' => {'type': 'roll'}, 'move' => {'type': 'move', 'token': 0, 'from': -1, 'to': 0}, 'call' => {'type': 'call', 'number': 1}, 'shoot' => id == 'archery' ? {'type': 'shoot', 'accuracy': 50} : {'type': 'shoot', 'power': 70}, 'throw' => {'type': 'throw', 'value': 20}, 'putt' => {'type': 'putt', 'strokes': 3}, 'shot' => {'type': 'shot', 'power': 70, 'pocket': 0}, 'strike' => {'type': 'strike', 'power': 70, 'pocketed': 1, 'queen': false}, 'draw' => {'type': 'draw'}, 'play' => {'type': 'play', 'index': 0, 'side': 'right'}, 'clue' => {'type': 'clue', 'clue': 'bright'}, 'vote' => {'type': 'vote', 'target': 0}, 'answer' => {'type': 'answer', 'answer': 0}, _ => {'type': 'challenge', 'score': 60} }; }
-  String _actionLabel(String type) => switch (type) { 'roll' => 'Roll dice', 'move' => 'Move token', 'call' => 'Call number', 'shoot' => 'Shoot', 'throw' => 'Throw', 'putt' => 'Putt', 'shot' => 'Take shot', 'strike' => 'Strike', 'draw' => 'Draw tile', 'play' => 'Play tile', 'clue' => 'Give clue', 'vote' => 'Vote', 'answer' => 'Answer', _ => 'Complete challenge' };
+  int _num(dynamic value) => (value as num?)?.toInt() ?? 0;
+
+  Map<String, dynamic> _backgammonAction() {
+    final seat = widget.match.viewerSeat;
+    final points = widget.state['points'] as List? ?? const [];
+    final bar = widget.state['bar'] as List? ?? const [0, 0];
+    final dice = widget.state['dice'] as List? ?? const [];
+    final own = seat == 0 ? 1 : -1;
+    bool open(int to) => to == 24 || to == -1 || (to >= 0 && to < 24 && to < points.length && _num(points[to]) * own >= -1);
+    if (dice.isEmpty) return {'type': 'roll'};
+    if (_num(seat < bar.length ? bar[seat] : 0) > 0) {
+      for (final d in dice) {
+        final to = seat == 0 ? _num(d) - 1 : 24 - _num(d);
+        if (to >= 0 && to < 24 && open(to)) return {'type': 'move', 'from': -1, 'to': to};
+      }
+      return {'type': 'pass'};
+    }
+    for (var from = 0; from < 24 && from < points.length; from += 1) {
+      if (_num(points[from]) * own <= 0) continue;
+      for (final d in dice) {
+        final to = seat == 0 ? from + _num(d) : from - _num(d);
+        if (open(to)) return {'type': 'move', 'from': from, 'to': to};
+      }
+    }
+    return {'type': 'pass'};
+  }
+
+  int _bowlingPins() {
+    final frames = widget.state['frames'] as List? ?? const [];
+    final mine = widget.match.viewerSeat < frames.length ? frames[widget.match.viewerSeat] as List? ?? const [] : const [];
+    final frameIndex = _num(widget.state['frame']) - 1;
+    final rolls = frameIndex >= 0 && frameIndex < mine.length ? mine[frameIndex] as List? ?? const [] : const [];
+    final max = rolls.length == 1 && _num(rolls[0]) < 10 ? 10 - _num(rolls[0]) : 10;
+    return max < 8 ? max : 8;
+  }
+
+  int _dartsValue() {
+    final scores = widget.state['scores'] as List? ?? const [];
+    final score = widget.match.viewerSeat < scores.length ? _num(scores[widget.match.viewerSeat]) : 301;
+    var value = score < 20 ? score : 20;
+    if (value > 0 && score - value == 1) value -= 1;
+    return value < 0 ? 0 : value;
+  }
+
+  Map<String, dynamic> _defaultAction(String type, String id) { if (type == 'roll' && id == 'bowling') return {'type': 'roll', 'pins': _bowlingPins()}; if (type == 'move' && id == 'backgammon') return _backgammonAction(); if (type == 'throw' && id == 'darts') return {'type': 'throw', 'value': _dartsValue()}; return switch (type) { 'roll' => {'type': 'roll'}, 'move' => {'type': 'move', 'token': 0, 'from': -1, 'to': 0}, 'call' => {'type': 'call', 'number': 1}, 'shoot' => id == 'archery' ? {'type': 'shoot', 'accuracy': 50} : {'type': 'shoot', 'power': 70}, 'throw' => {'type': 'throw', 'value': 20}, 'putt' => {'type': 'putt', 'strokes': 3}, 'shot' => {'type': 'shot', 'power': 70, 'pocket': 0}, 'strike' => {'type': 'strike', 'power': 70, 'pocketed': 1, 'queen': false}, 'draw' => {'type': 'draw'}, 'play' => {'type': 'play', 'index': 0, 'side': 'right'}, 'clue' => {'type': 'clue', 'clue': 'bright'}, 'vote' => {'type': 'vote', 'target': widget.match.viewerSeat == 0 ? 1 : 0}, 'answer' => {'type': 'answer', 'answer': 0}, _ => {'type': 'challenge', 'score': 60} }; }
+  String _actionLabel(String type) => switch (type) { 'roll' => 'Roll dice', 'move' => 'Move checker', 'call' => 'Call number', 'shoot' => 'Shoot', 'throw' => 'Throw', 'putt' => 'Putt', 'shot' => 'Take shot', 'strike' => 'Strike', 'draw' => 'Draw tile', 'play' => 'Play tile', 'clue' => 'Give clue', 'vote' => 'Vote', 'answer' => 'Answer', _ => 'Complete challenge' };
   IconData _actionIcon(String type) => switch (type) { 'roll' => Icons.casino_rounded, 'move' => Icons.directions_run_rounded, 'call' => Icons.confirmation_num_rounded, 'shoot' => Icons.gps_fixed_rounded, 'throw' => Icons.adjust_rounded, 'putt' => Icons.golf_course_rounded, 'shot' => Icons.sports_bar_rounded, 'strike' => Icons.radio_button_checked_rounded, 'draw' => Icons.add_box_rounded, 'play' => Icons.style_rounded, 'clue' => Icons.lightbulb_outline_rounded, 'vote' => Icons.how_to_vote_rounded, 'answer' => Icons.quiz_rounded, _ => Icons.bolt_rounded };
   String _piece(String? value) { if (value == null) return ''; return switch (value) { 'K' => '♔', 'Q' => '♕', 'R' => '♖', 'B' => '♗', 'N' => '♘', 'P' => '♙', 'k' => '♚', 'q' => '♛', 'r' => '♜', 'b' => '♝', 'n' => '♞', 'p' => '♟', _ => '●' }; }
 }

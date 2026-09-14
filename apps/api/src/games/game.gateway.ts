@@ -38,6 +38,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return this.games.act(body.matchId, socket.data.userId as string, body.action);
   }
 
+  @SubscribeMessage('game:resign')
+  async resign(@ConnectedSocket() socket: Socket, @MessageBody() body: { matchId: string }) {
+    return this.games.resign(body.matchId, socket.data.userId as string);
+  }
+
   private async broadcast(matchId: string): Promise<void> {
     const sockets = await this.server.in(`match:${matchId}`).fetchSockets();
     await Promise.all(sockets.map(async (socket) => {

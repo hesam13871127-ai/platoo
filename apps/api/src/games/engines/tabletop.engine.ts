@@ -366,10 +366,44 @@ interface BackgammonState extends GameState { points: number[]; bar: number[]; b
 export class BackgammonEngine implements GameEngine {
   readonly id: GameId = 'backgammon';
   create(players: GamePlayer[]): BackgammonState { const points = Array(24).fill(0); points[0] = 2; points[11] = 5; points[16] = 3; points[18] = 5; points[23] = -2; points[12] = -5; points[7] = -3; points[5] = -5; return { points, bar: [0, 0], borneOff: [0, 0], dice: [], turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: BackgammonState, actorId: string, action: Action, players: GamePlayer[]): void { ensureTurn(state, actorId); const side = players.findIndex((p) => p.id === actorId); if (action.type === 'roll') { if (state.dice.length) throw new IllegalMoveError('Use all dice before rolling.'); return; } if (action.type !== 'move' || !state.dice.length) throw new IllegalMoveError('Roll before moving.'); const from = asInt(action.from, 'from', -1, 23); const to = asInt(action.to, 'to', -1, 24); const points = state.points; const own = side === 0 ? 1 : -1; if (state.bar[side] > 0 && from !== -1) throw new IllegalMoveError('Move a checker from the bar first.'); if (from !== -1 && Math.sign(points[from]) !== own) throw new IllegalMoveError('That point does not contain your checker.'); const distance = side === 0 ? to - from : from - to; if (!state.dice.includes(distance)) throw new IllegalMoveError('That die is not available.'); if (to >= 0 && to < 24 && points[to] * own < -1) throw new IllegalMoveError('That point is blocked.'); }
-  apply(state: BackgammonState, actorId: string, action: Action, players: GamePlayer[]): BackgammonState { this.validate(state, actorId, action, players); const next = clone(state) as BackgammonState; const side = players.findIndex((p) => p.id === actorId); if (action.type === 'roll') { const a = randomInt(6) + 1; const b = randomInt(6) + 1; next.dice = a === b ? [a, a, a, a] : [a, b]; return next; } const from = action.from as number; const to = action.to as number; const own = side === 0 ? 1 : -1; const die = side === 0 ? to - from : from - to; const dieIndex = next.dice.indexOf(die); next.dice.splice(dieIndex, 1); if (from === -1) next.bar[side] -= 1; else next.points[from] -= own; if (to < 0 || to > 23) next.borneOff[side] += 1; else { if (next.points[to] * own === -1) { next.points[to] = 0; next.bar[1 - side] += 1; } next.points[to] += own; } if (next.borneOff[side] === 15) { next.finished = true; next.winnerId = actorId; } else if (!next.dice.length) rotateTurn(next, players); return next; }
+  validate(state: BackgammonState, actorId: string, action: Action, players: GamePlayer[]): void {
+    ensureTurn(state, actorId); const side = players.findIndex((p) => p.id === actorId);
+    if (action.type === 'roll') { if (state.dice.length) throw new IllegalMoveError('Use all dice before rolling.'); return; }
+    if (action.type === 'pass') { if (!state.dice.length) throw new IllegalMoveError('Roll before passing.'); if (this.legalMoves(state, side).length) throw new IllegalMoveError('You have legal moves.'); return; }
+    if (action.type !== 'move' || !state.dice.length) throw new IllegalMoveError('Roll before moving.');
+    const from = asInt(action.from, 'from', -1, 23); const to = asInt(action.to, 'to', -1, 24);
+    const points = state.points; const own = side === 0 ? 1 : -1;
+    if (state.bar[side] > 0 && from !== -1) throw new IllegalMoveError('Move a checker from the bar first.');
+    if (from === -1 && state.bar[side] <= 0) throw new IllegalMoveError('You have no checker on the bar.');
+    if (from !== -1 && Math.sign(points[from]) !== own) throw new IllegalMoveError('That point does not contain your checker.');
+    const distance = side === 0 ? to - from : from === -1 ? 24 - to : from - to;
+    if (!state.dice.includes(distance)) throw new IllegalMoveError('That die is not available.');
+    if (to >= 0 && to < 24 && points[to] * own < -1) throw new IllegalMoveError('That point is blocked.');
+  }
+  apply(state: BackgammonState, actorId: string, action: Action, players: GamePlayer[]): BackgammonState { this.validate(state, actorId, action, players); const next = clone(state) as BackgammonState; const side = players.findIndex((p) => p.id === actorId); if (action.type === 'roll') { const a = randomInt(6) + 1; const b = randomInt(6) + 1; next.dice = a === b ? [a, a, a, a] : [a, b]; return next; } const from = action.from as number; const to = action.to as number; const own = side === 0 ? 1 : -1; if (action.type === 'pass') { next.dice = []; rotateTurn(next, players); return next; } const die = side === 0 ? to - from : from === -1 ? 24 - to : from - to; const dieIndex = next.dice.indexOf(die); if (dieIndex >= 0) next.dice.splice(dieIndex, 1); if (from === -1) next.bar[side] -= 1; else next.points[from] -= own; if (to < 0 || to > 23) next.borneOff[side] += 1; else { if (next.points[to] * own === -1) { next.points[to] = 0; next.bar[1 - side] += 1; } next.points[to] += own; } if (next.borneOff[side] === 15) { next.finished = true; next.winnerId = actorId; } else if (!next.dice.length) rotateTurn(next, players); return next; }
   outcome(state: BackgammonState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(state: BackgammonState, botId: string, players: GamePlayer[]): Action { if (!state.dice.length) return { type: 'roll' }; const side = players.findIndex((p) => p.id === botId); const own = side === 0 ? 1 : -1; for (let from = 0; from < 24; from += 1) if (state.points[from] * own > 0) for (const die of state.dice) { const to = side === 0 ? from + die : from - die; if ((to < 0 || to > 23 || state.points[to] * own >= -1) && (to < 0 || to > 23 || Math.sign(state.points[to]) === own || state.points[to] === 0 || state.points[to] * own === -1)) return { type: 'move', from, to }; } return { type: 'move', from: -1, to: side === 0 ? state.dice[0] - 1 : 24 - state.dice[0] }; }
+  botAction(state: BackgammonState, botId: string, players: GamePlayer[]): Action {
+    if (!state.dice.length) return { type: 'roll' };
+    const side = players.findIndex((p) => p.id === botId);
+    const moves = this.legalMoves(state, side);
+    if (!moves.length) return { type: 'pass' };
+    const move = moves[randomInt(moves.length)];
+    return { type: 'move', from: move[0], to: move[1] };
+  }
+  private legalMoves(state: BackgammonState, side: number): Array<[number, number]> {
+    const moves: Array<[number, number]> = [];
+    const own = side === 0 ? 1 : -1;
+    const open = (to: number): boolean => to === 24 || to === -1 || (to >= 0 && to < 24 && state.points[to] * own >= -1);
+    if (state.bar[side] > 0) {
+      for (const die of state.dice) { const to = side === 0 ? die - 1 : 24 - die; if (to >= 0 && to < 24 && open(to)) moves.push([-1, to]); }
+      return moves;
+    }
+    for (let from = 0; from < 24; from += 1) {
+      if (state.points[from] * own <= 0) continue;
+      for (const die of state.dice) { const to = side === 0 ? from + die : from - die; if (open(to)) moves.push([from, to]); }
+    }
+    return moves;
+  }
 }
 
 export class SeaBattleEngine implements GameEngine {

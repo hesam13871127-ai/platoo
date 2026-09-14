@@ -19,6 +19,21 @@ Nest modules are intentionally vertical:
 
 A game engine receives a JSON state, player roster, actor, and action. It validates turn ownership and rule legality, returns a new state, and reports winners/draws. The game service takes a row lock on the match, persists the next revision and action replay, then broadcasts a viewer-filtered snapshot. Hidden cards, fleets, roles, and memory values are filtered per viewer before transport.
 
+## Match integrity
+
+Turn clocks are authoritative on the server and derived from `matches.updated_at`, so no schema change was needed: `GameRegistry.turnSeconds(gameId, state)` returns the per-move budget (30s for instant games such as `four_in_a_row`/`darts`/`bowling`/`word_chain`, 45s for `ludo`/`mancala`/`dominoes`/`hearts`/`spades`/`mini_golf`, 60s default, 90s `werewolf`, 120s `sketch_guess` drawing / 30s guessing, 180s `chess`). Match payloads carry `turnSeconds`, an absolute `turnDeadline`, and `serverTime` so clients render a skew-corrected countdown.
+
+Enforcement is a 10-second `@Interval` sweeper in `GameService`:
+
+- Past-deadline bot turns re-trigger the existing bot loop (crash recovery).
+- Past-deadline human turns are auto-played through the normal `act()` path using the engine's `botAction` for that player, recording an `_idleStrikes` counter inside the match state (stripped before transport, cleared when the human acts).
+- A third consecutive strike in a `ranked` match forfeits: the idle player takes a loss and the opponents win.
+- Matches idle over 15 minutes are `cancelled` (results stay `pending`, no rating change, audit row in `match_events`); `sea_battle` matches stuck in `placing` over 10 minutes are cancelled the same way.
+
+Players can leave cleanly via `POST /matches/:id/resign` (or the `game:resign` socket event): the resigner takes a loss, remaining humans win, and a solo player resigning against bots hands the bots the win. Resignations settle through the standard ranking/rewards path and appear in replays as `resign` moves.
+
+Related engine repairs: `word_chain` ends after `players × 8` words with unique bot words, `hearts` awards the lowest score with even three-player deals, `archery` gives every player five shots, `bowling` bots roll legal pin counts and every player completes the tenth frame, `darts` bots never bust, and `backgammon` supports `pass`, both-sided bar re-entry, and a bot that passes only when no legal move exists.
+
 ## Scaling path
 
 The current queue scheduler is safe for one API instance and persists tickets in MySQL. For multi-instance deployment, run one scheduler worker (or move the `processQueue` lock to Redis with a distributed lock) while Socket.IO should use the standard Redis adapter. MySQL remains the source of truth for wallet and match revisions.
