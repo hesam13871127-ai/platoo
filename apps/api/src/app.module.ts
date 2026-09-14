@@ -12,8 +12,9 @@ import { GameModule } from './games/game.module';
 import { MatchmakingModule } from './matchmaking/matchmaking.module';
 import { RankingModule } from './ranking/ranking.module';
 import { AdminModule } from './admin/admin.module';
+import { IapModule } from './iap/iap.module';
 
 @Module({
-  imports: [AppConfigModule, DatabaseModule, ScheduleModule.forRoot(), HealthModule, AuthModule, UsersModule, WalletModule, ChatModule, VoiceModule, GameModule, MatchmakingModule, RankingModule, AdminModule],
+  imports: [AppConfigModule, DatabaseModule, ScheduleModule.forRoot(), HealthModule, AuthModule, UsersModule, WalletModule, ChatModule, VoiceModule, GameModule, MatchmakingModule, RankingModule, AdminModule, IapModule],
 })
 export class AppModule {}

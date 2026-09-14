@@ -90,6 +90,59 @@ docker compose down -v            # FULL reset: deletes the MySQL volume
 - **App can't reach the API on a physical device** — the device and your machine must share Wi-Fi/LAN, use your machine's LAN IP in `API_URL`, and check the OS firewall on port 3000.
 - **Port already in use** — another MySQL/Redis/API is running; stop it or adjust the ports in `docker-compose.yml` / `.env`.
 
+## Monetization (IAP foundation)
+
+Real-money coin top-ups work end to end against a dev API today; store credentials plus
+on-device testing are what separate this from production billing (see below).
+
+How it works:
+
+- `GET /iap/products?provider=apple|google` serves the server-owned coin-pack catalog
+  (`iap_products`, seeded with 4 packs x 2 stores). Packs grant **coins only** — pips,
+  shop prices, and match rewards are untouched.
+- The app runs the store sheet (StoreKit / Play Billing), then calls
+  `POST /iap/verify` with the store transaction id + receipt.
+- The API resolves the purchase **with Apple/Google directly over TLS** and credits
+  coins only when the store confirms payment for the exact catalog product. The client
+  is never trusted about what was bought or for how much.
+- `GET /iap/purchases` returns the user's top-up history (receipts are never exposed).
+
+Safety properties:
+
+- A store transaction credits exactly one user exactly once: `UNIQUE(provider,
+  transaction_id)` plus a `SELECT ... FOR UPDATE` credit step, with a second safety net
+  (`iap:...` ledger idempotency key). Retries safely replay.
+- Purchases are bound to accounts: the app must attach the user id as
+  `appAccountToken` (Apple) / `obfuscatedExternalAccountId` (Google); mismatches are
+  rejected, so stolen receipts cannot be redeemed by another user.
+- Without store credentials the API fails closed (503, purchase stays `pending` for a
+  later retry); test receipts only work with `DEV_IAP_ENABLED=true` outside production.
+- Google purchases are acknowledged right after crediting (unacknowledged purchases are
+  auto-refunded by Google after 3 days); a failed acknowledgement logs loudly but never
+  revokes the credit.
+
+Try it locally (dev API + emulator, no store setup):
+
+1. `DEV_IAP_ENABLED=true` in `apps/api/.env` (default), API running, seed applied.
+2. In the app: Shop > Get coins > tap any pack. `DevStoreBilling` mints a test receipt,
+   the API verifies and credits it, and the balance pill updates.
+3. Re-tapping verify for the same transaction returns `replayed: true` with no double
+   credit (safe to retry after network failures).
+
+What still needs real store credentials/testing before charging money:
+
+- [ ] Create the 4 consumables (`com.vibetable.coins500/1300/3000/8500`) in App Store
+      Connect and Play Console, matching the seeded catalog exactly.
+- [ ] Apple: In-App Purchase key (.p8) + issuer/key IDs into `IAP_APPLE_*`; set
+      `IAP_APPLE_SANDBOX=false` only after sandbox purchases verify.
+- [ ] Google: service account with Play Developer API access into `IAP_GOOGLE_*`.
+- [ ] Flutter: uncomment `in_app_purchase` in pubspec, implement `StoreBilling` with the
+      plugin (account markers required), swap `storeBillingProvider` for release builds.
+- [ ] End-to-end sandbox purchases on real devices (StoreKit sandbox tester + Play
+      license-tester accounts), including interrupted-purchase retries and refunds.
+- [ ] Ops: alert on failed Play acknowledgements; decide the refund-webhook story
+      (`refunded` status exists; no webhook receiver yet).
+
 ## First Run Checklist
 
 Run these in order; stop at the first failure and check Troubleshooting above.

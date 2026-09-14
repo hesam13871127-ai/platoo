@@ -52,5 +52,21 @@ export default () => {
     rateLimit: {
       enabled: process.env.RATE_LIMIT_ENABLED !== 'false',
     },
+    iap: {
+      devEnabled: process.env.DEV_IAP_ENABLED === 'true',
+      apple: {
+        issuerId: process.env.IAP_APPLE_ISSUER_ID ?? '',
+        keyId: process.env.IAP_APPLE_KEY_ID ?? '',
+        privateKey: (process.env.IAP_APPLE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+        bundleId: process.env.APPLE_BUNDLE_ID ?? 'com.vibetable.app',
+        // Sandbox stays on until explicitly disabled: production receipts are rejected while set.
+        sandbox: process.env.IAP_APPLE_SANDBOX !== 'false',
+      },
+      google: {
+        serviceAccountEmail: process.env.IAP_GOOGLE_SERVICE_ACCOUNT_EMAIL ?? '',
+        privateKey: (process.env.IAP_GOOGLE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+        packageName: process.env.IAP_GOOGLE_PACKAGE_NAME ?? 'com.vibetable.app',
+      },
+    },
   };
 };

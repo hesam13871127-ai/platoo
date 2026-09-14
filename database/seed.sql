@@ -68,3 +68,16 @@ INSERT IGNORE INTO users (id, username, display_name, role, status, is_bot) VALU
 ('30000000-0000-4000-8000-000000000012','bot_eli','Eli','player','active',TRUE);
 INSERT IGNORE INTO wallets (user_id, coins, pips)
 SELECT id, 0, 0 FROM users WHERE is_bot = TRUE;
+
+-- Coin-pack catalog for Apple + Google IAP. Create matching consumable products with
+-- these exact product IDs in App Store Connect and Google Play Console before going live.
+INSERT INTO iap_products (id, sku, store_product_id, provider, coins, bonus_coins, price_micros, currency, sort_order) VALUES
+('40000000-0000-4000-8000-000000000001','coins-500','com.vibetable.coins500','apple',500,0,990000,'USD',1),
+('40000000-0000-4000-8000-000000000002','coins-1300','com.vibetable.coins1300','apple',1200,100,1990000,'USD',2),
+('40000000-0000-4000-8000-000000000003','coins-3000','com.vibetable.coins3000','apple',2600,400,4990000,'USD',3),
+('40000000-0000-4000-8000-000000000004','coins-8500','com.vibetable.coins8500','apple',7000,1500,9990000,'USD',4),
+('40000000-0000-4000-8000-000000000005','coins-500','com.vibetable.coins500','google',500,0,990000,'USD',1),
+('40000000-0000-4000-8000-000000000006','coins-1300','com.vibetable.coins1300','google',1200,100,1990000,'USD',2),
+('40000000-0000-4000-8000-000000000007','coins-3000','com.vibetable.coins3000','google',2600,400,4990000,'USD',3),
+('40000000-0000-4000-8000-000000000008','coins-8500','com.vibetable.coins8500','google',7000,1500,9990000,'USD',4)
+ON DUPLICATE KEY UPDATE coins=VALUES(coins), bonus_coins=VALUES(bonus_coins), price_micros=VALUES(price_micros), currency=VALUES(currency), sort_order=VALUES(sort_order), is_active=TRUE;

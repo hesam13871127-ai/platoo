@@ -7,3 +7,5 @@ export const notFound = (message: string) => new NotFoundException(message);
 export const conflict = (message: string) => new ConflictException(message);
 export const rateLimited = (message = 'Too many requests. Slow down for a moment and retry.') =>
   new HttpException({ message, statusCode: HttpStatus.TOO_MANY_REQUESTS }, HttpStatus.TOO_MANY_REQUESTS);
+export const unavailable = (message = 'This service is temporarily unavailable. Try again in a moment.') =>
+  new HttpException({ message, statusCode: HttpStatus.SERVICE_UNAVAILABLE }, HttpStatus.SERVICE_UNAVAILABLE);

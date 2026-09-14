@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   currency ENUM('coins','pips') NOT NULL,
   amount BIGINT NOT NULL,
   balance_after BIGINT UNSIGNED NOT NULL,
-  type ENUM('signup','purchase','match_entry','match_reward','gift_sent','gift_received','admin_adjustment','refund','season_reward') NOT NULL,
+  type ENUM('signup','purchase','match_entry','match_reward','gift_sent','gift_received','admin_adjustment','refund','season_reward','iap_credit') NOT NULL,
   reference_type VARCHAR(40) NULL,
   reference_id CHAR(36) NULL,
   idempotency_key VARCHAR(100) NULL,
@@ -516,3 +516,55 @@ FROM player_ratings pr
 JOIN users u ON u.id = pr.user_id
 JOIN seasons s ON s.id = pr.season_id AND s.status = 'active'
 WHERE u.status = 'active';
+
+-- In-app purchase catalog: server-owned mapping of store product IDs to coin grants.
+-- Prices shown to users always come from the store; price_micros is a display hint only
+-- and is NEVER trusted from the client during verification.
+CREATE TABLE IF NOT EXISTS iap_products (
+  id CHAR(36) NOT NULL,
+  sku VARCHAR(80) NOT NULL,
+  store_product_id VARCHAR(120) NOT NULL,
+  provider ENUM('apple','google') NOT NULL,
+  coins BIGINT UNSIGNED NOT NULL,
+  bonus_coins BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  price_micros BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  currency CHAR(3) NOT NULL DEFAULT 'USD',
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_iap_store_product (provider, store_product_id),
+  KEY idx_iap_sku (sku),
+  KEY idx_iap_catalog (is_active, sort_order),
+  CONSTRAINT chk_iap_grant CHECK (coins > 0)
+) ENGINE=InnoDB;
+
+-- Every store transaction ever verified. UNIQUE(provider, transaction_id) is the core
+-- idempotency guard: a store transaction can only ever credit one user once.
+-- Status flow: pending -> verified -> credited; failures stay failed (retryable) and
+-- refunded is reserved for future store webhook handling.
+CREATE TABLE IF NOT EXISTS iap_purchases (
+  id CHAR(36) NOT NULL,
+  user_id CHAR(36) NOT NULL,
+  product_id CHAR(36) NOT NULL,
+  provider ENUM('apple','google') NOT NULL,
+  store_product_id VARCHAR(120) NOT NULL,
+  transaction_id VARCHAR(160) NOT NULL,
+  status ENUM('pending','verified','credited','failed','refunded') NOT NULL DEFAULT 'pending',
+  coins_granted BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  receipt_hash CHAR(64) NOT NULL,
+  receipt MEDIUMTEXT NULL,
+  verify_attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  verified_at DATETIME(3) NULL,
+  credited_at DATETIME(3) NULL,
+  last_error VARCHAR(500) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_iap_transaction (provider, transaction_id),
+  KEY idx_iap_user (user_id, created_at),
+  KEY idx_iap_status (status),
+  CONSTRAINT fk_iap_purchase_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_iap_purchase_product FOREIGN KEY (product_id) REFERENCES iap_products(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;

@@ -18,6 +18,7 @@ function assertProductionReady(config: ConfigService): void {
   }
   if (!config.get<string[]>('corsOrigins', []).length) problems.push('CORS_ORIGINS must list the allowed web origins (mobile apps are unaffected).');
   if (config.get<boolean>('otp.devEnabled', false)) problems.push('DEV_OTP_ENABLED must be false in production; configure OTP_WEBHOOK_URL instead.');
+  if (config.get<boolean>('iap.devEnabled', false)) problems.push('DEV_IAP_ENABLED must be false in production; configure App Store / Play credentials instead.');
   if (problems.length) throw new Error(`Refusing to boot with unsafe production config:\n- ${problems.join('\n- ')}`);
   if (config.get<string>('database.password', '') === 'vibetable' || config.get<string>('database.user', '') === 'vibetable') {
     console.warn('WARNING: production is using the default database credentials. Set DB_USER/DB_PASSWORD or DATABASE_URL.');
