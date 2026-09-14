@@ -10,7 +10,8 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "db:migrate": "node dist/src/database/migrate.js",
-    "db:seed": "node dist/src/database/seed.js"
+    "db:seed": "node dist/src/database/seed.js",
+    "admin:grant": "node dist/src/database/grant-admin.js"
   },
   "dependencies": {
     "livekit-server-sdk": "^2.7.0",

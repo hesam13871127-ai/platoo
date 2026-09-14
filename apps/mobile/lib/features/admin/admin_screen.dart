@@ -2,12 +2,101 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
+import 'admin_providers.dart';
+import 'admin_widgets.dart';
+import 'tabs/admin_dashboard_tab.dart';
+import 'tabs/admin_games_tab.dart';
+import 'tabs/admin_reports_tab.dart';
+import 'tabs/admin_seasons_tab.dart';
+import 'tabs/admin_shop_tab.dart';
+import 'tabs/admin_users_tab.dart';
 
-final adminOverviewProvider = FutureProvider<Map<String, dynamic>>((ref) async => Map<String, dynamic>.from(await ref.watch(apiClientProvider).get('/admin/overview') as Map));
-final adminReportsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async { final data = await ref.watch(apiClientProvider).get('/admin/reports', query: {'status': 'open'}) as List; return data.map((item) => Map<String, dynamic>.from(item as Map)).toList(); });
+/// The admin console shell. The API is the source of truth for access control,
+/// but the client also gates the screen so a player never sees the entry point
+/// and a moderator only sees the sections they are allowed to use.
+class AdminScreen extends ConsumerWidget {
+  const AdminScreen({super.key});
 
-class AdminScreen extends ConsumerWidget { const AdminScreen({super.key}); @override Widget build(BuildContext context, WidgetRef ref) { final overview = ref.watch(adminOverviewProvider); final reports = ref.watch(adminReportsProvider); return Scaffold(appBar: AppBar(title: const Text('Admin console', style: TextStyle(fontWeight: FontWeight.w900))), body: RefreshIndicator(onRefresh: () async { ref.invalidate(adminOverviewProvider); ref.invalidate(adminReportsProvider); }, child: ListView(padding: const EdgeInsets.all(20), children: [overview.when(loading: () => const LinearProgressIndicator(), error: (error, _) => Text(error.toString()), data: (data) => _Overview(data: data)), const SizedBox(height: 26), const Text('Open reports', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)), const SizedBox(height: 10), reports.when(loading: () => const Center(child: CircularProgressIndicator()), error: (error, _) => Text(error.toString()), data: (items) => items.isEmpty ? const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('All clear. No open reports.'))) : Column(children: [for (final item in items) _ReportCard(item: item, onResolve: () async { await ref.read(apiClientProvider).patch('/admin/reports/${item['id']}', data: {'status': 'resolved', 'resolutionNote': 'Reviewed by moderation.'}); ref.invalidate(adminReportsProvider); })]))]))); }
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(authProvider).value?.user.role ?? 'player';
+    if (role != 'admin' && role != 'moderator') return const _AccessDenied();
+    final isAdmin = role == 'admin';
+
+    final tabs = <({String label, IconData icon, Widget view})>[
+      (label: 'Dashboard', icon: Icons.insights_rounded, view: const AdminDashboardTab()),
+      (label: 'Users', icon: Icons.people_alt_rounded, view: AdminUsersTab(isAdmin: isAdmin)),
+      (label: 'Reports', icon: Icons.flag_rounded, view: const AdminReportsTab()),
+      (label: 'Shop', icon: Icons.storefront_rounded, view: AdminShopTab(isAdmin: isAdmin)),
+      (label: 'Games', icon: Icons.sports_esports_rounded, view: AdminGamesTab(isAdmin: isAdmin)),
+      (label: 'Seasons', icon: Icons.emoji_events_rounded, view: AdminSeasonsTab(isAdmin: isAdmin)),
+      if (isAdmin) (label: 'Audit', icon: Icons.receipt_long_rounded, view: const _AuditTab()),
+    ];
+
+    return DefaultTabController(
+      length: tabs.length,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Admin console', style: TextStyle(fontWeight: FontWeight.w900)),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 14),
+              child: Center(child: AdminStatusChip(label: role, color: isAdmin ? AppTheme.violet : AppTheme.gold)),
+            ),
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [for (final tab in tabs) Tab(icon: Icon(tab.icon, size: 19), text: tab.label)],
+          ),
+        ),
+        body: TabBarView(children: [for (final tab in tabs) tab.view]),
+      ),
+    );
+  }
 }
-class _Overview extends StatelessWidget { const _Overview({required this.data}); final Map<String, dynamic> data; @override Widget build(BuildContext context) { final users = Map<String, dynamic>.from(data['users'] as Map? ?? const {}); final matches = Map<String, dynamic>.from(data['matches'] as Map? ?? const {}); final reports = Map<String, dynamic>.from(data['reports'] as Map? ?? const {}); return GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [_Metric(label: 'Active users', value: '${users['active'] ?? 0}', icon: Icons.people_rounded, color: AppTheme.violet), _Metric(label: 'Live matches', value: '${matches['active'] ?? 0}', icon: Icons.sports_esports_rounded, color: AppTheme.mint), _Metric(label: 'Open reports', value: '${reports['open'] ?? 0}', icon: Icons.flag_rounded, color: AppTheme.coral), _Metric(label: 'Total users', value: '${users['total'] ?? 0}', icon: Icons.insights_rounded, color: AppTheme.gold)]); } }
-class _Metric extends StatelessWidget { const _Metric({required this.label, required this.value, required this.icon, required this.color}); final String label; final String value; final IconData icon; final Color color; @override Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Icon(icon, color: color), Text(value, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)), Text(label, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))]))); }
-class _ReportCard extends StatelessWidget { const _ReportCard({required this.item, required this.onResolve}); final Map<String, dynamic> item; final VoidCallback onResolve; @override Widget build(BuildContext context) => Card(margin: const EdgeInsets.only(bottom: 10), child: Padding(padding: const EdgeInsets.all(15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.12), borderRadius: BorderRadius.circular(8)), child: Text(item['category']?.toString() ?? 'report', style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800, fontSize: 12))), const Spacer(), Text((item['createdAt']?.toString() ?? '').split('T').first, style: const TextStyle(fontSize: 11))]), const SizedBox(height: 9), Text(item['description']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 9), Align(alignment: AlignmentDirectional.centerEnd, child: TextButton.icon(onPressed: onResolve, icon: const Icon(Icons.check_rounded), label: const Text('Resolve')))]))); }
+
+class _AccessDenied extends StatelessWidget {
+  const _AccessDenied();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Admin console')),
+        body: const Center(
+          child: AdminEmpty(
+            icon: Icons.lock_rounded,
+            title: 'Staff access only',
+            message: 'This console is restricted to moderator and admin accounts.',
+          ),
+        ),
+      );
+}
+
+/// A read-only trail of every change made through the console.
+class _AuditTab extends ConsumerWidget {
+  const _AuditTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entries = ref.watch(adminAuditProvider);
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(adminAuditProvider),
+      child: AdminAsync<List<Map<String, dynamic>>>(
+        value: entries,
+        onRetry: () => ref.invalidate(adminAuditProvider),
+        builder: (list) => list.isEmpty
+            ? const AdminEmpty(icon: Icons.receipt_long_rounded, title: 'No admin activity yet', message: 'Every change made here is recorded for review.')
+            : ListView(padding: const EdgeInsets.only(bottom: 30), children: [
+                const AdminSectionHeader(title: 'Audit log', subtitle: 'Most recent changes first'),
+                for (final entry in list)
+                  ListTile(
+                    leading: const Icon(Icons.history_rounded, size: 20),
+                    title: Text(entry['action']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text('${entry['adminName']} · ${entry['entityType']} ${entry['entityId'] ?? ''}\n${shortDate(entry['createdAt'])}'),
+                    isThreeLine: true,
+                  ),
+              ]),
+      ),
+    );
+  }
+}

@@ -15,6 +15,12 @@ Nest modules are intentionally vertical:
 - `ranking` owns seasons, Elo, stats, and rewards.
 - `admin` owns audited operations and moderation.
 
+## Admin console
+
+Every `/admin` route sits behind `JwtAuthGuard` + `RolesGuard`. The controller defaults to `@Roles('admin')`; read-only views and the moderation queue are explicitly widened to `moderator`, so a moderator can triage reports and ban accounts but cannot edit the catalogue, games, seasons or roles. The Flutter shell mirrors this by hiding the tabs and destructive controls a moderator may not use, while the API stays the source of truth.
+
+Every mutating call writes an `admin_audit_log` row with the before/after snapshots, surfaced in the console's Audit tab. Moderation state lives in `user_bans` (temporary or permanent, with a lift trail) and `report_notes`; `BanExpiryService` sweeps every minute to reinstate accounts whose suspension has elapsed and whose other bans are all closed. Two invariants are enforced server-side: at least one active admin must remain, and a shop item owned by players is retired rather than deleted so inventories and the ledger keep a valid reference.
+
 ## State authority
 
 A game engine receives a JSON state, player roster, actor, and action. It validates turn ownership and rule legality, returns a new state, and reports winners/draws. The game service takes a row lock on the match, persists the next revision and action replay, then broadcasts a viewer-filtered snapshot. Hidden cards, fleets, roles, and memory values are filtered per viewer before transport.

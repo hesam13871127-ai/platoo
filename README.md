@@ -9,6 +9,7 @@ VibeTable is a real-time social tabletop platform: fast games, friends, voice ro
 - `packages/contracts` — shared game, match, wallet, and session contracts.
 - `database/schema.sql` — MySQL 8 schema with ledger, inventory, friendship, group, chat, match replay, season, ranking, moderation, and LiveKit room tables.
 - `database/seed.sql` — all 28 game catalog records, starter shop catalog, and the active 2026 season.
+- `database/migrations/` — numbered follow-up migrations applied after `schema.sql` by `npm run db:migrate`.
 
 ## Local development
 
@@ -28,6 +29,12 @@ VibeTable is a real-time social tabletop platform: fast games, friends, voice ro
    npm run db:migrate
    npm run db:seed
    npm run dev:api
+   ```
+
+   Grant yourself console access once your account exists:
+
+   ```bash
+   npm run admin:grant -w @vibetable/api -- <username|email|user-id> admin
    ```
 
 5. Run the client:
