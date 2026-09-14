@@ -18,6 +18,12 @@ class ChatSocket {
   int _attempt = 0;
   int _generation = 0;
 
+  static const int _slowModeAfterAttempts = 8;
+  static const Duration _slowModeDelay = Duration(seconds: 30);
+
+  int get retryAttempt => _attempt;
+  bool get slowMode => _attempt > _slowModeAfterAttempts;
+
   Future<void> connect({required String conversationId, required void Function(Map<String, dynamic>) onMessage, void Function(ChatSocketStatus)? onStatus}) async {
     _disposed = false;
     final generation = ++_generation;
@@ -37,8 +43,8 @@ class ChatSocket {
     final socket = io.io('$base/chat', io.OptionBuilder().setTransports(['websocket']).setAuth({'token': token}).disableAutoConnect().disableReconnection().build());
     _socket = socket;
     socket.onConnect((_) { if (!_current(socket)) return; _connecting = false; _attempt = 0; _retryTimer?.cancel(); _retryTimer = null; _setStatus(ChatSocketStatus.connected); socket.emit('conversation:join', {'conversationId': conversationId}); });
-    socket.on('connect_error', (_) { if (!_current(socket)) return; _connecting = false; _setStatus(ChatSocketStatus.reconnecting); _scheduleReconnect(); });
-    socket.on('disconnect', (reason) { if (!_current(socket)) return; _connecting = false; if (reason?.toString() == 'io client disconnect') _setStatus(ChatSocketStatus.disconnected); else { _setStatus(ChatSocketStatus.reconnecting); _scheduleReconnect(); } });
+    socket.on('connect_error', (_) { if (!_current(socket)) return; _connecting = false; _markReconnecting(); });
+    socket.on('disconnect', (reason) { if (!_current(socket)) return; _connecting = false; if (reason?.toString() == 'io client disconnect') _setStatus(ChatSocketStatus.disconnected); else _markReconnecting(); });
     socket.on('message:new', (data) { if (_current(socket) && data is Map && data['conversationId'] == conversationId) onMessage(Map<String, dynamic>.from(data)); });
     _connecting = true;
     socket.connect();
@@ -59,11 +65,16 @@ class ChatSocket {
     unawaited(connect(conversationId: id, onMessage: message, onStatus: _onStatus));
   }
 
+  void _markReconnecting() {
+    _setStatus(slowMode ? ChatSocketStatus.disconnected : ChatSocketStatus.reconnecting);
+    _scheduleReconnect();
+  }
+
   void _scheduleReconnect() {
     if (_disposed || _retryTimer != null || _socket?.connected == true) return;
-    final delay = _attempt == 0 ? 1 : _attempt < 4 ? 4 : 10;
     _attempt += 1;
-    _retryTimer = Timer(Duration(seconds: delay), () { _retryTimer = null; if (!_disposed && _socket?.connected != true) _connectAgain(); });
+    final delay = slowMode ? _slowModeDelay : Duration(seconds: _attempt == 1 ? 1 : _attempt < 5 ? 4 : 10);
+    _retryTimer = Timer(delay, () { _retryTimer = null; if (!_disposed && _socket?.connected != true) _connectAgain(); });
   }
 
   bool _current(io.Socket socket) => !_disposed && identical(_socket, socket);

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/network/api_client.dart';
@@ -77,7 +78,7 @@ class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
       final data = await ref.read(apiClientProvider).post('/matchmaking/join', data: {'gameId': widget.game.id, 'mode': mode, 'playerCount': players}) as Map;
       if (!mounted) return;
       final queuedAt = DateTime.tryParse(data['queuedAt']?.toString() ?? '');
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchQueueScreen(ticketId: data['id'] as String, game: widget.game, queuedAt: queuedAt)));
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchQueueScreen(ticketId: data['id'] as String, game: widget.game, queuedAt: queuedAt, mode: mode, players: players)));
     } catch (e) {
       if (mounted) setState(() => error = _friendlyError(e));
     } finally {
@@ -118,10 +119,12 @@ class _SetupError extends StatelessWidget {
 }
 
 class MatchQueueScreen extends ConsumerStatefulWidget {
-  const MatchQueueScreen({super.key, required this.ticketId, required this.game, this.queuedAt});
+  const MatchQueueScreen({super.key, required this.ticketId, required this.game, this.queuedAt, this.mode = 'casual', this.players = 2});
   final String ticketId;
   final GameDescriptor game;
   final DateTime? queuedAt;
+  final String mode;
+  final int players;
   @override
   ConsumerState<MatchQueueScreen> createState() => _MatchQueueScreenState();
 }
@@ -177,6 +180,15 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
     return '${minutes.toString().padLeft(2, '0')}:${remainder.toString().padLeft(2, '0')}';
   }
 
+  String get updatedAgo {
+    final checked = lastChecked;
+    if (checked == null) return 'Waiting for the first update';
+    final ago = DateTime.now().difference(checked).inSeconds;
+    if (ago < 5) return 'Updated just now';
+    if (ago < 60) return 'Updated $ago seconds ago';
+    return 'Updated ${ago ~/ 60} min ago';
+  }
+
   Future<void> _poll() async {
     if (polling || cancelling || navigating || !mounted) return;
     polling = true;
@@ -197,6 +209,7 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
       final rawMatch = data['match'];
       if (rawMatch is Map) {
         navigating = true;
+        HapticFeedback.mediumImpact();
         pollTimer?.cancel();
         final match = Map<String, dynamic>.from(rawMatch);
         if (!mounted) return;
@@ -254,11 +267,17 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
       child: Scaffold(
         appBar: AppBar(leading: IconButton(onPressed: cancelling ? null : _cancel, icon: const Icon(Icons.close_rounded), tooltip: strings.cancel), title: Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 31), const SizedBox(width: 9), Expanded(child: Text(strings.isPersian ? 'در حال پیدا کردن حریف' : 'Finding your table'))])),
         body: SafeArea(child: Center(child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(24, 20, 24, 30), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 480), child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Hero(tag: 'game-${widget.game.id}', child: GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 86)),
+          AnimatedScale(scale: queueStatus == 'matched' ? 1 : 1 + (elapsedSeconds % 2) * .035, duration: const Duration(milliseconds: 900), curve: Curves.easeInOut, child: Hero(tag: 'game-${widget.game.id}', child: GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 86))),
           const SizedBox(height: 20),
           Text(_headline, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 8),
           Text(_description, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35)),
+          const SizedBox(height: 12),
+          Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
+            _QueueChip(icon: widget.mode == 'ranked' ? Icons.emoji_events_outlined : Icons.celebration_outlined, label: widget.mode == 'ranked' ? 'Ranked' : 'Casual'),
+            _QueueChip(icon: Icons.people_alt_outlined, label: '${widget.players} players'),
+            _QueueChip(icon: Icons.videogame_asset_outlined, label: widget.game.name),
+          ]),
           const SizedBox(height: 22),
           Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [Row(children: [const Icon(Icons.schedule_rounded, size: 20, color: AppTheme.violet), const SizedBox(width: 8), const Text('Queue time', style: TextStyle(fontWeight: FontWeight.w800)), const Spacer(), Text(elapsedLabel, style: const TextStyle(fontWeight: FontWeight.w900))]), const SizedBox(height: 12), ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: progress, minHeight: 9)), const SizedBox(height: 10), Align(alignment: AlignmentDirectional.centerStart, child: Text(fallbackReady ? 'Bot fallback is ready' : 'Human search runs for up to 15 seconds', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)))]))),
           const SizedBox(height: 12),
@@ -266,13 +285,21 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
           _QueueStep(icon: Icons.smart_toy_rounded, title: 'Invisible bot fallback', active: fallbackReady, complete: queueStatus == 'matched'),
           _QueueStep(icon: Icons.sync_rounded, title: 'Synchronize the game room', active: queueStatus == 'matched', complete: false),
           if (error != null) ...[const SizedBox(height: 12), _QueueError(message: error!, retrying: consecutiveErrors > 0, onRetry: () { setState(() { error = null; consecutiveErrors = 0; }); unawaited(_poll()); })],
-          if (lastChecked != null && error == null) Padding(padding: const EdgeInsets.only(top: 10), child: Text('Updated just now', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+          if (error == null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(updatedAgo, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))),
           const SizedBox(height: 18),
-          TextButton(onPressed: cancelling ? null : _cancel, child: Text(cancelling ? 'Leaving queue…' : strings.cancel)),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: cancelling ? null : _cancel, icon: cancelling ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.close_rounded), label: Text(cancelling ? 'Leaving queue…' : strings.cancel))),
         ]))))),
       ),
     );
   }
+}
+
+class _QueueChip extends StatelessWidget {
+  const _QueueChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.6), borderRadius: BorderRadius.circular(99)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 5), Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))]));
 }
 
 class _QueueStep extends StatelessWidget {

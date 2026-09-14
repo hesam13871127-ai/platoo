@@ -15,16 +15,24 @@ class GameSocket {
   void Function(Map<String, dynamic>)? _onUpdate;
   void Function(String)? _onError;
   void Function(GameSocketStatus)? _onStatus;
+  void Function(int attempt, Duration nextDelay)? _onRetryAttempt;
   bool _disposed = false;
   bool _connecting = false;
   int _retryAttempt = 0;
   int _connectionGeneration = 0;
+
+  static const int _slowModeAfterAttempts = 8;
+  static const Duration _slowModeDelay = Duration(seconds: 30);
+
+  int get retryAttempt => _retryAttempt;
+  bool get slowMode => _retryAttempt > _slowModeAfterAttempts;
 
   Future<void> connect({
     required String matchId,
     required void Function(Map<String, dynamic>) onUpdate,
     required void Function(String) onError,
     required void Function(GameSocketStatus) onStatus,
+    void Function(int attempt, Duration nextDelay)? onRetryAttempt,
   }) async {
     _disposed = false;
     final generation = ++_connectionGeneration;
@@ -37,6 +45,7 @@ class GameSocket {
     _onUpdate = onUpdate;
     _onError = onError;
     _onStatus = onStatus;
+    _onRetryAttempt = onRetryAttempt;
     _retryAttempt = 0;
     _setStatus(GameSocketStatus.connecting);
 
@@ -118,7 +127,7 @@ class GameSocket {
     final onError = _onError;
     final onStatus = _onStatus;
     if (matchId == null || onUpdate == null || onError == null || onStatus == null) return;
-    unawaited(connect(matchId: matchId, onUpdate: onUpdate, onError: onError, onStatus: onStatus));
+    unawaited(connect(matchId: matchId, onUpdate: onUpdate, onError: onError, onStatus: onStatus, onRetryAttempt: _onRetryAttempt));
   }
 
   void _joinMatch(io.Socket socket) {
@@ -135,15 +144,21 @@ class GameSocket {
   }
 
   void _markDisconnected({required bool schedule}) {
-    _setStatus(schedule ? GameSocketStatus.reconnecting : GameSocketStatus.disconnected);
+    _setStatus(!schedule || slowMode ? GameSocketStatus.disconnected : GameSocketStatus.reconnecting);
     if (schedule) _scheduleReconnect();
   }
 
   void _scheduleReconnect() {
     if (_disposed || _retryTimer != null || _socket?.connected == true) return;
-    final delaySeconds = _retryAttempt == 0 ? 1 : _retryAttempt == 1 ? 2 : _retryAttempt < 5 ? 5 : 12;
     _retryAttempt += 1;
-    _retryTimer = Timer(Duration(seconds: delaySeconds), () {
+    final slow = slowMode;
+    final delay = slow ? _slowModeDelay : Duration(seconds: _retryAttempt == 1 ? 1 : _retryAttempt == 2 ? 2 : _retryAttempt <= 5 ? 5 : 12);
+    if (slow && _retryAttempt == _slowModeAfterAttempts + 1) {
+      _setStatus(GameSocketStatus.disconnected);
+      _onError?.call('Live updates are offline. Your moves still sync — tap Retry to reconnect now.');
+    }
+    _onRetryAttempt?.call(_retryAttempt, delay);
+    _retryTimer = Timer(delay, () {
       _retryTimer = null;
       if (!_disposed && _socket?.connected != true) _reconnectWithLatestToken();
     });

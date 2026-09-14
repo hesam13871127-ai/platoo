@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/voice/voice_service.dart';
+import '../../core/widgets/app_feedback.dart';
 import '../../core/widgets/vibe_logo.dart';
 import '../../models/models.dart';
 import 'game_socket.dart';
@@ -36,12 +38,14 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
   bool loadInFlight = false;
   bool leaving = false;
   GameSocketStatus socketStatus = GameSocketStatus.connecting;
+  int socketRetries = 0;
+  int loadFailures = 0;
 
   @override
   void initState() {
     super.initState();
     socket = GameSocket(ref.read(tokenStoreProvider));
-    unawaited(socket.connect(matchId: widget.matchId, onUpdate: _acceptMatch, onError: _handleSocketError, onStatus: _handleSocketStatus));
+    unawaited(socket.connect(matchId: widget.matchId, onUpdate: _acceptMatch, onError: _handleSocketError, onStatus: _handleSocketStatus, onRetryAttempt: _handleSocketRetry));
     unawaited(_load());
     poller = Timer.periodic(const Duration(seconds: 3), (_) => unawaited(_load()));
   }
@@ -56,12 +60,38 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
 
   void _handleSocketStatus(GameSocketStatus status) {
     if (!mounted) return;
-    setState(() => socketStatus = status);
+    setState(() {
+      socketStatus = status;
+      if (status == GameSocketStatus.connected) socketRetries = 0;
+    });
+  }
+
+  void _handleSocketRetry(int attempt, Duration nextDelay) {
+    if (!mounted) return;
+    setState(() => socketRetries = attempt);
   }
 
   void _handleSocketError(String message) {
     if (!mounted) return;
     setState(() => error = message);
+  }
+
+  void _noteTurnTransition(MatchModel? current, MatchModel next) {
+    if (current == null) return;
+    final viewer = next.players.where((player) => player['seat'] == next.viewerSeat).toList();
+    if (viewer.isEmpty) return;
+    final viewerId = viewer.first['id'];
+    if (next.status == 'finished' && current.status != 'finished') {
+      if (viewer.first['result'] == 'win') {
+        HapticFeedback.heavyImpact();
+      } else {
+        HapticFeedback.mediumImpact();
+      }
+      return;
+    }
+    if (next.status == 'active' && next.state['turnPlayerId'] == viewerId && current.state['turnPlayerId'] != viewerId) {
+      HapticFeedback.lightImpact();
+    }
   }
 
   Future<bool> _confirmLeave() async {
@@ -95,9 +125,11 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
       final current = match;
       if (current != null && next.revision < current.revision) return;
       if (current != null && next.revision == current.revision && current.status == 'finished' && (next.status != 'finished' || (current.reward != null && next.reward == null))) return;
+      _noteTurnTransition(current, next);
       setState(() {
         match = next;
         error = null;
+        loadFailures = 0;
       });
       if (next.status == 'finished') {
         if (next.reward != null) {
@@ -128,7 +160,7 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
       final data = await ref.read(apiClientProvider).get('/matches/${widget.matchId}') as Map;
       _acceptMatch(Map<String, dynamic>.from(data));
     } catch (e) {
-      if (mounted) setState(() => error = _friendlyError(e));
+      if (mounted) setState(() { loadFailures += 1; error = _friendlyError(e); });
     } finally {
       loadInFlight = false;
     }
@@ -146,7 +178,7 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
       _acceptMatch(Map<String, dynamic>.from(data));
     } catch (e) {
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
+      if (mounted) showAppSnackBar(context, _friendlyError(e), isError: true);
     } finally {
       if (mounted) setState(() => actionPending = false);
     }
@@ -173,7 +205,7 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
       _acceptMatch(Map<String, dynamic>.from(data));
     } catch (e) {
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
+      if (mounted) showAppSnackBar(context, _friendlyError(e), isError: true);
     } finally {
       if (mounted) setState(() => actionPending = false);
     }
@@ -185,12 +217,13 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
   }
 
   String? get _syncMessage {
+    if (loadFailures >= 2) return 'You look offline — retrying automatically. Moves send when you reconnect.';
     if (error != null) return 'Showing the last confirmed state. ${error!}';
     return switch (socketStatus) {
       GameSocketStatus.connected => actionPending ? 'Sending your move…' : null,
       GameSocketStatus.connecting => 'Connecting to the live table…',
-      GameSocketStatus.reconnecting => 'Live updates paused · reconnecting…',
-      GameSocketStatus.disconnected => 'Live updates are offline · REST sync is still available.',
+      GameSocketStatus.reconnecting => socketRetries > 0 ? 'Reconnecting… (attempt $socketRetries)' : 'Live updates paused · reconnecting…',
+      GameSocketStatus.disconnected => socket.slowMode ? 'Live updates are offline · moves still sync. Tap Retry to reconnect now.' : 'Live updates are offline · REST sync is still available.',
     };
   }
 
@@ -210,6 +243,7 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
             if (current?.status == 'finished') const Icon(Icons.emoji_events_rounded, color: AppTheme.gold),
           ]),
           actions: [
+            _ConnectionDot(status: socketStatus, onTap: _retryLiveUpdates),
             VoiceRoomButton(api: ref.read(apiClientProvider), matchId: widget.matchId),
             IconButton(onPressed: () => unawaited(_load()), icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh match'),
             if (current?.status == 'active') IconButton(onPressed: actionPending ? null : _resign, icon: const Icon(Icons.flag_outlined), tooltip: 'Resign match'),
@@ -289,7 +323,7 @@ class _MatchBody extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (syncMessage != null) _SyncBanner(message: syncMessage!, onRetry: onRetrySync),
-        if (match.status == 'finished') _ResultBanner(match: match),
+        if (match.status == 'finished') _ResultBanner(match: match, game: game),
         if (match.status == 'cancelled') const _CancelledBanner(),
         Stack(children: [
           GameCanvas(game: game, state: match.state, match: match, onAction: onAction),
@@ -301,6 +335,37 @@ class _MatchBody extends StatelessWidget {
           _RoomChatHint(onTap: match.conversationId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConversationScreen(conversation: {'id': match.conversationId, 'title': '${game.name} table'})))),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ConnectionDot extends StatelessWidget {
+  const _ConnectionDot({required this.status, required this.onTap});
+  final GameSocketStatus status;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      GameSocketStatus.connected => AppTheme.mint,
+      GameSocketStatus.connecting || GameSocketStatus.reconnecting => AppTheme.gold,
+      GameSocketStatus.disconnected => Theme.of(context).disabledColor,
+    };
+    final label = switch (status) {
+      GameSocketStatus.connected => 'Live connection is healthy',
+      GameSocketStatus.connecting => 'Connecting to the live table…',
+      GameSocketStatus.reconnecting => 'Reconnecting… tap to retry now',
+      GameSocketStatus.disconnected => 'Live updates offline · tap to retry',
+    };
+    return IconButton(
+      onPressed: status == GameSocketStatus.connected ? null : onTap,
+      tooltip: label,
+      icon: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 6)]),
       ),
     );
   }
@@ -355,50 +420,75 @@ class _PlayerChip extends StatelessWidget {
 }
 
 class _ResultBanner extends StatelessWidget {
-  const _ResultBanner({required this.match});
+  const _ResultBanner({required this.match, required this.game});
   final MatchModel match;
+  final GameDescriptor game;
 
   @override
   Widget build(BuildContext context) {
     final viewer = match.players.where((player) => player['seat'] == match.viewerSeat).toList();
     final viewerResult = viewer.isEmpty ? null : viewer.first['result']?.toString();
     final winners = match.players.where((player) => match.winnerIds.contains(player['id'])).map((player) => player['displayName']?.toString() ?? 'Player').toList();
-    final headline = match.draw ? 'It’s a draw' : viewerResult == 'win' ? 'You won!' : viewerResult == 'loss' ? 'Match complete' : winners.isEmpty ? 'Match complete' : '${winners.join(' and ')} won';
+    final won = viewerResult == 'win';
+    final lost = viewerResult == 'loss';
+    final headline = match.draw ? 'It’s a draw' : won ? 'You won!' : lost ? 'Defeat' : winners.isEmpty ? 'Match complete' : '${winners.join(' and ')} won';
+    final subline = match.draw ? 'Nobody takes the table this time.' : won ? 'Brilliant table — take the rewards.' : lost ? (winners.isEmpty ? 'Better luck at the next table.' : '${winners.join(' · ')} takes this one.') : winners.join(' · ');
+    final icon = match.draw ? Icons.handshake_rounded : won ? Icons.celebration_rounded : Icons.sports_esports_rounded;
+    final gradient = match.draw
+        ? const LinearGradient(colors: [Color(0xFF0E3B32), Color(0xFF159A8C)])
+        : won
+            ? const LinearGradient(colors: [Color(0xFF2D2264), Color(0xFF7957F2)])
+            : const LinearGradient(colors: [Color(0xFF2A2F45), Color(0xFF4A5170)]);
     final reward = match.reward;
     final xp = (reward?['xp'] as num?)?.toInt();
     final coins = (reward?['coins'] as num?)?.toInt();
+    final before = viewer.isEmpty ? null : (viewer.first['ratingBefore'] as num?)?.toInt();
+    final after = viewer.isEmpty ? null : (viewer.first['ratingAfter'] as num?)?.toInt();
+    final delta = before != null && after != null ? after - before : null;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF2D2264), Color(0xFF7957F2)]), borderRadius: BorderRadius.circular(22)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Icon(Icons.celebration_rounded, color: AppTheme.gold, size: 32),
-          const SizedBox(width: 13),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(headline, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 19)),
-            if (winners.isNotEmpty && !match.draw) Text(winners.join(' · '), overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
-          ])),
-        ]),
-        const SizedBox(height: 14),
-        if (xp != null && coins != null) ...[
-          const Text('Rewards added to your profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 9),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            _RewardPill(icon: Icons.bolt_rounded, label: '+$xp XP'),
-            _RewardPill(icon: Icons.circle, label: '+$coins coins'),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.scale(scale: .96 + value * .04, alignment: Alignment.topCenter, child: child),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(gradient: gradient, borderRadius: BorderRadius.circular(22)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(icon, color: AppTheme.gold, size: 32),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(headline, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 19)),
+              if (subline.isNotEmpty) Text(subline, overflow: TextOverflow.ellipsis, maxLines: 2, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
+            ])),
           ]),
-        ] else Row(children: [
-          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.gold)),
-          const SizedBox(width: 9),
-          const Expanded(child: Text('Result saved · rewards are being settled. This card will update automatically.', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700))),
+          const SizedBox(height: 14),
+          if (xp != null && coins != null) ...[
+            const Text('Rewards added to your profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 9),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              _RewardPill(icon: Icons.bolt_rounded, label: '+$xp XP'),
+              _RewardPill(icon: Icons.circle, label: '+$coins coins'),
+              if (delta != null && delta != 0) _RewardPill(icon: delta > 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded, label: '${delta > 0 ? '+' : ''}$delta rating'),
+            ]),
+          ] else Row(children: [
+            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.gold)),
+            const SizedBox(width: 9),
+            const Expanded(child: Text('Result saved · rewards are being settled. This card will update automatically.', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700))),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst), icon: const Icon(Icons.home_rounded, color: Colors.white), label: const Text('Back to games', style: TextStyle(color: Colors.white)))),
+            const SizedBox(width: 10),
+            Expanded(child: FilledButton.icon(onPressed: () => Navigator.of(context).pop(), style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF2D2264)), icon: const Icon(Icons.replay_rounded), label: const Text('Play again'))),
+          ]),
         ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.home_rounded, color: Colors.white), label: const Text('Back to games', style: TextStyle(color: Colors.white)))),
-        ]),
-      ]),
+      ),
     );
   }
 }
@@ -417,7 +507,7 @@ class _CancelledBanner extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: 12),
     padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(.6), borderRadius: BorderRadius.circular(14), border: Border.all(color: Theme.of(context).dividerColor)),
+    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.6), borderRadius: BorderRadius.circular(14), border: Border.all(color: Theme.of(context).dividerColor)),
     child: const Row(children: [
       Icon(Icons.pause_circle_outline_rounded, size: 19),
       SizedBox(width: 9),

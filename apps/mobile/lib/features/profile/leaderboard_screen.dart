@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/state_panel.dart';
 import '../home/home_provider.dart';
 
 class LeaderboardScreen extends ConsumerStatefulWidget { const LeaderboardScreen({super.key}); @override ConsumerState<LeaderboardScreen> createState() => _LeaderboardScreenState(); }
@@ -13,10 +14,10 @@ class _Leaderboard extends ConsumerWidget {
     final data = ref.watch(leaderboardProvider(gameId));
     return data.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => const _LeaderboardState(icon: Icons.cloud_off_rounded, title: 'Leaderboard unavailable', message: 'Try again when the table is back online.'),
+      error: (error, _) => StatePanel(icon: Icons.cloud_off_rounded, title: 'Leaderboard unavailable', message: 'We could not load the rankings.', actionLabel: 'Try again', onAction: () => ref.invalidate(leaderboardProvider(gameId))),
       data: (payload) {
         final entries = payload['entries'] as List? ?? const [];
-        if (entries.isEmpty) return const _LeaderboardState(icon: Icons.emoji_events_outlined, title: 'No rankings yet', message: 'Play a ranked match to claim your place.');
+        if (entries.isEmpty) return const StatePanel(icon: Icons.emoji_events_outlined, title: 'No rankings yet', message: 'Play a ranked match to claim your place.');
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 30),
           itemCount: entries.length,
@@ -44,11 +45,3 @@ class _Leaderboard extends ConsumerWidget {
 
 final leaderboardProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, gameId) async => Map<String, dynamic>.from(await ref.watch(apiClientProvider).get('/ranking/$gameId/leaderboard') as Map));
 
-class _LeaderboardState extends StatelessWidget {
-  const _LeaderboardState({required this.icon, required this.title, required this.message});
-  final IconData icon;
-  final String title;
-  final String message;
-  @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 44, color: AppTheme.gold), const SizedBox(height: 13), Text(title, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center), const SizedBox(height: 6), Text(message, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center)])));
-}

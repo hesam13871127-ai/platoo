@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/player_avatar.dart';
+import '../../core/widgets/state_panel.dart';
 import '../../core/widgets/vibe_logo.dart';
 import '../../models/models.dart';
 import '../games/match_setup_screen.dart';
@@ -143,14 +145,10 @@ class _HomeHeader extends StatelessWidget {
       ])),
       BalancePill(value: user?.coins ?? 0, icon: Icons.circle, color: AppTheme.gold),
       const SizedBox(width: 8),
-      CircleAvatar(radius: 20, backgroundColor: AppTheme.violet.withOpacity(.17), backgroundImage: user?.avatarUrl == null ? null : NetworkImage(user!.avatarUrl!), child: user?.avatarUrl == null ? Text(_initial(user?.displayName), style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.violet)) : null),
+      PlayerAvatar(avatarUrl: user?.avatarUrl, displayName: user?.displayName ?? '', radius: 20),
     ]);
   }
 
-  String _initial(String? value) {
-    final trimmed = value?.trim() ?? '';
-    return trimmed.isEmpty ? 'V' : trimmed.substring(0, 1).toUpperCase();
-  }
 }
 
 class _FeaturedBanner extends StatelessWidget {
@@ -231,5 +229,8 @@ class _NoGamesFound extends StatelessWidget {
   final bool hasFilters;
   final VoidCallback onClear;
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.fromLTRB(22, 48, 22, 20), child: Center(child: Column(children: [Container(width: 68, height: 68, decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), shape: BoxShape.circle), child: const Icon(Icons.search_off_rounded, color: AppTheme.violet, size: 30)), const SizedBox(height: 14), Text(hasFilters ? 'No games match that search' : 'No games are available right now', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center), const SizedBox(height: 6), Text(hasFilters ? 'Try another name or browse every category.' : 'Pull to refresh and try again.', style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center), if (hasFilters) ...[const SizedBox(height: 13), TextButton(onPressed: onClear, child: const Text('Clear filters'))]])));
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 28),
+    child: StatePanel(icon: Icons.search_off_rounded, title: hasFilters ? 'No games match that search' : 'No games are available right now', message: hasFilters ? 'Try another name or browse every category.' : 'Pull to refresh and try again.', actionLabel: hasFilters ? 'Clear filters' : null, onAction: hasFilters ? onClear : null),
+  );
 }

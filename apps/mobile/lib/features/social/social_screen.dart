@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_feedback.dart';
+import '../../core/widgets/state_panel.dart';
 import '../../models/models.dart';
 import 'chat_socket.dart';
 
@@ -11,21 +13,12 @@ final friendsProvider = FutureProvider<List<FriendEntry>>((ref) async { final da
 
 class SocialScreen extends ConsumerStatefulWidget { const SocialScreen({super.key}); @override ConsumerState<SocialScreen> createState() => _SocialScreenState(); }
 class _SocialScreenState extends ConsumerState<SocialScreen> { final search = TextEditingController(); List<Map<String, dynamic>> results = []; bool searching = false; @override void dispose() { search.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) { final strings = AppStrings(Localizations.localeOf(context)); final friends = ref.watch(friendsProvider); return RefreshIndicator(onRefresh: () async { ref.invalidate(friendsProvider); try { await ref.read(friendsProvider.future); } catch (_) {} }, child: CustomScrollView(slivers: [SliverPadding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 12), sliver: SliverToBoxAdapter(child: Row(children: [Text(strings.social, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)), const Spacer(), IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatListScreen())), icon: const Icon(Icons.forum_rounded))]))), SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 20), sliver: SliverToBoxAdapter(child: TextField(controller: search, onChanged: _search, decoration: InputDecoration(hintText: strings.isPersian ? 'جست‌وجوی دوستان' : 'Find people', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: searching ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : null))),), if (results.isNotEmpty) SliverPadding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 8), sliver: SliverToBoxAdapter(child: _SearchResults(results: results, onAdd: _add))), SliverPadding(padding: const EdgeInsets.fromLTRB(20, 25, 20, 12), sliver: SliverToBoxAdapter(child: Row(children: [Text(strings.friends, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 19)), const Spacer(), TextButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatListScreen())), icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18), label: Text(strings.chat))]))), friends.when(loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator())), error: (error, _) => const SliverFillRemaining(hasScrollBody: false, child: _SocialStatePanel(icon: Icons.cloud_off_rounded, title: 'Friends are offline', message: 'Pull down to try again.')), data: (list) => list.isEmpty ? const SliverFillRemaining(hasScrollBody: false, child: _SocialStatePanel(icon: Icons.people_outline_rounded, title: 'Your table is more fun with friends', message: 'Search for a player and send the first invite.')) : SliverList(delegate: SliverChildBuilderDelegate((context, index) => _FriendTile(friend: list[index], onAction: () => _friendAction(list[index]), onChat: () => _openChat(list[index])), childCount: list.length))), SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 30), child: FilledButton.tonalIcon(onPressed: () => _createGroup(context), icon: const Icon(Icons.group_add_rounded), label: const Text('Create a group'))))])); }
+  @override Widget build(BuildContext context) { final strings = AppStrings(Localizations.localeOf(context)); final friends = ref.watch(friendsProvider); return RefreshIndicator(onRefresh: () async { ref.invalidate(friendsProvider); try { await ref.read(friendsProvider.future); } catch (_) {} }, child: SafeArea(top: true, bottom: false, child: CustomScrollView(slivers: [SliverPadding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 12), sliver: SliverToBoxAdapter(child: Row(children: [Text(strings.social, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)), const Spacer(), IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatListScreen())), icon: const Icon(Icons.forum_rounded))]))), SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 20), sliver: SliverToBoxAdapter(child: TextField(controller: search, onChanged: _search, decoration: InputDecoration(hintText: strings.isPersian ? 'جست‌وجوی دوستان' : 'Find people', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: searching ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : null))),), if (results.isNotEmpty) SliverPadding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 8), sliver: SliverToBoxAdapter(child: _SearchResults(results: results, onAdd: _add))), SliverPadding(padding: const EdgeInsets.fromLTRB(20, 25, 20, 12), sliver: SliverToBoxAdapter(child: Row(children: [Text(strings.friends, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 19)), const Spacer(), TextButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatListScreen())), icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18), label: Text(strings.chat))]))), friends.when(loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator())), error: (error, _) => const SliverFillRemaining(hasScrollBody: false, child: StatePanel(icon: Icons.cloud_off_rounded, title: 'Friends are offline', message: 'Pull down to try again.')), data: (list) => list.isEmpty ? const SliverFillRemaining(hasScrollBody: false, child: StatePanel(icon: Icons.people_outline_rounded, title: 'Your table is more fun with friends', message: 'Search for a player and send the first invite.')) : SliverList(delegate: SliverChildBuilderDelegate((context, index) => _FriendTile(friend: list[index], onAction: () => _friendAction(list[index]), onChat: () => _openChat(list[index])), childCount: list.length))), SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 30), child: FilledButton.tonalIcon(onPressed: () => _createGroup(context), icon: const Icon(Icons.group_add_rounded), label: const Text('Create a group'))))]))); }
   Future<void> _search(String query) async { if (query.trim().length < 2) { setState(() => results = []); return; } setState(() => searching = true); try { final data = await ref.read(apiClientProvider).get('/users/search', query: {'q': query.trim()}) as List; if (mounted) setState(() => results = data.map((item) => Map<String, dynamic>.from(item as Map)).toList()); } catch (_) {} finally { if (mounted) setState(() => searching = false); } }
-  Future<void> _add(Map<String, dynamic> user) async { try { await ref.read(apiClientProvider).post('/users/friends/${user['id']}'); if (mounted) { setState(() => results = []); ref.invalidate(friendsProvider); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent.'))); } } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()))); } }
+  Future<void> _add(Map<String, dynamic> user) async { try { await ref.read(apiClientProvider).post('/users/friends/${user['id']}'); if (mounted) { setState(() => results = []); ref.invalidate(friendsProvider); showAppSnackBar(context, 'Friend request sent.'); } } catch (e) { if (mounted) showAppSnackBar(context, e.toString(), isError: true); } }
   Future<void> _friendAction(FriendEntry friend) async { if (friend.status == 'pending' && !friend.isRequester) { await ref.read(apiClientProvider).patch('/users/friends/${friend.friendshipId}', data: {'action': 'accept'}); ref.invalidate(friendsProvider); } }
-  Future<void> _openChat(FriendEntry friend) async { try { final data = await ref.read(apiClientProvider).post('/chat/conversations/private', data: {'userId': friend.id}) as Map; if (mounted) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConversationScreen(conversation: Map<String, dynamic>.from(data)))); } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString()))); } }
-  Future<void> _createGroup(BuildContext context) async { final name = TextEditingController(); final created = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: const Text('New group'), content: TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'Group name')), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () async { if (name.text.trim().isEmpty) return; try { await ref.read(apiClientProvider).post('/users/groups', data: {'name': name.text.trim(), 'isPrivate': true}); if (context.mounted) Navigator.pop(context, true); } catch (_) {} }, child: const Text('Create'))])); name.dispose(); if (created == true && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Group created.'))); }
-}
-
-class _SocialStatePanel extends StatelessWidget {
-  const _SocialStatePanel({required this.icon, required this.title, required this.message});
-  final IconData icon;
-  final String title;
-  final String message;
-  @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: 64, height: 64, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), shape: BoxShape.circle), child: Icon(icon, color: AppTheme.violet, size: 29)), const SizedBox(height: 13), Text(title, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center), const SizedBox(height: 6), Text(message, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center)])));
+  Future<void> _openChat(FriendEntry friend) async { try { final data = await ref.read(apiClientProvider).post('/chat/conversations/private', data: {'userId': friend.id}) as Map; if (mounted) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConversationScreen(conversation: Map<String, dynamic>.from(data)))); } catch (error) { if (mounted) showAppSnackBar(context, error.toString(), isError: true); } }
+  Future<void> _createGroup(BuildContext context) async { final name = TextEditingController(); final created = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: const Text('New group'), content: TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'Group name')), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () async { if (name.text.trim().isEmpty) return; try { await ref.read(apiClientProvider).post('/users/groups', data: {'name': name.text.trim(), 'isPrivate': true}); if (context.mounted) Navigator.pop(context, true); } catch (_) {} }, child: const Text('Create'))])); name.dispose(); if (created == true && context.mounted) showAppSnackBar(context, 'Group created.'); }
 }
 
 class _SearchResults extends StatelessWidget { const _SearchResults({required this.results, required this.onAdd}); final List<Map<String, dynamic>> results; final ValueChanged<Map<String, dynamic>> onAdd; @override Widget build(BuildContext context) => Card(child: Column(children: [for (final user in results) ListTile(leading: CircleAvatar(child: Text((user['displayName']?.toString() ?? 'P').substring(0, 1))), title: Text(user['displayName']?.toString() ?? 'Player', style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text('@${user['username']}'), trailing: IconButton(onPressed: () => onAdd(user), icon: const Icon(Icons.person_add_alt_1_rounded, color: AppTheme.violet)))])); }
@@ -40,9 +33,9 @@ class ChatListScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Chat', style: TextStyle(fontWeight: FontWeight.w900))),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(error.toString())),
+        error: (error, _) => StatePanel(icon: Icons.cloud_off_rounded, title: 'Chat is unavailable', message: 'We could not load your conversations.', actionLabel: 'Try again', onAction: () => ref.invalidate(chatConversationsProvider)),
         data: (list) => list.isEmpty
-            ? const Center(child: Text('No conversations yet.'))
+            ? const StatePanel(icon: Icons.forum_outlined, title: 'No conversations yet', message: 'Open a friend and say hello to start chatting.')
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: list.length,
@@ -107,10 +100,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       await ref.read(apiClientProvider).post('/chat/messages', data: {'conversationId': widget.conversation['id'], 'body': body, 'kind': 'text'});
       await _load();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted) showAppSnackBar(context, e.toString(), isError: true);
     }
   }
   @override Widget build(BuildContext context) {
+    final myId = ref.watch(authProvider).value?.user?.id;
     return Scaffold(
       appBar: AppBar(title: Text(widget.conversation['title']?.toString() ?? 'Chat', style: const TextStyle(fontWeight: FontWeight.w900))),
       body: Column(
@@ -118,20 +112,33 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           if (socketStatus != ChatSocketStatus.connected) _ChatConnectionBanner(status: socketStatus, onRetry: socket.retry),
           Expanded(
             child: messages.isEmpty
-                ? const Center(child: Text('Say hello 👋'))
+                ? const StatePanel(icon: Icons.waving_hand_rounded, title: 'No messages yet', message: 'Say hello and start the conversation.')
                 : ListView.builder(
                     reverse: true,
                     padding: const EdgeInsets.all(16),
                     itemCount: messages.length,
                     itemBuilder: (_, index) {
                       final message = messages[messages.length - 1 - index];
+                      final mine = myId != null && message['senderId']?.toString() == myId;
+                      final sender = message['senderName']?.toString() ?? '';
                       return Align(
-                        alignment: AlignmentDirectional.centerStart,
+                        alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
                         child: Container(
+                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .75),
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(17)),
-                          child: Text(message['body']?.toString() ?? ''),
+                          decoration: BoxDecoration(
+                            color: mine ? AppTheme.violet : Theme.of(context).colorScheme.surfaceVariant,
+                            borderRadius: BorderRadius.only(topLeft: const Radius.circular(17), topRight: const Radius.circular(17), bottomLeft: Radius.circular(mine ? 17 : 5), bottomRight: Radius.circular(mine ? 5 : 17)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (!mine && sender.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 3), child: Text(sender, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                              Text(message['body']?.toString() ?? '', style: TextStyle(height: 1.3, color: mine ? Colors.white : null)),
+                            ],
+                          ),
                         ),
                       );
                     },

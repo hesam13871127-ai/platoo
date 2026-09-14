@@ -21,9 +21,10 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final strings = AppStrings(Localizations.localeOf(context));
     final pages = [const HomeScreen(), const ShopScreen(), const SocialScreen(), const ProfileScreen()];
+    final pendingRequests = ref.watch(friendsProvider).valueOrNull?.where((f) => f.status == 'pending' && !f.isRequester).length ?? 0;
     return Scaffold(
       extendBody: false,
-      body: IndexedStack(index: index, children: pages),
+      body: SafeArea(top: true, bottom: false, child: IndexedStack(index: index, children: pages)),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -35,7 +36,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         destinations: [
           NavigationDestination(icon: const Icon(Icons.sports_esports_outlined), selectedIcon: const Icon(Icons.sports_esports_rounded), label: strings.play),
           NavigationDestination(icon: const Icon(Icons.local_mall_outlined), selectedIcon: const Icon(Icons.local_mall_rounded), label: strings.shop),
-          NavigationDestination(icon: const Icon(Icons.people_outline_rounded), selectedIcon: const Icon(Icons.people_rounded), label: strings.social),
+          NavigationDestination(icon: Badge(isLabelVisible: pendingRequests > 0, label: Text('$pendingRequests'), child: const Icon(Icons.people_outline_rounded)), selectedIcon: Badge(isLabelVisible: pendingRequests > 0, label: Text('$pendingRequests'), child: const Icon(Icons.people_rounded)), label: strings.social),
           NavigationDestination(icon: const Icon(Icons.person_outline_rounded), selectedIcon: const Icon(Icons.person_rounded), label: strings.profile),
         ],
       ),
