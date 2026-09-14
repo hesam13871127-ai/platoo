@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/models.dart';
 import 'admin_api.dart';
 
 class AdminGamesTab extends ConsumerWidget {
@@ -24,6 +25,7 @@ class AdminGamesTab extends ConsumerWidget {
           itemBuilder: (context, index) {
             final game = items[index];
             final active = boolOf(game['isActive'], fallback: true);
+            final hasBoard = gameHasMobileBoard(strOf(game['id']));
             return Card(
               child: ListTile(
                 leading: Container(
@@ -40,7 +42,18 @@ class AdminGamesTab extends ConsumerWidget {
                   strOf(game['displayName']),
                   style: TextStyle(fontWeight: FontWeight.w800, color: active ? null : Theme.of(context).disabledColor),
                 ),
-                subtitle: Text('${strOf(game['id'])} · ${strOf(game['category'])} · ${intOf(game['minPlayers'], 2)}–${intOf(game['maxPlayers'], 2)} players'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('${strOf(game['id'])} · ${strOf(game['category'])} · ${intOf(game['minPlayers'], 2)}–${intOf(game['maxPlayers'], 2)} players'),
+                    if (!hasBoard)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 3),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phonelink_erase_rounded, size: 13, color: AppTheme.coral), SizedBox(width: 4), Text('No mobile board UI — disable until shipped', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.coral))]),
+                      ),
+                  ],
+                ),
                 trailing: admin
                     ? Row(
                         mainAxisSize: MainAxisSize.min,

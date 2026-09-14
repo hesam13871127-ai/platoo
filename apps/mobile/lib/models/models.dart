@@ -72,3 +72,33 @@ class FriendEntry {
   final String id; final String friendshipId; final String displayName; final String username; final String status; final bool isOnline; final bool isRequester;
   factory FriendEntry.fromJson(Map<String, dynamic> json) => FriendEntry(id: json['userId'] as String, friendshipId: json['friendshipId'] as String? ?? '', displayName: json['displayName'] as String? ?? 'Player', username: json['username'] as String? ?? 'player', status: json['status'] as String? ?? 'pending', isOnline: json['isOnline'] as bool? ?? false, isRequester: json['isRequester'] as bool? ?? false);
 }
+
+/// Game ids with a real mobile board: a dedicated board widget (game_room
+/// dispatch) or a functional inline UI (memory_race, word_chain).
+/// Anything missing here falls back to the Coming Soon card in the game room,
+/// and is flagged in the Admin Panel so it can be disabled.
+const kGamesWithMobileBoard = <String>{
+  'ocho',
+  'pool_8_ball',
+  'ludo',
+  'werewolf',
+  'chess',
+  'four_in_a_row',
+  'carrom',
+  'bingo',
+  'dominoes',
+  'backgammon',
+  'checkers',
+  'mini_golf',
+  'table_soccer',
+  'sea_battle',
+  'mancala',
+  'hearts',
+  'spades',
+  'sketch_guess',
+  'trivia_battle',
+  'memory_race',
+  'word_chain',
+};
+
+bool gameHasMobileBoard(String id) => kGamesWithMobileBoard.contains(id);

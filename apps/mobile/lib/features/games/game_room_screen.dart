@@ -23,6 +23,11 @@ import 'mini_golf_game_board.dart';
 import 'table_soccer_game_board.dart';
 import 'sketch_guess_game_board.dart';
 import 'trivia_battle_game_board.dart';
+import 'checkers_game_board.dart';
+import 'mancala_game_board.dart';
+import 'sea_battle_game_board.dart';
+import 'backgammon_game_board.dart';
+import 'hearts_game_board.dart';
 import '../social/social_screen.dart';
 
 class GameRoomScreen extends ConsumerStatefulWidget { const GameRoomScreen({super.key, required this.matchId, required this.game}); final String matchId; final GameDescriptor game; @override ConsumerState<GameRoomScreen> createState() => _GameRoomScreenState(); }
@@ -586,190 +591,33 @@ class _TurnHintState extends State<_TurnHint> {
 class _RoomChatHint extends StatelessWidget { const _RoomChatHint({this.onTap}); final VoidCallback? onTap; @override Widget build(BuildContext context) => OutlinedButton.icon(onPressed: onTap, icon: const Icon(Icons.forum_outlined), label: const Text('Open table chat')); }
 
 class GameCanvas extends StatefulWidget { const GameCanvas({super.key, required this.game, required this.state, required this.match, required this.onAction}); final GameDescriptor game; final Map<String, dynamic> state; final MatchModel match; final ValueChanged<Map<String, dynamic>> onAction; @override State<GameCanvas> createState() => _GameCanvasState(); }
-class _GameCanvasState extends State<GameCanvas> { int? selected; final word = TextEditingController(); @override void dispose() { word.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) { final id = widget.game.id; if (id == 'four_in_a_row') return _four(context); if (id == 'chess') return _chess(context); if (id == 'ludo') return _ludo(context); if (id == 'pool_8_ball') return _pool(context); if (id == 'werewolf') return _werewolf(context); if (id == 'bingo') return BingoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'dominoes') return DominoesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'carrom') return CarromGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'mini_golf') return MiniGolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'table_soccer') return TableSoccerGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'sketch_guess') return SketchGuessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'trivia_battle') return TriviaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'checkers') return _gridGame(context); if (id == 'memory_race') return _memory(context); if (id == 'sea_battle') return _sea(context); if (id == 'ocho') return _ocho(context); if (id == 'mancala') return _mancala(context); if (id == 'hearts' || id == 'spades') return _trick(context); return _generic(context); }
+class _GameCanvasState extends State<GameCanvas> { final word = TextEditingController(); @override void dispose() { word.dispose(); super.dispose(); }
+  @override Widget build(BuildContext context) { final id = widget.game.id; if (id == 'four_in_a_row') return _four(context); if (id == 'chess') return _chess(context); if (id == 'ludo') return _ludo(context); if (id == 'pool_8_ball') return _pool(context); if (id == 'werewolf') return _werewolf(context); if (id == 'bingo') return BingoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'dominoes') return DominoesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'carrom') return CarromGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'mini_golf') return MiniGolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'table_soccer') return TableSoccerGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'sketch_guess') return SketchGuessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'trivia_battle') return TriviaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'checkers') return CheckersGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'memory_race') return _memory(context); if (id == 'sea_battle') return SeaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'ocho') return _ocho(context); if (id == 'mancala') return MancalaGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'hearts' || id == 'spades') return HeartsGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); if (id == 'backgammon') return BackgammonGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction); return _generic(context); }
   Widget _four(BuildContext context) => FourInARowGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _chess(BuildContext context) => ChessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _ludo(BuildContext context) => LudoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _pool(BuildContext context) => PoolGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
   Widget _werewolf(BuildContext context) => WerewolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-  Widget _gridGame(BuildContext context) {
-    final board = (widget.state['board'] as List? ?? const []).map((row) => (row as List).toList()).toList();
-    final canAct = _canAct && widget.match.status != 'finished';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: AspectRatio(
-          aspectRatio: 1,
-          child: GridView.builder(
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8),
-            itemCount: 64,
-            itemBuilder: (_, index) {
-              final r = index ~/ 8;
-              final c = index % 8;
-              final value = board.length > r && board[r].length > c ? board[r][c]?.toString() : null;
-              final dark = (r + c).isOdd;
-              return InkWell(
-                onTap: canAct ? () {
-                  if (selected == null && value != null) {
-                    setState(() => selected = index);
-                  } else if (selected != null) {
-                    final from = selected!;
-                    setState(() => selected = null);
-                    widget.onAction({'type': 'move', 'fromRow': from ~/ 8, 'fromCol': from % 8, 'toRow': r, 'toCol': c});
-                  }
-                } : null,
-                child: Container(
-                  color: dark ? const Color(0xFFB98D67) : const Color(0xFFF1D2A9),
-                  child: Center(
-                    child: Text(
-                      _piece(value),
-                      style: TextStyle(
-                        fontSize: 25,
-                        color: selected == index ? AppTheme.coral : (value != null && value == value.toUpperCase() ? Colors.white : const Color(0xFF241A18)),
-                        shadows: const [Shadow(color: Colors.black26, blurRadius: 2, offset: Offset(1, 2))],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-  Widget _memory(BuildContext context) { final values = widget.state['values'] as List? ?? const []; final revealed = widget.state['revealed'] as List? ?? const []; final canAct = _canAct && widget.match.status != 'finished'; return Card(child: Padding(padding: const EdgeInsets.all(14), child: GridView.builder(physics: const NeverScrollableScrollPhysics(), shrinkWrap: true, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: values.length, itemBuilder: (_, index) { final visible = values[index] != null || (revealed.length > index && revealed[index] == true); return InkWell(onTap: visible || !canAct ? null : () => widget.onAction({'type': 'flip', 'index': index}), borderRadius: BorderRadius.circular(12), child: Container(decoration: BoxDecoration(color: visible ? AppTheme.violet.withOpacity(.16) : AppTheme.violet, borderRadius: BorderRadius.circular(12)), child: Center(child: Text(visible ? '${values[index] ?? '•'}' : '?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: visible ? AppTheme.violet : Colors.white))))); }))); }
-  Widget _sea(BuildContext context) {
-    final shots = widget.state['shots'] as List? ?? const [];
-    final placing = widget.state['phase'] == 'placing';
-    final canAct = placing ? widget.match.status == 'active' : _canAct && widget.match.status != 'finished';
-    if (placing) {
-      final fleets = widget.state['fleets'] as List? ?? const [];
-      final placed = fleets.isNotEmpty ? (fleets[0] as List).length : 0;
-      final sizes = [5, 4, 3, 3, 2];
-      final size = sizes[placed < sizes.length ? placed : sizes.length - 1];
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(children: [
-            const Text('Place your fleet', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-            const SizedBox(height: 8),
-            Text('Ship ${placed + 1} of 5 · ${size} cells along the top row', textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.icon(onPressed: canAct ? () => widget.onAction({'type': 'place', 'cells': List.generate(size, (index) => [placed, index])}) : null, icon: const Icon(Icons.anchor_rounded), label: Text(canAct ? 'Place ship' : 'Waiting')),
-          ]),
-        ),
-      );
-    }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            const Text('Tap a coordinate to fire', style: TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            AspectRatio(
-              aspectRatio: 1,
-              child: GridView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 10, crossAxisSpacing: 2, mainAxisSpacing: 2),
-                itemCount: 100,
-                itemBuilder: (_, index) {
-                  final r = index ~/ 10;
-                  final c = index % 10;
-                  final value = shots.isNotEmpty && (shots[0] as List).length > r ? ((shots[0] as List)[r] as List)[c] : -1;
-                  return InkWell(
-                    onTap: value == -1 && canAct ? () => widget.onAction({'type': 'fire', 'row': r, 'column': c}) : null,
-                    child: Container(color: value == 1 ? AppTheme.coral : const Color(0xFF58B7D2), child: value == 1 ? const Icon(Icons.close_rounded, color: Colors.white, size: 14) : null),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  Widget _ocho(BuildContext context) => OchoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-  Widget _mancala(BuildContext context) { final pits = widget.state['pits'] as List? ?? const []; final mine = pits.isNotEmpty ? pits[0] as List : const []; final canAct = _canAct && widget.match.status != 'finished'; return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [Text(canAct ? 'Choose a pit' : 'Waiting for your turn', style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 14), Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [for (var i = 0; i < mine.length; i++) InkWell(onTap: canAct ? () => widget.onAction({'type': 'sow', 'pit': i}) : null, child: CircleAvatar(radius: 24, backgroundColor: AppTheme.coral.withOpacity(.16), child: Text('${mine[i]}', style: const TextStyle(fontWeight: FontWeight.w900))))])]))); }
-  Widget _trick(BuildContext context) {
-    final hands = widget.state['hands'] as List? ?? const [];
-    final mine = widget.match.viewerSeat < hands.length ? hands[widget.match.viewerSeat] as List? ?? const [] : const [];
-    final trick = widget.state['trick'] as List? ?? const [];
-    final scores = widget.state['scores'] as List? ?? const [];
-    final canAct = _canAct && widget.match.status == 'active';
-    final finished = widget.match.status == 'finished' || widget.state['finished'] == true;
-    final scoreLine = [for (var i = 0; i < scores.length && i < widget.match.players.length; i++) "${widget.match.players[i]['displayName'] ?? 'Player'}: ${scores[i]}"].join(' · ');
-    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 44), const SizedBox(width: 10), Expanded(child: Text(finished ? 'Match complete' : canAct ? 'Your turn — play a card' : 'Waiting for ${_turnName}…', style: Theme.of(context).textTheme.titleMedium))]),
-      if (scoreLine.isNotEmpty) ...[const SizedBox(height: 8), Text(scoreLine, style: Theme.of(context).textTheme.bodySmall)],
-      if (trick.isNotEmpty) ...[const SizedBox(height: 8), Text('On the table: ${trick.length} card${trick.length == 1 ? '' : 's'}', style: Theme.of(context).textTheme.bodySmall)],
-      const SizedBox(height: 12),
-      if (mine.isEmpty) Text(finished ? 'No cards left.' : 'Your hand is hidden until the deal reaches you.', style: Theme.of(context).textTheme.bodySmall)
-      else Wrap(spacing: 8, runSpacing: 8, children: [for (var i = 0; i < mine.length; i++) _trickCard(context, mine[i] as Map? ?? const {}, canAct ? () => widget.onAction({'type': 'play', 'index': i}) : null)]),
-    ])));
-  }
 
-  Widget _trickCard(BuildContext context, Map card, VoidCallback? onTap) {
-    final suit = card['suit']?.toString() ?? '';
-    final rank = (card['rank'] as num?)?.toInt() ?? 0;
-    final face = switch (rank) { 11 => 'J', 12 => 'Q', 13 => 'K', 14 => 'A', _ => '$rank' };
-    final pip = switch (suit) { 'H' => '♥', 'D' => '♦', 'S' => '♠', 'C' => '♣', _ => '·' };
-    final red = suit == 'H' || suit == 'D';
-    final color = red ? AppTheme.coral : Theme.of(context).colorScheme.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: 52, height: 68,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: color.withOpacity(onTap == null ? .07 : .14), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(.4))),
-        child: Text('$face$pip', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color)),
-      ),
-    );
-  }
+  Widget _memory(BuildContext context) { final values = widget.state['values'] as List? ?? const []; final revealed = widget.state['revealed'] as List? ?? const []; final canAct = _canAct && widget.match.status != 'finished'; return Card(child: Padding(padding: const EdgeInsets.all(14), child: GridView.builder(physics: const NeverScrollableScrollPhysics(), shrinkWrap: true, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: values.length, itemBuilder: (_, index) { final visible = values[index] != null || (revealed.length > index && revealed[index] == true); return InkWell(onTap: visible || !canAct ? null : () => widget.onAction({'type': 'flip', 'index': index}), borderRadius: BorderRadius.circular(12), child: Container(decoration: BoxDecoration(color: visible ? AppTheme.violet.withOpacity(.16) : AppTheme.violet, borderRadius: BorderRadius.circular(12)), child: Center(child: Text(visible ? '${values[index] ?? '•'}' : '?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: visible ? AppTheme.violet : Colors.white))))); }))); }
+
+  Widget _ocho(BuildContext context) => OchoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+
 
   Widget _generic(BuildContext context) {
-    final id = widget.game.id;
-    final type = switch (id) {
-      'dice_party' => 'roll',
-      'ludo' => widget.state['pendingRoll'] == null ? 'roll' : 'move',
-      'backgammon' => (widget.state['dice'] as List? ?? const []).isEmpty ? 'roll' : 'move',
-      'bingo' => 'call',
-      'archery' => 'shoot',
-      'bowling' => 'roll',
-      'darts' => 'throw',
-      'pool_8_ball' => 'shot',
-      'carrom' => 'strike',
-      'dominoes' => (widget.state['boneyard'] as List? ?? const []).isNotEmpty ? 'draw' : 'play',
-      'word_chain' => 'word',
-      'impostor_light' => widget.state['phase'] == 'clues' ? 'clue' : 'vote',
-      'emoji_charades' || 'quick_challenges' => 'answer',
-      _ => 'challenge',
-    };
-    final canAct = _canAct;
-    final finished = widget.match.status == 'finished' || widget.state['finished'] == true;
-    final turn = _turnName;
-    if (id == 'word_chain') {
+    if (widget.game.id == 'word_chain') {
+      final canAct = _canAct;
+      final finished = widget.match.status == 'finished' || widget.state['finished'] == true;
+      final turn = _turnName;
       return Card(child: Padding(padding: const EdgeInsets.all(17), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [GameLogo(gameId: id, accent: widget.game.accent, size: 52), const SizedBox(width: 12), Expanded(child: Text('Build the chain', style: Theme.of(context).textTheme.titleMedium))]),
+        Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 52), const SizedBox(width: 12), Expanded(child: Text('Build the chain', style: Theme.of(context).textTheme.titleMedium))]),
         const SizedBox(height: 12),
         Text(finished ? 'This table is complete.' : canAct ? 'Add a word that starts with the required letter.' : 'Waiting for $turn to play…', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 12),
         Row(children: [Expanded(child: TextField(controller: word, enabled: canAct && !finished, textInputAction: TextInputAction.send, onSubmitted: (_) => _submitWord(), decoration: const InputDecoration(hintText: 'Type your word'))), const SizedBox(width: 9), FilledButton(onPressed: canAct && !finished ? _submitWord : null, child: const Icon(Icons.send_rounded))]),
       ])));
     }
-    return Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-      GameLogo(gameId: id, accent: widget.game.accent, size: 64),
-      const SizedBox(height: 12),
-      Text(finished ? 'Match complete' : _actionLabel(type), style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-      const SizedBox(height: 7),
-      Text(finished ? 'The final result is shown above.' : canAct ? 'You are up. Make a move when you are ready.' : 'Waiting for $turn to finish their move…', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
-      const SizedBox(height: 16),
-      FilledButton.icon(onPressed: canAct && !finished ? () => widget.onAction(_defaultAction(type, id)) : null, icon: Icon(_actionIcon(type)), label: Text(canAct ? _actionLabel(type) : 'Waiting')),
-    ])));
+    return _ComingSoon(game: widget.game, match: widget.match);
   }
 
   bool get _canAct {
@@ -788,52 +636,39 @@ class _GameCanvasState extends State<GameCanvas> { int? selected; final word = T
     widget.onAction({'type': 'word', 'word': value});
     word.clear();
   }
-  int _num(dynamic value) => (value as num?)?.toInt() ?? 0;
+}
 
-  Map<String, dynamic> _backgammonAction() {
-    final seat = widget.match.viewerSeat;
-    final points = widget.state['points'] as List? ?? const [];
-    final bar = widget.state['bar'] as List? ?? const [0, 0];
-    final dice = widget.state['dice'] as List? ?? const [];
-    final own = seat == 0 ? 1 : -1;
-    bool open(int to) => to == 24 || to == -1 || (to >= 0 && to < 24 && to < points.length && _num(points[to]) * own >= -1);
-    if (dice.isEmpty) return {'type': 'roll'};
-    if (_num(seat < bar.length ? bar[seat] : 0) > 0) {
-      for (final d in dice) {
-        final to = seat == 0 ? _num(d) - 1 : 24 - _num(d);
-        if (to >= 0 && to < 24 && open(to)) return {'type': 'move', 'from': -1, 'to': to};
-      }
-      return {'type': 'pass'};
-    }
-    for (var from = 0; from < 24 && from < points.length; from += 1) {
-      if (_num(points[from]) * own <= 0) continue;
-      for (final d in dice) {
-        final to = seat == 0 ? from + _num(d) : from - _num(d);
-        if (open(to)) return {'type': 'move', 'from': from, 'to': to};
-      }
-    }
-    return {'type': 'pass'};
+class _ComingSoon extends StatelessWidget {
+  const _ComingSoon({required this.game, required this.match});
+  final GameDescriptor game;
+  final MatchModel match;
+
+  @override
+  Widget build(BuildContext context) {
+    final finished = match.status == 'finished' || match.state['finished'] == true;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(children: [
+          GameLogo(gameId: game.id, accent: game.accent, size: 72),
+          const SizedBox(height: 14),
+          Text(
+            finished ? 'Match complete' : '${game.name} is coming soon',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            finished
+                ? 'The final result is shown above.'
+                : 'This game does not have a mobile board yet, so the table is parked here. Your match is safe — check back after the next update.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 18),
+          FilledButton.tonalIcon(onPressed: () => Navigator.of(context).maybePop(), icon: const Icon(Icons.home_rounded), label: const Text('Back to games')),
+        ]),
+      ),
+    );
   }
-
-  int _bowlingPins() {
-    final frames = widget.state['frames'] as List? ?? const [];
-    final mine = widget.match.viewerSeat < frames.length ? frames[widget.match.viewerSeat] as List? ?? const [] : const [];
-    final frameIndex = _num(widget.state['frame']) - 1;
-    final rolls = frameIndex >= 0 && frameIndex < mine.length ? mine[frameIndex] as List? ?? const [] : const [];
-    final max = rolls.length == 1 && _num(rolls[0]) < 10 ? 10 - _num(rolls[0]) : 10;
-    return max < 8 ? max : 8;
-  }
-
-  int _dartsValue() {
-    final scores = widget.state['scores'] as List? ?? const [];
-    final score = widget.match.viewerSeat < scores.length ? _num(scores[widget.match.viewerSeat]) : 301;
-    var value = score < 20 ? score : 20;
-    if (value > 0 && score - value == 1) value -= 1;
-    return value < 0 ? 0 : value;
-  }
-
-  Map<String, dynamic> _defaultAction(String type, String id) { if (type == 'roll' && id == 'bowling') return {'type': 'roll', 'pins': _bowlingPins()}; if (type == 'move' && id == 'backgammon') return _backgammonAction(); if (type == 'throw' && id == 'darts') return {'type': 'throw', 'value': _dartsValue()}; return switch (type) { 'roll' => {'type': 'roll'}, 'move' => {'type': 'move', 'token': 0, 'from': -1, 'to': 0}, 'call' => {'type': 'call', 'number': 1}, 'shoot' => id == 'archery' ? {'type': 'shoot', 'accuracy': 50} : {'type': 'shoot', 'power': 70}, 'throw' => {'type': 'throw', 'value': 20}, 'putt' => {'type': 'putt', 'strokes': 3}, 'shot' => {'type': 'shot', 'power': 70, 'pocket': 0}, 'strike' => {'type': 'strike', 'power': 70, 'pocketed': 1, 'queen': false}, 'draw' => {'type': 'draw'}, 'play' => {'type': 'play', 'index': 0, 'side': 'right'}, 'clue' => {'type': 'clue', 'clue': 'bright'}, 'vote' => {'type': 'vote', 'target': widget.match.viewerSeat == 0 ? 1 : 0}, 'answer' => {'type': 'answer', 'answer': 0}, _ => {'type': 'challenge', 'score': 60} }; }
-  String _actionLabel(String type) => switch (type) { 'roll' => 'Roll dice', 'move' => 'Move checker', 'call' => 'Call number', 'shoot' => 'Shoot', 'throw' => 'Throw', 'putt' => 'Putt', 'shot' => 'Take shot', 'strike' => 'Strike', 'draw' => 'Draw tile', 'play' => 'Play tile', 'clue' => 'Give clue', 'vote' => 'Vote', 'answer' => 'Answer', _ => 'Complete challenge' };
-  IconData _actionIcon(String type) => switch (type) { 'roll' => Icons.casino_rounded, 'move' => Icons.directions_run_rounded, 'call' => Icons.confirmation_num_rounded, 'shoot' => Icons.gps_fixed_rounded, 'throw' => Icons.adjust_rounded, 'putt' => Icons.golf_course_rounded, 'shot' => Icons.sports_bar_rounded, 'strike' => Icons.radio_button_checked_rounded, 'draw' => Icons.add_box_rounded, 'play' => Icons.style_rounded, 'clue' => Icons.lightbulb_outline_rounded, 'vote' => Icons.how_to_vote_rounded, 'answer' => Icons.quiz_rounded, _ => Icons.bolt_rounded };
-  String _piece(String? value) { if (value == null) return ''; return switch (value) { 'K' => '♔', 'Q' => '♕', 'R' => '♖', 'B' => '♗', 'N' => '♘', 'P' => '♙', 'k' => '♚', 'q' => '♛', 'r' => '♜', 'b' => '♝', 'n' => '♞', 'p' => '♟', _ => '●' }; }
 }
