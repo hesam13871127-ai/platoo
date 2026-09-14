@@ -67,7 +67,7 @@ bool isStaffRole(String? role) => role == 'admin' || role == 'moderator';
 // Returns the response on success, null on failure.
 // ---------------------------------------------------------------------------
 
-Future<T?> guardAdmin<T>(BuildContext context, Future<T> Function() call) async {
+Future<T?> guardAdmin<T>(BuildContext context, Future<dynamic> Function() call) async {
   try {
     return await call();
   } catch (error) {

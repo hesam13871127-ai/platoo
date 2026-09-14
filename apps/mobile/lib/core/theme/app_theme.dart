@@ -67,7 +67,7 @@ class AppTheme {
         foregroundColor: scheme.onSurface,
         titleTextStyle: TextStyle(color: scheme.onSurface, fontSize: 20, fontWeight: FontWeight.w900),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -127,7 +127,7 @@ class AppTheme {
         labelTextStyle: MaterialStatePropertyAll(TextStyle(color: scheme.onSurface, fontWeight: FontWeight.w800, fontSize: 12)),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary, linearTrackColor: scheme.primary.withOpacity(.14), circularTrackColor: scheme.primary.withOpacity(.14)),
-      dialogTheme: DialogTheme(backgroundColor: surface, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
+      dialogTheme: DialogThemeData(backgroundColor: surface, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
       bottomSheetTheme: BottomSheetThemeData(backgroundColor: surface, surfaceTintColor: Colors.transparent, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26)))),
       snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, backgroundColor: dark ? const Color(0xFF2A3048) : const Color(0xFF242238), contentTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16)),
       tooltipTheme: TooltipThemeData(decoration: BoxDecoration(color: dark ? const Color(0xFF30364E) : ink, borderRadius: BorderRadius.circular(9)), textStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),

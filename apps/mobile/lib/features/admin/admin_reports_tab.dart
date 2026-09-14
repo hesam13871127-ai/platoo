@@ -174,7 +174,7 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final detail = ref.watch(adminReportDetailProvider(widget.reportId));
     final role = ref.watch(authProvider).value?.user.role;
     final admin = isAdminRole(role);

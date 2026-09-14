@@ -6,6 +6,28 @@ import '../../core/widgets/state_panel.dart';
 import '../home/home_provider.dart';
 
 class LeaderboardScreen extends ConsumerStatefulWidget { const LeaderboardScreen({super.key}); @override ConsumerState<LeaderboardScreen> createState() => _LeaderboardScreenState(); }
+class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
+  String? gameId;
+  @override
+  Widget build(BuildContext context) {
+    final games = ref.watch(gamesProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Season leaderboard')),
+      body: games.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => StatePanel(icon: Icons.cloud_off_rounded, title: 'Leaderboard unavailable', message: 'We could not load the games.', actionLabel: 'Try again', onAction: () => ref.invalidate(gamesProvider)),
+        data: (list) {
+          if (list.isEmpty) return const StatePanel(icon: Icons.emoji_events_outlined, title: 'No games yet', message: 'Rankings will appear once tables open.');
+          final selected = list.any((game) => game.id == gameId) ? gameId! : list.first.id;
+          return Column(children: [
+            Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), child: DropdownButtonFormField<String>(value: selected, decoration: const InputDecoration(labelText: 'Game'), items: [for (final game in list) DropdownMenuItem(value: game.id, child: Text(game.name))], onChanged: (value) => setState(() => gameId = value))),
+            Expanded(child: _Leaderboard(gameId: selected)),
+          ]);
+        },
+      ),
+    );
+  }
+}
 class _Leaderboard extends ConsumerWidget {
   const _Leaderboard({required this.gameId});
   final String gameId;

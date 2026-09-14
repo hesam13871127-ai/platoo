@@ -53,7 +53,7 @@ class ApiClient {
       final status = error.response?.statusCode;
       final data = error.response?.data;
       final serverMessage = data is Map && data['error'] is Map ? data['error']['message']?.toString() : data is Map && data['message'] != null ? data['message'].toString() : null;
-      final message = serverMessage ?? switch (status) {
+      final message = serverMessage ?? switch (status ?? 0) {
         401 => 'Your session has expired. Please sign in again.',
         403 => 'You do not have permission to do that.',
         404 => 'We could not find what you requested.',

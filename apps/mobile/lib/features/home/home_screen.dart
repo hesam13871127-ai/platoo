@@ -151,6 +151,12 @@ class _HomeHeader extends StatelessWidget {
 
 }
 
+class _EmptyCatalog extends StatelessWidget {
+  const _EmptyCatalog();
+  @override
+  Widget build(BuildContext context) => const StatePanel(icon: Icons.casino_outlined, title: 'No featured tables', message: 'New tables will appear here soon. Pull to refresh.');
+}
+
 class _FeaturedBanner extends StatelessWidget {
   const _FeaturedBanner({required this.game, required this.onTap});
   final GameDescriptor game;
