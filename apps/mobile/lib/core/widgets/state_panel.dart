@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'vibe_components.dart';
 
 /// Shared empty-state / offline-state panel used across Home, Shop, Social,
 /// and Chat so every "nothing here" moment looks and behaves the same.
@@ -15,22 +16,35 @@ class StatePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = iconColor ?? AppTheme.violet;
+    final theme = Theme.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 64, height: 64, alignment: Alignment.center, decoration: BoxDecoration(color: color.withOpacity(.12), shape: BoxShape.circle), child: Icon(icon, color: color, size: 29)),
-            const SizedBox(height: 13),
-            Text(title, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 6),
-            Text(message, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 13),
-              TextButton(onPressed: onAction, child: Text(actionLabel!)),
+        child: Entrance(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 78,
+                height: 78,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.lerp(color, Colors.white, .12)!, color, Color.lerp(color, Colors.black, .2)!], stops: const [0, .55, 1]),
+                  boxShadow: AppTheme.glow(color, strength: .3),
+                ),
+                child: Icon(icon, color: Colors.white, size: 34),
+              ),
+              const SizedBox(height: 16),
+              Text(title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
+              const SizedBox(height: 7),
+              Text(message, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: 16),
+                FilledButton.tonal(onPressed: onAction, child: Text(actionLabel!)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

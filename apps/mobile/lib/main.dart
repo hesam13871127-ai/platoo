@@ -47,7 +47,28 @@ class AuthGate extends ConsumerWidget {
 class _Splash extends StatelessWidget {
   const _Splash();
   @override
-  Widget build(BuildContext context) => Scaffold(body: Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [const VibeLogo(), const SizedBox(height: 24), Text('Setting up your table…', style: Theme.of(context).textTheme.bodyMedium), const SizedBox(height: 18), SizedBox(width: 30, height: 30, child: CircularProgressIndicator(strokeWidth: 3, color: Theme.of(context).colorScheme.primary))]))));
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: BoxDecoration(gradient: dark ? AppTheme.darkPageGradient : AppTheme.lightPageGradient),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 120, height: 120, alignment: Alignment.center, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [AppTheme.violet.withOpacity(.25), AppTheme.violet.withOpacity(0)])), child: const VibeLogo(compact: true)),
+              const SizedBox(height: 20),
+              Text('VibeTable', style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 8),
+              Text('Setting up your table…', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 22),
+              const SizedBox(width: 120, child: ClipRRect(borderRadius: BorderRadius.all(Radius.circular(99)), child: LinearProgressIndicator(minHeight: 6))),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _BootstrapError extends StatelessWidget {
@@ -55,5 +76,26 @@ class _BootstrapError extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
   @override
-  Widget build(BuildContext context) => Scaffold(body: Center(child: Padding(padding: const EdgeInsets.all(28), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: 64, height: 64, alignment: Alignment.center, decoration: BoxDecoration(color: Theme.of(context).colorScheme.errorContainer, shape: BoxShape.circle), child: Icon(Icons.cloud_off_rounded, color: Theme.of(context).colorScheme.onErrorContainer, size: 30)), const SizedBox(height: 17), Text('We could not open VibeTable', style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center), const SizedBox(height: 8), Text(message, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center), const SizedBox(height: 18), FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('Try again'))])))));
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 78, height: 78, alignment: Alignment.center, decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [scheme.error, Color.lerp(scheme.error, Colors.black, .25)!]), boxShadow: AppTheme.glow(scheme.error, strength: .3)), child: const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 34)),
+              const SizedBox(height: 18),
+              Text('We could not open VibeTable', style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(message, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
+              const SizedBox(height: 20),
+              FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('Try again')),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 }

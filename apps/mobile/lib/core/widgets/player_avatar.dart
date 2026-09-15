@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 /// Cached network avatar with a loading indicator and an initial-letter
-/// fallback, so profile pictures never pop in or break layout.
+/// fallback, wrapped in the player's signature gradient ring.
 class PlayerAvatar extends StatelessWidget {
   const PlayerAvatar({super.key, this.avatarUrl, required this.displayName, this.radius = 20});
   final String? avatarUrl;
@@ -13,18 +13,27 @@ class PlayerAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = avatarUrl?.trim() ?? '';
-    if (url.isEmpty) return _fallback();
-    return CachedNetworkImage(
-      imageUrl: url,
-      imageBuilder: (context, provider) => CircleAvatar(radius: radius, backgroundColor: AppTheme.violet.withOpacity(.15), backgroundImage: provider),
-      placeholder: (context, _) => CircleAvatar(radius: radius, backgroundColor: AppTheme.violet.withOpacity(.15), child: SizedBox(width: radius, height: radius, child: const CircularProgressIndicator(strokeWidth: 2, color: AppTheme.violet))),
-      errorWidget: (context, _, __) => _fallback(),
+    final inner = ((radius - 2.5).clamp(8.0, radius)).toDouble();
+    final Widget face = url.isEmpty
+        ? _fallback(inner)
+        : CachedNetworkImage(
+            imageUrl: url,
+            imageBuilder: (context, provider) => CircleAvatar(radius: inner, backgroundColor: AppTheme.violet.withOpacity(.15), backgroundImage: provider),
+            placeholder: (context, _) => CircleAvatar(radius: inner, backgroundColor: AppTheme.violet.withOpacity(.15), child: SizedBox(width: inner, height: inner, child: const CircularProgressIndicator(strokeWidth: 2, color: AppTheme.violet))),
+            errorWidget: (context, _, __) => _fallback(inner),
+          );
+    return Container(
+      width: radius * 2,
+      height: radius * 2,
+      padding: const EdgeInsets.all(2.5),
+      decoration: BoxDecoration(shape: BoxShape.circle, gradient: AppTheme.avatarGradient(displayName), boxShadow: AppTheme.glow(AppTheme.violet, strength: .18)),
+      child: face,
     );
   }
 
-  Widget _fallback() {
+  Widget _fallback(double inner) {
     final trimmed = displayName.trim();
     final initial = trimmed.isEmpty ? 'V' : trimmed.substring(0, 1).toUpperCase();
-    return CircleAvatar(radius: radius, backgroundColor: AppTheme.violet.withOpacity(.15), child: Text(initial, style: TextStyle(fontWeight: FontWeight.w900, color: AppTheme.violet, fontSize: radius * .85)));
+    return CircleAvatar(radius: inner, backgroundColor: AppTheme.violet.withOpacity(.15), child: Text(initial, style: TextStyle(fontWeight: FontWeight.w900, color: AppTheme.violet, fontSize: inner * .85)));
   }
 }

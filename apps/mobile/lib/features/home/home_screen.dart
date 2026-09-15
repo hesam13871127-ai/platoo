@@ -5,6 +5,7 @@ import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/player_avatar.dart';
 import '../../core/widgets/state_panel.dart';
+import '../../core/widgets/vibe_components.dart';
 import '../../core/widgets/vibe_logo.dart';
 import '../../models/models.dart';
 import '../games/match_setup_screen.dart';
@@ -49,69 +50,90 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }).toList();
     final featured = games.isEmpty ? null : games.first;
 
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      color: AppTheme.violet,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverSafeArea(
-            sliver: SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              sliver: SliverToBoxAdapter(child: _HomeHeader(user: user, strings: strings)),
+    return VibePageBackground(
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        color: AppTheme.violet,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverSafeArea(
+              sliver: SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                sliver: SliverToBoxAdapter(child: Entrance(child: _HomeHeader(user: user, strings: strings))),
+              ),
             ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            sliver: SliverToBoxAdapter(child: featured == null ? const _EmptyCatalog() : _FeaturedBanner(game: featured, onTap: () => _open(context, featured))),
-          ),
-          if (catalog.isLoading && games.isEmpty)
-            const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.fromLTRB(20, 12, 20, 0), child: LinearProgressIndicator(minHeight: 3))),
-          if (catalog.hasError)
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              sliver: SliverToBoxAdapter(child: _CatalogNotice(onRetry: _refresh)),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              sliver: SliverToBoxAdapter(child: featured == null ? const _EmptyCatalog() : Entrance(delay: const Duration(milliseconds: 60), child: _FeaturedBanner(game: featured, onTap: () => _open(context, featured)))),
             ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 26, 20, 11),
-            sliver: SliverToBoxAdapter(child: Row(children: [Expanded(child: Text(strings.games, style: Theme.of(context).textTheme.titleLarge)), Text('${filtered.length}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800))])),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 43,
-              child: ListView(
+            if (catalog.isLoading && games.isEmpty)
+              const SliverPadding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+                sliver: SliverToBoxAdapter(child: _CatalogShimmer()),
+              ),
+            if (catalog.hasError)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                sliver: SliverToBoxAdapter(child: _CatalogNotice(onRetry: _refresh)),
+              ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 26, 20, 12),
+              sliver: SliverToBoxAdapter(
+                child: SectionHeader(
+                  title: strings.games,
+                  subtitle: strings.isPersian ? 'بازی مورد علاقه‌ات را انتخاب کن' : 'Pick your next obsession',
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.1), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.violet.withOpacity(.25))),
+                    child: Text('${filtered.length}', style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 13)),
+                  ),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 46,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _FilterChip(label: strings.isPersian ? 'همه' : 'All', active: category == null, onTap: () => setState(() => category = null)),
+                    ...GameCategory.values.map((value) => _FilterChip(label: _categoryName(value, strings), active: category == value, onTap: () => setState(() => category = value))),
+                  ],
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+              sliver: SliverToBoxAdapter(
+                child: TextField(
+                  controller: search,
+                  onChanged: (value) => setState(() => query = value),
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(hintText: strings.isPersian ? 'جست‌وجوی بازی' : 'Search games', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: query.isEmpty ? null : IconButton(onPressed: () { search.clear(); setState(() => query = ''); }, icon: const Icon(Icons.close_rounded))),
+                ),
+              ),
+            ),
+            if (filtered.isNotEmpty)
+              SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _FilterChip(label: strings.isPersian ? 'همه' : 'All', active: category == null, onTap: () => setState(() => category = null)),
-                  ...GameCategory.values.map((value) => _FilterChip(label: _categoryName(value, strings), active: category == value, onTap: () => setState(() => category = value))),
-                ],
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
-            sliver: SliverToBoxAdapter(
-              child: TextField(
-                controller: search,
-                onChanged: (value) => setState(() => query = value),
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(hintText: strings.isPersian ? 'جست‌وجوی بازی' : 'Search games', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: query.isEmpty ? null : IconButton(onPressed: () { search.clear(); setState(() => query = ''); }, icon: const Icon(Icons.close_rounded))),
-              ),
-            ),
-          ),
-          if (filtered.isNotEmpty)
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverGrid(
-                delegate: SliverChildBuilderDelegate((context, index) => _GameCard(game: filtered[index], onTap: () => _open(context, filtered[index])), childCount: filtered.length),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 265, mainAxisExtent: 205, crossAxisSpacing: 14, mainAxisSpacing: 14),
-              ),
-            )
-          else
-            SliverToBoxAdapter(child: _NoGamesFound(hasFilters: query.isNotEmpty || category != null, onClear: () { search.clear(); setState(() { query = ''; category = null; }); })),
-          const SliverToBoxAdapter(child: SizedBox(height: 30)),
-        ],
+                sliver: SliverGrid(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => Entrance(
+                      delay: Duration(milliseconds: (index % 10) * 45),
+                      child: _GameCard(game: filtered[index], onTap: () => _open(context, filtered[index])),
+                    ),
+                    childCount: filtered.length,
+                  ),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 265, mainAxisExtent: 234, crossAxisSpacing: 14, mainAxisSpacing: 14),
+                ),
+              )
+            else
+              SliverToBoxAdapter(child: _NoGamesFound(hasFilters: query.isNotEmpty || category != null, onClear: () { search.clear(); setState(() { query = ''; category = null; }); })),
+            const SliverToBoxAdapter(child: SizedBox(height: 30)),
+          ],
+        ),
       ),
     );
   }
@@ -119,12 +141,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _open(BuildContext context, GameDescriptor game) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchSetupScreen(game: game)));
 
   String _categoryName(GameCategory value, AppStrings strings) => switch (value) {
-    GameCategory.board => strings.isPersian ? 'بردی' : 'Board',
-    GameCategory.cards => strings.isPersian ? 'کارتی' : 'Cards',
-    GameCategory.arcade => strings.isPersian ? 'آرکید' : 'Arcade',
-    GameCategory.party => strings.isPersian ? 'دورهمی' : 'Party',
-    GameCategory.sports => strings.isPersian ? 'ورزشی' : 'Sports',
-  };
+        GameCategory.board => strings.isPersian ? 'بردی' : 'Board',
+        GameCategory.cards => strings.isPersian ? 'کارتی' : 'Cards',
+        GameCategory.arcade => strings.isPersian ? 'آرکید' : 'Arcade',
+        GameCategory.party => strings.isPersian ? 'دورهمی' : 'Party',
+        GameCategory.sports => strings.isPersian ? 'ورزشی' : 'Sports',
+      };
 }
 
 class _HomeHeader extends StatelessWidget {
@@ -138,17 +160,17 @@ class _HomeHeader extends StatelessWidget {
     return Row(children: [
       const VibeLogo(compact: true),
       const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(name == null || name.isEmpty ? 'Welcome back' : 'Hi, $name', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 2),
         Text(strings.isPersian ? 'میز بعدی‌ات آماده است' : 'Your next table is ready', style: Theme.of(context).textTheme.bodySmall),
       ])),
       BalancePill(value: user?.coins ?? 0, icon: Icons.circle, color: AppTheme.gold),
-      const SizedBox(width: 8),
-      PlayerAvatar(avatarUrl: user?.avatarUrl, displayName: user?.displayName ?? '', radius: 20),
+      const SizedBox(width: 9),
+      PlayerAvatar(avatarUrl: user?.avatarUrl, displayName: user?.displayName ?? '', radius: 21),
     ]);
   }
-
 }
 
 class _EmptyCatalog extends StatelessWidget {
@@ -164,35 +186,97 @@ class _FeaturedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: 'Play ${game.name}',
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(27),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 177),
-        padding: const EdgeInsets.fromLTRB(20, 20, 14, 20),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(27), gradient: const LinearGradient(colors: [AppTheme.violetDeep, AppTheme.violet], begin: Alignment.topLeft, end: Alignment.bottomRight), boxShadow: [BoxShadow(color: AppTheme.violet.withOpacity(.24), blurRadius: 20, offset: const Offset(0, 10))]),
-        child: Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('PLAY THE MOMENT', style: TextStyle(color: Color(0xFFD9CFFF), fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 10)),
-            const SizedBox(height: 7),
-            Text('Your table\nis waiting.', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, height: 1.05)),
-            const SizedBox(height: 12),
-            Row(mainAxisSize: MainAxisSize.min, children: [Text('Try ${game.name}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)), const SizedBox(width: 7), const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18)]),
-          ])),
-          Padding(padding: const EdgeInsetsDirectional.only(start: 8), child: Transform.rotate(angle: -.16, child: GameLogo(gameId: game.id, accent: '#B7A5FF', size: 82))),
-        ]),
-      ),
-    ),
-  );
+        button: true,
+        label: 'Play ${game.name}',
+        child: PressableScale(
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 198),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(30), gradient: AppTheme.heroGradient, boxShadow: AppTheme.glow(AppTheme.violet, strength: .4)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: Stack(
+                children: [
+                  Positioned(right: -34, top: -34, child: Container(width: 128, height: 128, decoration: BoxDecoration(color: Colors.white.withOpacity(.09), shape: BoxShape.circle))),
+                  Positioned(right: 66, bottom: -52, child: Container(width: 120, height: 120, decoration: BoxDecoration(color: Colors.white.withOpacity(.07), shape: BoxShape.circle))),
+                  Positioned(left: -24, bottom: -30, child: Container(width: 84, height: 84, decoration: BoxDecoration(color: Colors.black.withOpacity(.1), shape: BoxShape.circle))),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 22, 16, 22),
+                    child: Row(children: [
+                      Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(color: Colors.white.withOpacity(.16), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.25))),
+                          child: const Text('PLAY THE MOMENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 10)),
+                        ),
+                        const SizedBox(height: 10),
+                        Text('Your table\nis waiting.', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, height: 1.05)),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(99), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.2), blurRadius: 12, offset: const Offset(0, 5))]),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Text('Try ${game.name}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 13)),
+                            const SizedBox(width: 6),
+                            const Icon(Icons.arrow_forward_rounded, color: AppTheme.violet, size: 17),
+                          ]),
+                        ),
+                      ])),
+                      Padding(padding: const EdgeInsetsDirectional.only(start: 8), child: Transform.rotate(angle: -.14, child: GameLogo(gameId: game.id, accent: '#B7A5FF', size: 92))),
+                    ]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _CatalogNotice extends StatelessWidget {
   const _CatalogNotice({required this.onRetry});
   final Future<void> Function() onRetry;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.13), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppTheme.gold.withOpacity(.3))), child: Row(children: [const Icon(Icons.cloud_off_rounded, color: AppTheme.gold, size: 19), const SizedBox(width: 9), const Expanded(child: Text('Showing the saved game catalog while we reconnect.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))), TextButton(onPressed: onRetry, child: const Text('Retry'))]));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppTheme.gold.withOpacity(.16), AppTheme.gold.withOpacity(.07)]),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppTheme.gold.withOpacity(.35)),
+        ),
+        child: Row(children: [
+          Container(width: 34, height: 34, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.2), shape: BoxShape.circle), child: const Icon(Icons.cloud_off_rounded, color: AppTheme.gold, size: 18)),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Showing the saved game catalog while we reconnect.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ]),
+      );
+}
+
+class _CatalogShimmer extends StatelessWidget {
+  const _CatalogShimmer();
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          const ShimmerBox(height: 120, borderRadius: BorderRadius.all(Radius.circular(26))),
+          const SizedBox(height: 14),
+          GridView.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
+            childAspectRatio: 265 / 234,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: const [
+              ShimmerBox(height: 234, borderRadius: BorderRadius.all(Radius.circular(26))),
+              ShimmerBox(height: 234, borderRadius: BorderRadius.all(Radius.circular(26))),
+              ShimmerBox(height: 234, borderRadius: BorderRadius.all(Radius.circular(26))),
+              ShimmerBox(height: 234, borderRadius: BorderRadius.all(Radius.circular(26))),
+            ],
+          ),
+        ],
+      );
 }
 
 class _FilterChip extends StatelessWidget {
@@ -201,7 +285,20 @@ class _FilterChip extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsetsDirectional.only(end: 8), child: ChoiceChip(label: Text(label), selected: active, onSelected: (_) => onTap(), showCheckmark: false, padding: const EdgeInsets.symmetric(horizontal: 12), labelStyle: TextStyle(fontWeight: FontWeight.w800, color: active ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant), selectedColor: AppTheme.violet, backgroundColor: Theme.of(context).colorScheme.surfaceVariant));
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsetsDirectional.only(end: 8),
+        child: ChoiceChip(
+          label: Text(label),
+          selected: active,
+          onSelected: (_) => onTap(),
+          showCheckmark: false,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          labelStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: active ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant),
+          selectedColor: AppTheme.violet,
+          backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99), side: active ? BorderSide.none : BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(.3))),
+        ),
+      );
 }
 
 class _GameCard extends StatelessWidget {
@@ -209,25 +306,81 @@ class _GameCard extends StatelessWidget {
   final GameDescriptor game;
   final VoidCallback onTap;
 
+  Color _accent(String hex) {
+    final parsed = int.tryParse('FF${hex.replaceFirst('#', '')}', radix: 16);
+    return parsed == null ? AppTheme.violet : Color(parsed);
+  }
+
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: 'Open ${game.name}',
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: Padding(padding: const EdgeInsets.all(15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [GameLogo(gameId: game.id, accent: game.accent, size: 53), const Spacer(), if (game.supportsTeams) Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.groups_rounded, color: AppTheme.mint, size: 15))]),
-          const Spacer(),
-          Text(game.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 5),
-          Row(children: [Icon(Icons.people_alt_outlined, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 4), Text('${game.minPlayers}–${game.maxPlayers}', style: Theme.of(context).textTheme.bodySmall), const Spacer(), Icon(Icons.arrow_forward_rounded, size: 18, color: Theme.of(context).colorScheme.primary)]),
-        ])),
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+    final accent = _accent(game.accent);
+    return Semantics(
+      button: true,
+      label: 'Open ${game.name}',
+      child: PressableScale(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: scheme.outline.withOpacity(dark ? .3 : .14)),
+            boxShadow: AppTheme.softShadow(dark: dark),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(26),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  height: 122,
+                  decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.lerp(accent, Colors.white, .08)!, accent, Color.lerp(accent, Colors.black, .3)!])),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned(right: -22, top: -22, child: Container(width: 84, height: 84, decoration: BoxDecoration(color: Colors.white.withOpacity(.12), shape: BoxShape.circle))),
+                      Positioned(left: -18, bottom: -26, child: Container(width: 72, height: 72, decoration: BoxDecoration(color: Colors.black.withOpacity(.12), shape: BoxShape.circle))),
+                      GameLogo(gameId: game.id, accent: game.accent, size: 64),
+                      if (game.supportsTeams)
+                        Positioned(
+                          top: 9,
+                          right: 9,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(color: Colors.black.withOpacity(.28), borderRadius: BorderRadius.circular(99)),
+                            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.groups_rounded, color: Colors.white, size: 13), SizedBox(width: 4), Text('TEAMS', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .6))]),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 11, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(game.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
+                        const Spacer(),
+                        Row(children: [
+                          Icon(Icons.people_alt_outlined, size: 15, color: scheme.onSurfaceVariant),
+                          const SizedBox(width: 5),
+                          Text('${game.minPlayers}–${game.maxPlayers}', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
+                          const Spacer(),
+                          Container(width: 30, height: 30, alignment: Alignment.center, decoration: BoxDecoration(color: accent.withOpacity(.12), shape: BoxShape.circle), child: Icon(Icons.arrow_forward_rounded, size: 16, color: accent)),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _NoGamesFound extends StatelessWidget {
@@ -236,7 +389,7 @@ class _NoGamesFound extends StatelessWidget {
   final VoidCallback onClear;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 28),
-    child: StatePanel(icon: Icons.search_off_rounded, title: hasFilters ? 'No games match that search' : 'No games are available right now', message: hasFilters ? 'Try another name or browse every category.' : 'Pull to refresh and try again.', actionLabel: hasFilters ? 'Clear filters' : null, onAction: hasFilters ? onClear : null),
-  );
+        padding: const EdgeInsets.only(top: 28),
+        child: StatePanel(icon: Icons.search_off_rounded, title: hasFilters ? 'No games match that search' : 'No games are available right now', message: hasFilters ? 'Try another name or browse every category.' : 'Pull to refresh and try again.', actionLabel: hasFilters ? 'Clear filters' : null, onAction: hasFilters ? onClear : null),
+      );
 }
