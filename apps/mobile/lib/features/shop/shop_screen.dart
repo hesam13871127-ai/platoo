@@ -174,7 +174,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                     child: _EquippedCosmeticsStrip(
                       inventory: inventoryItems,
                       strings: strings,
-                      onTapItem: (item) => _showItemDetails(context, item: item, owned: item),
+                      onTapItem: (item) => _showItemDetails(context, item: null, owned: item),
                     ),
                   ),
                 ),
@@ -998,7 +998,6 @@ class _FloatingCosmeticArtState extends State<FloatingCosmeticArt> with SingleTi
 
   @override
   void dispose() {
-    _curve.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -1199,7 +1198,7 @@ class _EquippedCosmeticsStrip extends StatelessWidget {
               const Spacer(),
               Text(
                 '${equippedItems.length} active',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   color: AppTheme.mint,
@@ -1246,7 +1245,7 @@ class _EquippedCosmeticsStrip extends StatelessWidget {
                                   ),
                                   Text(
                                     item.category.toUpperCase(),
-                                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: AppTheme.mint),
+                                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: AppTheme.mint),
                                   ),
                                 ],
                               ),

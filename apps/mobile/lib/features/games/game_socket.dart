@@ -133,16 +133,18 @@ class GameSocket {
   void _joinMatch(io.Socket socket) {
     final matchId = _matchId;
     if (!_isCurrent(socket) || matchId == null || !socket.connected) return;
-    socket.emitWithAckAsync('match:join', {'matchId': matchId}).then((data) {
-      if (!_isCurrent(socket)) return;
-      if (data is Map && data['id'] != null) {
-        _onUpdate?.call(Map<String, dynamic>.from(data));
-      } else {
-        _onError?.call('Could not join the live match room.');
-      }
-    }).catchError((_) {
+    try {
+      socket.emitWithAck('match:join', {'matchId': matchId}, ack: (data) {
+        if (!_isCurrent(socket)) return;
+        if (data is Map && data['id'] != null) {
+          _onUpdate?.call(Map<String, dynamic>.from(data));
+        } else if (data is Map && data['error'] != null) {
+          _onError?.call(data['error'].toString());
+        }
+      });
+    } catch (_) {
       if (_isCurrent(socket)) _onError?.call('Could not join the live match room.');
-    });
+    }
   }
 
   void _markDisconnected({required bool schedule}) {

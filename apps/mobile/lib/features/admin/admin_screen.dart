@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/state_panel.dart';
 import '../../core/widgets/vibe_components.dart';
 import 'admin_api.dart';
 import 'admin_audit_tab.dart';

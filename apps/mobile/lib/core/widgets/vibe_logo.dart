@@ -132,7 +132,6 @@ class _FloatingGameLogoState extends State<FloatingGameLogo> with SingleTickerPr
 
   @override
   void dispose() {
-    _curve.dispose();
     _controller.dispose();
     super.dispose();
   }
