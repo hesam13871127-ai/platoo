@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/localization/app_strings.dart';
@@ -37,6 +38,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  void _randomMatch(List<GameDescriptor> games) {
+    if (games.isEmpty) return;
+    final randomGame = games[math.Random().nextInt(games.length)];
+    _open(context, randomGame);
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings(Localizations.localeOf(context));
@@ -64,7 +71,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              sliver: SliverToBoxAdapter(
+                child: Entrance(
+                  delay: const Duration(milliseconds: 30),
+                  child: _HomeQuickStats(
+                    user: user,
+                    strings: strings,
+                    onRandomPlay: () => _randomMatch(games),
+                  ),
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               sliver: SliverToBoxAdapter(child: featured == null ? const _EmptyCatalog() : Entrance(delay: const Duration(milliseconds: 60), child: _FeaturedBanner(game: featured, onTap: () => _open(context, featured)))),
             ),
             if (catalog.isLoading && games.isEmpty)
@@ -170,6 +190,103 @@ class _HomeHeader extends StatelessWidget {
       const SizedBox(width: 9),
       PlayerAvatar(avatarUrl: user?.avatarUrl, displayName: user?.displayName ?? '', radius: 21),
     ]);
+  }
+}
+
+class _HomeQuickStats extends StatelessWidget {
+  const _HomeQuickStats({required this.user, required this.strings, required this.onRandomPlay});
+  final UserProfile? user;
+  final AppStrings strings;
+  final VoidCallback onRandomPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final level = user?.level ?? 1;
+    final exp = user?.experience ?? 0;
+    final expInLevel = exp % 500;
+    final progress = (expInLevel / 500.0).clamp(0.0, 1.0);
+    final fa = strings.isPersian;
+
+    return VibeCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.bolt_rounded, color: Colors.white, size: 15),
+                const SizedBox(width: 3),
+                Text(
+                  fa ? 'سطح $level' : 'Lvl $level',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      fa ? 'پیشرفت فصل' : 'Season XP',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '$expInLevel / 500 XP',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: AppTheme.violet.withOpacity(.12),
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.violet),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          PressableScale(
+            onTap: onRandomPlay,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.mint.withOpacity(.14),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.mint.withOpacity(.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.casino_rounded, color: AppTheme.mint, size: 16),
+                  const SizedBox(width: 5),
+                  Text(
+                    fa ? 'تصادفی' : 'Random',
+                    style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
