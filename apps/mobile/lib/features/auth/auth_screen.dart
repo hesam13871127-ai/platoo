@@ -25,7 +25,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     try {
       final data = await ref.read(authProvider.notifier).requestOtp(value);
       if (!mounted) return;
-      setState(() { challenge = data['challengeId'] as String?; devCode = data['devCode'] as String?; });
+      final id = data['challengeId'] as String?;
+      if (id == null || id.isEmpty) throw Exception('The server did not return a verification challenge. Please try again.');
+      setState(() { challenge = id; devCode = data['devCode'] as String?; });
     } catch (error) {
       if (mounted) setState(() => localError = error.toString());
     } finally {

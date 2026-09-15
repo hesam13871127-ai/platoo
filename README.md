@@ -160,7 +160,7 @@ Run these in order; stop at the first failure and check Troubleshooting above.
 - [ ] In the app: queue for a quick game (bot fills after 15s), play it to the result screen, send one chat message.
 - [ ] Optional: promote yourself to admin directly in MySQL (`UPDATE users SET role='admin' ...`) to tour the Admin Panel.
 
-The API is available at `http://localhost:3000/api/v1/health`. In development, `DEV_OTP_ENABLED=true` returns `devCode` from the OTP request response; production must provide an `OTP_WEBHOOK_URL` for an approved SMS provider and set it to false.
+The API is available at `http://localhost:3000/api/v1/health`. Local login needs no SMS provider: whenever `OTP_WEBHOOK_URL` is empty and `NODE_ENV` is not `production`, requesting a code logs `Development OTP for <phone>: <code>` in the API console and returns the same code as `devCode` in the response (`DEV_OTP_ENABLED=true` forces this mode even when a webhook is configured). Production must provide an `OTP_WEBHOOK_URL` for an approved SMS provider and leave `DEV_OTP_ENABLED` false/unset; without a webhook, production phone verification fails fast instead of leaking codes.
 
 ## Runtime contracts
 

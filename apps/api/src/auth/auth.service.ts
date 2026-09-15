@@ -47,7 +47,7 @@ export class AuthService {
     );
     await this.deliverOtp(phone, code);
     const response: { challengeId: string; expiresAt: string; devCode?: string } = { challengeId, expiresAt: expiresAt.toISOString() };
-    if (this.config.get<boolean>('otp.devEnabled', false)) response.devCode = code;
+    if (this.isDevOtp()) response.devCode = code;
     return response;
   }
 
@@ -183,14 +183,33 @@ export class AuthService {
     }
   }
 
+  /**
+   * Dev OTP mode: the code is logged and echoed back as `devCode` instead of
+   * being delivered by a real SMS provider. Active when explicitly enabled
+   * (DEV_OTP_ENABLED=true), or automatically when no webhook is configured in
+   * a non-production environment, so a zero-config dev boot can still log in.
+   * Production without a webhook keeps failing fast in deliverOtp, and booting
+   * production with DEV_OTP_ENABLED=true is refused in main.ts.
+   */
+  private isDevOtp(): boolean {
+    if (this.config.get<boolean>('otp.devEnabled', false)) return true;
+    if (this.config.get<string>('otp.webhookUrl')) return false;
+    return this.config.get<string>('nodeEnv') !== 'production';
+  }
+
   private async deliverOtp(phone: string, code: string): Promise<void> {
     const webhook = this.config.get<string>('otp.webhookUrl');
     if (webhook) {
-      const response = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone, code }) });
+      let response: Response;
+      try {
+        response = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone, code }) });
+      } catch {
+        throw invalid('The verification message could not be sent.');
+      }
       if (!response.ok) throw invalid('The verification message could not be sent.');
       return;
     }
-    if (this.config.get<boolean>('otp.devEnabled', false)) {
+    if (this.isDevOtp()) {
       this.logger.warn(`Development OTP for ${phone}: ${code}`);
       return;
     }
