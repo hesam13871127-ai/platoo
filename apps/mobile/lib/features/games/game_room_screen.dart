@@ -35,7 +35,7 @@ import 'emoji_charades_game_board.dart';
 import 'impostor_light_game_board.dart';
 import 'archery_game_board.dart';
 import 'quick_challenges_game_board.dart';
-import '../social/social_screen.dart';
+import '../social/chat_screens.dart';
 
 class GameRoomScreen extends ConsumerStatefulWidget { const GameRoomScreen({super.key, required this.matchId, required this.game}); final String matchId; final GameDescriptor game; @override ConsumerState<GameRoomScreen> createState() => _GameRoomScreenState(); }
 class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {

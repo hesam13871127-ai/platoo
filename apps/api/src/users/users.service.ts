@@ -95,6 +95,33 @@ export class UsersService {
     return { success: true };
   }
 
+  async removeGroupMember(userId: string, groupId: string, targetId: string) {
+    const rows = await this.mysql.query<RowDataPacket[]>(`SELECT user_id AS userId, role FROM group_members WHERE group_id = ? AND user_id IN (?, ?)`, [groupId, userId, targetId]);
+    const actor = rows.find((row) => row.userId === userId);
+    const target = rows.find((row) => row.userId === targetId);
+    if (!actor || !target) throw notFound('Group membership not found.');
+    const leaving = userId === targetId;
+    if (!leaving) {
+      if (actor.role !== 'owner' && actor.role !== 'admin') throw forbidden('Only group admins can remove members.');
+      if (target.role === 'owner') throw forbidden('The group owner cannot be removed.');
+      if (actor.role === 'admin' && target.role === 'admin') throw forbidden('Only the owner can remove admins.');
+    }
+    await this.mysql.execute(`DELETE FROM group_members WHERE group_id = ? AND user_id = ?`, [groupId, targetId]);
+    const conversation = await this.mysql.query<RowDataPacket[]>(`SELECT id FROM conversations WHERE group_id = ?`, [groupId]);
+    if (conversation[0]) await this.mysql.execute(`DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?`, [conversation[0].id, targetId]);
+    if (leaving && target.role === 'owner') {
+      const successor = await this.mysql.query<RowDataPacket[]>(`SELECT user_id AS userId FROM group_members WHERE group_id = ? ORDER BY FIELD(role, 'admin', 'member'), joined_at ASC LIMIT 1`, [groupId]);
+      if (successor[0]) {
+        await this.mysql.execute(`UPDATE group_members SET role = 'owner' WHERE group_id = ? AND user_id = ?`, [groupId, successor[0].userId]);
+        await this.mysql.execute(`UPDATE user_groups SET owner_id = ? WHERE id = ?`, [successor[0].userId, groupId]);
+        return { success: true, disbanded: false };
+      }
+      await this.mysql.execute(`DELETE FROM user_groups WHERE id = ?`, [groupId]);
+      return { success: true, disbanded: true };
+    }
+    return { success: true, disbanded: false };
+  }
+
   async group(userId: string, groupId: string) {
     const groups = await this.mysql.query<RowDataPacket[]>(`SELECT g.id, g.name, g.description, g.avatar_url AS avatarUrl, g.owner_id AS ownerId, g.is_private AS isPrivate, gm.role FROM user_groups g JOIN group_members gm ON gm.group_id = g.id WHERE g.id = ? AND gm.user_id = ?`, [groupId, userId]);
     if (!groups[0]) throw notFound('Group not found.');

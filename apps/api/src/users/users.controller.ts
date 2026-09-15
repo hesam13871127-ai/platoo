@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
@@ -36,4 +36,6 @@ export class UsersController {
   @Get('groups/:id') group(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.users.group(user.id, id); }
   @RateLimit({ limit: 60, windowMs: MINUTE })
   @Post('groups/:id/members') addMember(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AddGroupMemberDto) { return this.users.addGroupMember(user.id, id, dto.userId); }
+  @RateLimit({ limit: 60, windowMs: MINUTE })
+  @Delete('groups/:id/members/:userId') removeMember(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Param('userId') memberId: string) { return this.users.removeGroupMember(user.id, id, memberId); }
 }
