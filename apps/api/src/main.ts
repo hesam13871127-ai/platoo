@@ -27,20 +27,38 @@ function assertProductionReady(config: ConfigService): void {
 }
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const isProd = process.env.NODE_ENV === 'production';
+  const configuredOrigins = (process.env.CORS_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+
+  const corsConfig = {
+    origin: corsOriginOption(configuredOrigins, isProd),
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Request-ID', 'X-Requested-With', 'Origin', 'Access-Control-Request-Method', 'Access-Control-Request-Headers'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range', 'X-Request-ID'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  };
+
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    cors: corsConfig,
+  });
+
   const config = app.get(ConfigService);
   assertProductionReady(config);
   const production = config.get<string>('nodeEnv') === 'production';
+
   app.setGlobalPrefix('api/v1');
   app.enableShutdownHooks();
-  app.use(helmet({ contentSecurityPolicy: false }));
-  const configuredOrigins = config.get<string[]>('corsOrigins', []);
-  app.enableCors({
-    origin: corsOriginOption(configuredOrigins, production),
-    credentials: true,
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Request-ID', 'X-Requested-With'],
-  });
+  app.enableCors(corsConfig);
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginOpenerPolicy: { policy: 'unsafe-none' },
+    }),
+  );
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   // NOTE: whitelist stays off on purpose — GameActionDto carries dynamic per-game
   // keys (column, pit, cells, ...) that a strip-unknown-props pipe would delete.
