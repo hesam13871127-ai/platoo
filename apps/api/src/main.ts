@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { corsOriginOption } from './common/cors.util';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 import { TrimStringsPipe } from './common/pipes/trim.pipe';
@@ -34,7 +35,12 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
   app.use(helmet({ contentSecurityPolicy: false }));
   const configuredOrigins = config.get<string[]>('corsOrigins', []);
-  app.enableCors({ origin: configuredOrigins.length ? configuredOrigins : !production, credentials: true });
+  app.enableCors({
+    origin: corsOriginOption(configuredOrigins, production),
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Request-ID', 'X-Requested-With'],
+  });
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   // NOTE: whitelist stays off on purpose — GameActionDto carries dynamic per-game
   // keys (column, pit, cells, ...) that a strip-unknown-props pipe would delete.
