@@ -31,34 +31,50 @@ class VibeLogo extends StatelessWidget {
       );
 }
 
+/// Premium 3D game tile: stacked depth layers, four-stop glossy gradient,
+/// edge light, icon drop shadow, and an ambient halo. Same API everywhere,
+/// so every game keeps a consistent high-end look in both themes.
 class GameLogo extends StatelessWidget {
   const GameLogo({super.key, required this.gameId, required this.accent, this.size = 58});
   final String gameId;
   final String accent;
   final double size;
+
   @override
   Widget build(BuildContext context) {
     final color = _color(accent);
     return Stack(clipBehavior: Clip.none, children: [
-      Transform.translate(offset: Offset(size * .05, size * .09), child: _tile(color.withOpacity(.3))),
-      Transform.translate(offset: Offset(size * .02, size * .04), child: _tile(color.withOpacity(.62))),
+      Positioned(left: -size * .22, top: -size * .22, child: Container(width: size * 1.44, height: size * 1.44, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [color.withOpacity(.42), color.withOpacity(0)])))),
+      Transform.translate(offset: Offset(size * .06, size * .1), child: _tile(color.withOpacity(.32), ghost: true)),
+      Transform.translate(offset: Offset(size * .025, size * .045), child: _tile(color.withOpacity(.62), ghost: true)),
       _tile(color),
     ]);
   }
 
-  Widget _tile(Color color) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(size * .28),
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.lerp(color, Colors.white, .14)!, color, Color.lerp(color, Colors.black, .26)!], stops: const [0, .55, 1]),
-          boxShadow: [BoxShadow(color: color.withOpacity(.42), blurRadius: size * .24, offset: Offset(0, size * .12))],
-        ),
-        child: Stack(children: [
-          Center(child: Icon(_icon(gameId), color: Colors.white, size: size * .46)),
-          Positioned(top: size * .13, left: size * .18, child: Container(width: size * .3, height: size * .12, decoration: BoxDecoration(color: Colors.white.withOpacity(.35), borderRadius: BorderRadius.circular(99)))),
-        ]),
-      );
+  Widget _tile(Color color, {bool ghost = false}) {
+    final radius = size * .3;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.lerp(color, Colors.white, .24)!, Color.lerp(color, Colors.white, .04)!, color, Color.lerp(color, Colors.black, .34)!], stops: const [0, .35, .68, 1]),
+        border: ghost ? null : Border.all(color: Colors.white.withOpacity(.3), width: size * .02),
+        boxShadow: ghost
+            ? null
+            : [BoxShadow(color: color.withOpacity(.55), blurRadius: size * .32, offset: Offset(0, size * .16)), BoxShadow(color: Colors.black.withOpacity(.28), blurRadius: size * .12, offset: Offset(0, size * .05))],
+      ),
+      child: Stack(
+        children: [
+          if (!ghost)
+            Positioned(top: 0, left: 0, right: 0, child: Container(height: size * .44, decoration: BoxDecoration(borderRadius: BorderRadius.vertical(top: Radius.circular(radius)), gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.white.withOpacity(.32), Colors.white.withOpacity(0)])))),
+          if (!ghost) Positioned(top: size * .13, left: size * .17, child: Container(width: size * .3, height: size * .1, decoration: BoxDecoration(color: Colors.white.withOpacity(.5), borderRadius: BorderRadius.circular(99)))),
+          Center(child: Icon(_icon(gameId), color: Colors.white, size: size * .46, shadows: ghost ? null : [Shadow(color: Colors.black.withOpacity(.32), blurRadius: size * .06, offset: Offset(0, size * .03))])),
+        ],
+      ),
+    );
+  }
+
   Color _color(String hex) {
     final value = hex.replaceFirst('#', '');
     final parsed = int.tryParse('FF$value', radix: 16);
@@ -93,6 +109,43 @@ class GameLogo extends StatelessWidget {
         'quick_challenges' => Icons.bolt_rounded,
         _ => Icons.style_rounded,
       };
+}
+
+/// Idle-animated game logo for hero moments (featured banner, match setup,
+/// queue): one lightweight looping controller drives a gentle float plus a
+/// barely-there rock. The logo subtree itself is built once and composited,
+/// so the animation stays at 60fps. Keep it off dense grids.
+class FloatingGameLogo extends StatefulWidget {
+  const FloatingGameLogo({super.key, required this.gameId, required this.accent, this.size = 96, this.floatRange = 5, this.period = const Duration(milliseconds: 2600)});
+  final String gameId;
+  final String accent;
+  final double size;
+  final double floatRange;
+  final Duration period;
+  @override
+  State<FloatingGameLogo> createState() => _FloatingGameLogoState();
+}
+
+class _FloatingGameLogoState extends State<FloatingGameLogo> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(vsync: this, duration: widget.period)..repeat(reverse: true);
+  late final Animation<double> _curve = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _curve,
+        builder: (context, child) {
+          final t = _curve.value * 2 - 1;
+          return Transform.translate(offset: Offset(0, widget.floatRange * t), child: Transform.rotate(angle: .03 * t, child: child));
+        },
+        child: GameLogo(gameId: widget.gameId, accent: widget.accent, size: widget.size),
+      );
 }
 
 class BalancePill extends StatelessWidget {

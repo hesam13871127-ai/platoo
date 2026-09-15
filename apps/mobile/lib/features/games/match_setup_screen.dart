@@ -157,14 +157,14 @@ class _GameHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: SizedBox(
-          width: 190,
-          height: 170,
+          width: 210,
+          height: 190,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Container(width: 170, height: 170, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [AppTheme.violet.withOpacity(.22), AppTheme.violet.withOpacity(0)]))),
-              Container(width: 132, height: 132, decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.violet.withOpacity(.1), border: Border.all(color: AppTheme.violet.withOpacity(.25)))),
-              Hero(tag: 'game-${game.id}', child: GameLogo(gameId: game.id, accent: game.accent, size: 100)),
+              Container(width: 190, height: 190, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [AppTheme.violet.withOpacity(.3), AppTheme.violet.withOpacity(0)]))),
+              Container(width: 152, height: 152, decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.violet.withOpacity(.1), border: Border.all(color: AppTheme.violet.withOpacity(.28), width: 1.5))),
+              Hero(tag: 'game-${game.id}', child: FloatingGameLogo(gameId: game.id, accent: game.accent, size: 112, floatRange: 6)),
             ],
           ),
         ),
@@ -474,8 +474,8 @@ class _QueueArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: 190,
-        height: 160,
+        width: 200,
+        height: 172,
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -483,14 +483,9 @@ class _QueueArtwork extends StatelessWidget {
               scale: matched ? 1 : 1 + pulse * 3,
               duration: const Duration(milliseconds: 900),
               curve: Curves.easeInOut,
-              child: Container(width: 150, height: 150, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [(matched ? AppTheme.mint : AppTheme.violet).withOpacity(.3), AppTheme.violet.withOpacity(0)]))),
+              child: Container(width: 170, height: 170, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [(matched ? AppTheme.mint : AppTheme.violet).withOpacity(.32), AppTheme.violet.withOpacity(0)]))),
             ),
-            AnimatedScale(
-              scale: matched ? 1 : 1 + pulse,
-              duration: const Duration(milliseconds: 900),
-              curve: Curves.easeInOut,
-              child: Hero(tag: 'game-${game.id}', child: GameLogo(gameId: game.id, accent: game.accent, size: 88)),
-            ),
+            Hero(tag: 'game-${game.id}', child: FloatingGameLogo(gameId: game.id, accent: game.accent, size: 100, floatRange: 5)),
           ],
         ),
       );

@@ -126,7 +126,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     childCount: filtered.length,
                   ),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 265, mainAxisExtent: 234, crossAxisSpacing: 14, mainAxisSpacing: 14),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 265, mainAxisExtent: 248, crossAxisSpacing: 14, mainAxisSpacing: 14),
                 ),
               )
             else
@@ -191,39 +191,55 @@ class _FeaturedBanner extends StatelessWidget {
         child: PressableScale(
           onTap: onTap,
           child: Container(
-            constraints: const BoxConstraints(minHeight: 198),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(30), gradient: AppTheme.heroGradient, boxShadow: AppTheme.glow(AppTheme.violet, strength: .4)),
+            constraints: const BoxConstraints(minHeight: 236),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(32), gradient: AppTheme.heroGradient, boxShadow: AppTheme.glow(AppTheme.violet, strength: .45)),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(32),
               child: Stack(
                 children: [
-                  Positioned(right: -34, top: -34, child: Container(width: 128, height: 128, decoration: BoxDecoration(color: Colors.white.withOpacity(.09), shape: BoxShape.circle))),
-                  Positioned(right: 66, bottom: -52, child: Container(width: 120, height: 120, decoration: BoxDecoration(color: Colors.white.withOpacity(.07), shape: BoxShape.circle))),
-                  Positioned(left: -24, bottom: -30, child: Container(width: 84, height: 84, decoration: BoxDecoration(color: Colors.black.withOpacity(.1), shape: BoxShape.circle))),
+                  Positioned(right: -40, top: -46, child: Container(width: 168, height: 168, decoration: BoxDecoration(color: AppTheme.fuchsia.withOpacity(.3), shape: BoxShape.circle))),
+                  Positioned(left: -44, bottom: -56, child: Container(width: 150, height: 150, decoration: BoxDecoration(color: AppTheme.sky.withOpacity(.22), shape: BoxShape.circle))),
+                  Positioned(right: 90, bottom: -64, child: Container(width: 130, height: 130, decoration: BoxDecoration(color: Colors.white.withOpacity(.07), shape: BoxShape.circle))),
+                  Positioned(left: 40, top: -70, child: Transform.rotate(angle: .5, child: Container(width: 56, height: 340, decoration: BoxDecoration(color: Colors.white.withOpacity(.06), borderRadius: BorderRadius.circular(99))))),
+                  Positioned.fill(child: Container(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0x2E000000)])))),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(22, 22, 16, 22),
                     child: Row(children: [
                       Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(color: Colors.white.withOpacity(.16), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.25))),
-                          child: const Text('PLAY THE MOMENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 10)),
+                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                          decoration: BoxDecoration(color: Colors.white.withOpacity(.16), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.28))),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.star_rounded, color: Colors.white, size: 13), SizedBox(width: 4), Text('FEATURED', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.4, fontSize: 10))]),
                         ),
                         const SizedBox(height: 10),
-                        Text('Your table\nis waiting.', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, height: 1.05)),
+                        Text(game.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28, letterSpacing: -.6, height: 1.05)),
+                        const SizedBox(height: 9),
+                        Wrap(spacing: 7, runSpacing: 7, children: [
+                          _MetaChip(icon: Icons.people_alt_outlined, label: '${game.minPlayers}–${game.maxPlayers}'),
+                          if (game.supportsTeams) const _MetaChip(icon: Icons.groups_rounded, label: 'Teams'),
+                        ]),
                         const SizedBox(height: 14),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(99), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.2), blurRadius: 12, offset: const Offset(0, 5))]),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text('Try ${game.name}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 13)),
-                            const SizedBox(width: 6),
-                            const Icon(Icons.arrow_forward_rounded, color: AppTheme.violet, size: 17),
-                          ]),
+                          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 11),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(99), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.22), blurRadius: 14, offset: const Offset(0, 6))]),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Text('Play now', style: TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 14)), SizedBox(width: 7), Icon(Icons.arrow_forward_rounded, color: AppTheme.violet, size: 18)]),
                         ),
                       ])),
-                      Padding(padding: const EdgeInsetsDirectional.only(start: 8), child: Transform.rotate(angle: -.14, child: GameLogo(gameId: game.id, accent: '#B7A5FF', size: 92))),
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 6),
+                        child: SizedBox(
+                          width: 128,
+                          height: 150,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(width: 132, height: 132, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Colors.white.withOpacity(.2), Colors.white.withOpacity(0)]))),
+                              Transform.rotate(angle: -.1, child: FloatingGameLogo(gameId: game.id, accent: '#B7A5FF', size: 104, floatRange: 6)),
+                            ],
+                          ),
+                        ),
+                      ),
                     ]),
                   ),
                 ],
@@ -231,6 +247,18 @@ class _FeaturedBanner extends StatelessWidget {
             ),
           ),
         ),
+      );
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(color: Colors.white.withOpacity(.14), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.22))),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: Colors.white, size: 13), const SizedBox(width: 5), Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800))]),
       );
 }
 
@@ -259,20 +287,20 @@ class _CatalogShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
         children: [
-          const ShimmerBox(height: 120, borderRadius: BorderRadius.all(Radius.circular(26))),
+          const ShimmerBox(height: 150, borderRadius: BorderRadius.all(Radius.circular(28))),
           const SizedBox(height: 14),
           GridView.count(
             crossAxisCount: 2,
             crossAxisSpacing: 14,
             mainAxisSpacing: 14,
-            childAspectRatio: 265 / 234,
+            childAspectRatio: 265 / 248,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: const [
-              ShimmerBox(height: 234, borderRadius: BorderRadius.all(Radius.circular(26))),
-              ShimmerBox(height: 234, borderRadius: BorderRadius.all(Radius.circular(26))),
-              ShimmerBox(height: 234, borderRadius: BorderRadius.all(Radius.circular(26))),
-              ShimmerBox(height: 234, borderRadius: BorderRadius.all(Radius.circular(26))),
+              ShimmerBox(height: 248, borderRadius: BorderRadius.all(Radius.circular(26))),
+              ShimmerBox(height: 248, borderRadius: BorderRadius.all(Radius.circular(26))),
+              ShimmerBox(height: 248, borderRadius: BorderRadius.all(Radius.circular(26))),
+              ShimmerBox(height: 248, borderRadius: BorderRadius.all(Radius.circular(26))),
             ],
           ),
         ],
@@ -334,21 +362,23 @@ class _GameCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Container(
-                  height: 122,
-                  decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.lerp(accent, Colors.white, .08)!, accent, Color.lerp(accent, Colors.black, .3)!])),
+                  height: 136,
+                  decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.lerp(accent, Colors.white, .14)!, accent, Color.lerp(accent, Colors.black, .35)!], stops: const [0, .55, 1])),
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      Positioned(right: -22, top: -22, child: Container(width: 84, height: 84, decoration: BoxDecoration(color: Colors.white.withOpacity(.12), shape: BoxShape.circle))),
-                      Positioned(left: -18, bottom: -26, child: Container(width: 72, height: 72, decoration: BoxDecoration(color: Colors.black.withOpacity(.12), shape: BoxShape.circle))),
-                      GameLogo(gameId: game.id, accent: game.accent, size: 64),
+                      Positioned(right: -26, top: -26, child: Container(width: 92, height: 92, decoration: BoxDecoration(color: Colors.white.withOpacity(.12), shape: BoxShape.circle))),
+                      Positioned(left: -20, bottom: -30, child: Container(width: 80, height: 80, decoration: BoxDecoration(color: Colors.black.withOpacity(.14), shape: BoxShape.circle))),
+                      Positioned(left: 26, top: -40, child: Transform.rotate(angle: .45, child: Container(width: 34, height: 220, decoration: BoxDecoration(color: Colors.white.withOpacity(.07), borderRadius: BorderRadius.circular(99))))),
+                      Container(width: 108, height: 108, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Colors.white.withOpacity(.16), Colors.white.withOpacity(0)]))),
+                      GameLogo(gameId: game.id, accent: game.accent, size: 76),
                       if (game.supportsTeams)
                         Positioned(
                           top: 9,
                           right: 9,
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                            decoration: BoxDecoration(color: Colors.black.withOpacity(.28), borderRadius: BorderRadius.circular(99)),
+                            decoration: BoxDecoration(color: Colors.black.withOpacity(.3), borderRadius: BorderRadius.circular(99)),
                             child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.groups_rounded, color: Colors.white, size: 13), SizedBox(width: 4), Text('TEAMS', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .6))]),
                           ),
                         ),
