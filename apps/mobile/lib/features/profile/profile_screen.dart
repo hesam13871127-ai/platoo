@@ -7,6 +7,7 @@ import '../../core/widgets/app_feedback.dart';
 import '../../core/widgets/player_avatar.dart';
 import '../../core/widgets/vibe_components.dart';
 import '../../models/models.dart';
+import '../admin/admin_api.dart';
 import '../admin/admin_screen.dart';
 import 'leaderboard_screen.dart';
 
@@ -19,6 +20,9 @@ class ProfileScreen extends ConsumerWidget {
     final user = ref.watch(authProvider).value?.user;
     final settings = ref.watch(settingsProvider);
     if (user == null) return const SizedBox.shrink();
+
+    final isStaff = isStaffRole(user.role);
+
     return VibePageBackground(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 34),
@@ -35,6 +39,16 @@ class ProfileScreen extends ConsumerWidget {
               _StatCard(label: 'XP', value: '${user.experience}', icon: Icons.bolt_rounded, gradient: AppTheme.coralGradient),
             ]),
           ),
+
+          // Prominent Admin & Staff Hub (Visible ONLY to Staff/Admins)
+          if (isStaff) ...[
+            const SizedBox(height: 18),
+            Entrance(
+              delay: const Duration(milliseconds: 100),
+              child: _AdminHeroCard(role: user.role, strings: strings),
+            ),
+          ],
+
           const SizedBox(height: 24),
           Entrance(
             delay: const Duration(milliseconds: 120),
@@ -103,13 +117,13 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 10),
-          if (user.role == 'admin' || user.role == 'moderator') ...[
+          if (isStaff) ...[
             Entrance(
               delay: const Duration(milliseconds: 210),
               child: _MenuTile(
                 icon: Icons.admin_panel_settings_rounded,
                 iconColor: AppTheme.violet,
-                title: 'Admin console',
+                title: strings.adminConsole,
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen())),
               ),
             ),
@@ -139,6 +153,9 @@ class _ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = ((user.experience % 1000) / 1000).clamp(0.0, 1.0).toDouble();
+    final isStaff = isStaffRole(user.role);
+    final isAdmin = isAdminRole(user.role);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), gradient: AppTheme.heroGradient, boxShadow: AppTheme.glow(AppTheme.violet, strength: .4)),
@@ -157,7 +174,33 @@ class _ProfileHeader extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: -.3)),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  user.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: -.3),
+                                ),
+                              ),
+                              if (isStaff) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: (isAdmin ? AppTheme.gold : AppTheme.mint).withOpacity(.25),
+                                    borderRadius: BorderRadius.circular(99),
+                                    border: Border.all(color: Colors.white.withOpacity(.4)),
+                                  ),
+                                  child: Text(
+                                    isAdmin ? 'ADMIN' : 'STAFF',
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: .5),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                           const SizedBox(height: 3),
                           Text('@${user.username}', style: TextStyle(color: Colors.white.withOpacity(.75), fontWeight: FontWeight.w600, fontSize: 13)),
                         ],
@@ -184,6 +227,174 @@ class _ProfileHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AdminHeroCard extends StatelessWidget {
+  const _AdminHeroCard({required this.role, required this.strings});
+  final String role;
+  final AppStrings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    final isAdmin = isAdminRole(role);
+    return PressableScale(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen())),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF281854), Color(0xFF1E223D), Color(0xFF15192E)],
+          ),
+          border: Border.all(color: AppTheme.violet.withOpacity(.5), width: 1.6),
+          boxShadow: [
+            BoxShadow(color: AppTheme.violet.withOpacity(.3), blurRadius: 22, offset: const Offset(0, 8)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.primaryGradient,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: AppTheme.glow(AppTheme.violet, strength: .35),
+                  ),
+                  child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              strings.adminStaffHub,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: (isAdmin ? AppTheme.gold : AppTheme.mint).withOpacity(.25),
+                              borderRadius: BorderRadius.circular(99),
+                              border: Border.all(color: (isAdmin ? AppTheme.gold : AppTheme.mint).withOpacity(.6)),
+                            ),
+                            child: Text(
+                              isAdmin ? 'ADMIN' : 'MOD',
+                              style: TextStyle(
+                                color: isAdmin ? AppTheme.gold : AppTheme.mint,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                                letterSpacing: .5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        strings.adminStaffSubtitle,
+                        style: TextStyle(color: Colors.white.withOpacity(.82), fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(.12), shape: BoxShape.circle),
+                  child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  _AdminShortcutChip(
+                    label: 'Dashboard',
+                    icon: Icons.dashboard_rounded,
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen(initialTab: 0))),
+                  ),
+                  const SizedBox(width: 6),
+                  _AdminShortcutChip(
+                    label: 'Users',
+                    icon: Icons.people_rounded,
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen(initialTab: 1))),
+                  ),
+                  const SizedBox(width: 6),
+                  _AdminShortcutChip(
+                    label: 'Reports',
+                    icon: Icons.flag_rounded,
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen(initialTab: 2))),
+                  ),
+                  const SizedBox(width: 6),
+                  _AdminShortcutChip(
+                    label: 'Shop',
+                    icon: Icons.storefront_rounded,
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen(initialTab: 3))),
+                  ),
+                  const SizedBox(width: 6),
+                  _AdminShortcutChip(
+                    label: 'Games',
+                    icon: Icons.sports_esports_rounded,
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen(initialTab: 4))),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminShortcutChip extends StatelessWidget {
+  const _AdminShortcutChip({required this.label, required this.icon, required this.onTap});
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => PressableScale(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(.18)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: Colors.white),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
 class _StatCard extends StatelessWidget {

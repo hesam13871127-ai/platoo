@@ -69,6 +69,12 @@ class AppStrings {
   String get equipNow => t('equipNow');
   String get itemDetails => t('itemDetails');
 
+  // Admin & Staff Hub
+  String get adminConsole => t('adminConsole');
+  String get adminStaffHub => t('adminStaffHub');
+  String get adminStaffSubtitle => t('adminStaffSubtitle');
+  String get openConsole => t('openConsole');
+
   static const _values = <String, Map<String, String>>{
     'play': {'en': 'Play', 'fa': 'بازی'},
     'shop': {'en': 'Shop', 'fa': 'فروشگاه'},
@@ -130,6 +136,10 @@ class AppStrings {
     'unlocked': {'en': 'Unlocked!', 'fa': 'بازگشایی شد!'},
     'equipNow': {'en': 'Equip Now', 'fa': 'فعال کردن اکنون'},
     'itemDetails': {'en': 'Item Details', 'fa': 'جزئیات آیتم'},
+    'adminConsole': {'en': 'Admin Console', 'fa': 'پنل مدیریت'},
+    'adminStaffHub': {'en': 'Staff & Admin Console', 'fa': 'مرکز مدیریت و نظارت'},
+    'adminStaffSubtitle': {'en': 'System controls, moderation & live telemetry', 'fa': 'کنترل سیستم، نظارت بر گزارش‌ها و آمار زنده'},
+    'openConsole': {'en': 'Open Console', 'fa': 'ورود به پنل مدیریت'},
   };
 }
 
