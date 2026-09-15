@@ -16,11 +16,15 @@ class SettingsController extends Notifier<({AppLocale locale, ThemeChoice theme}
 final settingsProvider = NotifierProvider<SettingsController, ({AppLocale locale, ThemeChoice theme})>(SettingsController.new);
 
 class AuthController extends AsyncNotifier<AuthSession?> {
-  late final ApiClient _api;
+  // Resolved from the provider graph on every use. AsyncNotifier.build() can
+  // run again on this same instance (watched dependency change / invalidate),
+  // so a `late final` assigned in build() throws LateInitializationError on
+  // the second run. apiClientProvider is a stable app-lifetime singleton, so
+  // this getter always returns the same instance with no re-assignment trap.
+  ApiClient get _api => ref.read(apiClientProvider);
 
   @override
   Future<AuthSession?> build() async {
-    _api = ref.watch(apiClientProvider);
     final cached = await ref.read(tokenStoreProvider).cachedUser();
     final token = await ref.read(tokenStoreProvider).accessToken();
     if (cached == null || token == null) return null;

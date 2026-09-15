@@ -53,11 +53,16 @@ export class AuthService {
 
   async verifyOtp(challengeId: string, code: string, userAgent?: string, ipAddress?: string) {
     const userId = await this.mysql.transaction(async (connection) => {
+      // The expiry check runs inside MySQL (UTC_TIMESTAMP) on purpose: the pool
+      // returns DATETIME columns as timezone-naive strings, so comparing them
+      // with `new Date()` uses the server's local timezone and any non-UTC
+      // host would treat every fresh code as expired. Same convention as
+      // refresh() and the requestOtp rate check below.
       const [rows] = await connection.query<RowDataPacket[]>(
-        `SELECT * FROM otp_challenges WHERE id = ? LIMIT 1 FOR UPDATE`, [challengeId],
+        `SELECT * FROM otp_challenges WHERE id = ? AND consumed_at IS NULL AND expires_at > UTC_TIMESTAMP(3) LIMIT 1 FOR UPDATE`, [challengeId],
       );
-      const challenge = rows[0] as (RowDataPacket & { phone_e164: string; code_hash: string; attempts: number; expires_at: string; consumed_at: string | null }) | undefined;
-      if (!challenge || challenge.consumed_at || new Date(challenge.expires_at).getTime() < Date.now()) throw unauthenticated('This verification code has expired.');
+      const challenge = rows[0] as (RowDataPacket & { phone_e164: string; code_hash: string; attempts: number }) | undefined;
+      if (!challenge) throw unauthenticated('This verification code has expired.');
       const maxAttempts = this.config.get<number>('otp.maxAttempts', 5);
       if (challenge.attempts >= maxAttempts) throw unauthenticated('Too many incorrect verification attempts.');
       if (this.hashCode(challengeId, code) !== challenge.code_hash) {
