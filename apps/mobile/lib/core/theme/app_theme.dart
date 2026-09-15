@@ -27,6 +27,8 @@ class AppTheme {
   static const mintGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5FE3B8), mint, Color(0xFF189A7C)]);
   static const coralGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFF9A86), coral, Color(0xFFE14E63)]);
   static const skyGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF8FD6FF), sky, Color(0xFF2E7FE0)]);
+  static const oceanGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF4F7CFF), Color(0xFF2E5BE0), Color(0xFF1E3FA0)]);
+  static const sunsetGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFFB25E), coral, Color(0xFFE14E9A)]);
   static const darkPageGradient = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF151B36), darkBackground]);
   static const lightPageGradient = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFEDE9FF), lightBackground]);
 

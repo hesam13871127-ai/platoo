@@ -120,11 +120,53 @@ export class LudoEngine implements GameEngine {
     const die = Number(state.pendingRoll);
     const legal = this.legalTokens(state, side, die, players);
     if (!legal.length) return { type: 'pass' };
-    const finishing = legal.find((token) => {
+    let best = legal[0];
+    let bestScore = -Infinity;
+    for (const token of legal) {
       const position = state.positions[side][token];
-      return (position === LUDO_HOME ? 0 : position + die) === LUDO_FINISHED;
-    });
-    return { type: 'move', token: finishing ?? legal[0] };
+      const destination = position === LUDO_HOME ? 0 : position + die;
+      // No random tiebreak: equal moves prefer the lowest token index so bot
+      // play stays deterministic (the dice already provide the variety).
+      let score = 0;
+      if (destination === LUDO_FINISHED) {
+        score += 60;
+      } else if (destination >= LUDO_TRACK_SIZE) {
+        score += 20 + destination;
+      } else {
+        const absolute = this.absolutePosition(side, destination);
+        const safe = this.isSafeSquare(side, destination);
+        if (safe) score += 25;
+        if (position === LUDO_HOME) score += 15;
+        if (!safe) score += this.captureValue(state, side, absolute, players) - this.dangerValue(state, side, absolute, players);
+        score += destination / 4;
+      }
+      if (position >= 0 && position < LUDO_TRACK_SIZE && this.isSafeSquare(side, position) && destination < LUDO_TRACK_SIZE && !this.isSafeSquare(side, destination)) score -= 12;
+      if (score > bestScore) { bestScore = score; best = token; }
+    }
+    return { type: 'move', token: best };
+  }
+
+  private captureValue(state: LudoState, side: number, absolute: number, players: GamePlayer[]): number {
+    let value = 0;
+    for (let other = 0; other < players.length; other += 1) {
+      if (other === side || this.sameTeam(players, side, other)) continue;
+      const matching = state.positions[other].filter((position) => position >= 0 && position < LUDO_TRACK_SIZE && this.absolutePosition(other, position) === absolute).length;
+      if (matching === 1) value += 35;
+    }
+    return value;
+  }
+
+  private dangerValue(state: LudoState, side: number, absolute: number, players: GamePlayer[]): number {
+    let danger = 0;
+    for (let other = 0; other < players.length; other += 1) {
+      if (other === side || this.sameTeam(players, side, other)) continue;
+      for (const position of state.positions[other]) {
+        if (position < 0 || position >= LUDO_TRACK_SIZE) continue;
+        const behind = (absolute - this.absolutePosition(other, position) + LUDO_TRACK_SIZE) % LUDO_TRACK_SIZE;
+        if (behind >= 1 && behind <= 6) danger += 8;
+      }
+    }
+    return danger;
   }
 
   private legalTokens(state: LudoState, side: number, die: number, players: GamePlayer[]): number[] {
@@ -319,11 +361,24 @@ export class DominoesEngine implements GameEngine {
     const side = players.findIndex((player) => player.id === botId);
     const legal = this.legalIndices(state.hands[side], state.chain);
     if (legal.length) {
-      const index = legal[0];
-      const tile = state.hands[side][index];
-      const left = tile.includes(state.chain[0]);
-      const right = tile.includes(state.chain[state.chain.length - 1]);
-      return { type: 'play', index, side: left && right ? 'right' : left ? 'left' : 'right' };
+      const hand = state.hands[side];
+      const leftEnd = state.chain[0];
+      const rightEnd = state.chain[state.chain.length - 1];
+      let best = legal[0];
+      let bestSide: 'left' | 'right' = 'right';
+      let bestScore = -Infinity;
+      for (const index of legal) {
+        const tile = hand[index];
+        const candidates: Array<'left' | 'right'> = [...(tile.includes(leftEnd) ? ['left' as const] : []), ...(tile.includes(rightEnd) ? ['right' as const] : [])];
+        for (const place of candidates) {
+          const matched = place === 'left' ? leftEnd : rightEnd;
+          const exposed = tile[0] === matched ? tile[1] : tile[0];
+          const futureOptions = hand.filter((other, otherIndex) => otherIndex !== index && other.includes(exposed)).length;
+          const score = tile[0] + tile[1] + futureOptions * 2 + Math.random();
+          if (score > bestScore) { bestScore = score; best = index; bestSide = place; }
+        }
+      }
+      return { type: 'play', index: best, side: bestSide };
     }
     return state.boneyard.length ? { type: 'draw' } : { type: 'pass' };
   }
@@ -524,12 +579,15 @@ export class PoolEngine implements GameEngine {
   botAction(state: PoolState, botId: string, players: GamePlayer[]): Action {
     const side = players.findIndex((player) => player.id === botId);
     const available = state.remainingBalls.filter((ball) => ball !== 8);
-    if (state.phase === 'break') return { type: 'shot', power: 75, pocket: 0, pocketed: available.length ? [available[0]] : [] };
+    const pocket = randomInt(6);
+    const power = 55 + randomInt(36);
+    // Bots miss sometimes: a perfect bot would run every rack unopposed.
+    if (state.phase === 'break') return { type: 'shot', power, pocket, pocketed: available.length && Math.random() < 0.6 ? [available[0]] : [] };
+    if (this.canShootEight(state, side)) return { type: 'shot', power, pocket, pocketed: [8] };
     const group = state.groups[side];
-    const target = group === null
-      ? available[0]
-      : available.find((ball) => this.groupFor(ball) === group) ?? (this.canShootEight(state, side) ? 8 : undefined);
-    return { type: 'shot', power: 65, pocket: 0, pocketed: target === undefined ? [] : [target] };
+    const target = group === null ? available[0] : available.find((ball) => this.groupFor(ball) === group);
+    const pocketed = target === undefined || Math.random() < 0.25 ? [] : [target];
+    return { type: 'shot', power, pocket, pocketed };
   }
 
   private pocketedBalls(action: Action): number[] {
@@ -698,6 +756,8 @@ export class CarromEngine implements GameEngine {
     const group = this.groupForSide(state, side);
     const own = state.remainingCoins.filter((coin) => !group || this.coinColor(coin) === group);
     if (state.queenPendingFor === side && own.length) return { type: 'strike', power: 65, pocketed: [own[0]], queen: false };
+    // Bots miss sometimes: a perfect bot would keep the turn forever.
+    if (Math.random() < 0.25) return { type: 'strike', power: 50, pocketed: [], queen: false };
     if (state.queenRemaining && own.length === 1) return { type: 'strike', power: 65, pocketed: [own[0]], queen: true };
     if (own.length) return { type: 'strike', power: 65, pocketed: [own[0]], queen: false };
     if (state.queenRemaining && state.remainingCoins.length === 0 && !group) return { type: 'strike', power: 65, pocketed: [], queen: true };

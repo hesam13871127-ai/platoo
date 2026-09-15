@@ -418,7 +418,7 @@ describe('authoritative game engines', () => {
       let state = engine.create(roster) as any;
       for (let move = 0; move < 100 && !state.finished; move += 1) {
         const actor = state.turnPlayerId as string;
-        state = engine.apply(state, actor, engine.botAction(state, actor), roster) as any;
+        state = engine.apply(state, actor, engine.botAction(state, actor, roster), roster) as any;
       }
       expect(state.finished).toBe(true);
     }

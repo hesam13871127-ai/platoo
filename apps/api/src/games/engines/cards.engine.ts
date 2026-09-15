@@ -225,7 +225,20 @@ export class OchoEngine implements GameEngine {
       .filter((index) => index >= 0);
 
     if (!legal.length) return { type: 'draw' };
-    const index = legal[randomInt(legal.length)];
+    // Heuristic pick: keep the majority color, save wilds, and disrupt with
+    // action cards when an opponent is about to go out.
+    const best = this.bestColor(hand);
+    const opponentsShort = players.some((player, item) => item !== side && state.hands[item].length <= 2);
+    const scored = legal.map((index) => {
+      const card = hand[index];
+      let score = Math.random();
+      if (card.color !== 'wild' && card.color === best) score += 3;
+      if (card.value === 'draw2' || card.value === 'skip' || card.value === 'reverse') score += opponentsShort ? 4 : 1;
+      if (card.value === 'wild4') score += opponentsShort ? 5 : -3;
+      if (card.value === 'wild') score -= 2;
+      return { index, score };
+    }).sort((a, b) => b.score - a.score);
+    const index = scored[0].index;
     const card = hand[index];
     return {
       type: 'play',

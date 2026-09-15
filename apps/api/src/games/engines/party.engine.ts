@@ -288,8 +288,18 @@ export class WerewolfEngine implements GameEngine {
     if (state.phase === 'night') {
       const role = state.roles[side];
       if (role === 'villager') return { type: 'night' };
-      const candidates = players.map((_, index) => index).filter((index) => state.alive[index] && (role !== 'werewolf' || state.roles[index] !== 'werewolf'));
-      return { type: 'night', target: candidates[randomInt(candidates.length)] ?? 0 };
+      const previous = role === 'seer' ? state.seerResults[side]?.target : undefined;
+      const candidates = players
+        .map((_, index) => index)
+        .filter((index) => state.alive[index] && (role !== 'werewolf' || state.roles[index] !== 'werewolf') && (role !== 'seer' || index !== side) && index !== previous);
+      const pool = candidates.length
+        ? candidates
+        : players.map((_, index) => index).filter((index) => state.alive[index] && (role !== 'werewolf' || state.roles[index] !== 'werewolf'));
+      return { type: 'night', target: pool[randomInt(pool.length)] ?? 0 };
+    }
+    if (state.roles[side] === 'seer') {
+      const known = state.seerResults[side];
+      if (known && known.isWerewolf && state.alive[known.target] && known.target !== side) return { type: 'vote', target: known.target };
     }
     const candidates = players.map((_, index) => index).filter((index) => state.alive[index] && index !== side);
     return { type: 'vote', target: candidates[randomInt(candidates.length)] ?? 0 };
