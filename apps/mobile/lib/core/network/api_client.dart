@@ -1,7 +1,17 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../storage/token_store.dart';
 
-const apiBaseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:3000/api/v1');
+String _resolveDefaultApiUrl() {
+  const fromEnv = String.fromEnvironment('API_URL');
+  if (fromEnv.isNotEmpty) return fromEnv;
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return 'http://10.0.2.2:3000/api/v1';
+  }
+  return 'http://localhost:3000/api/v1';
+}
+
+final String apiBaseUrl = _resolveDefaultApiUrl();
 
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode, this.code});

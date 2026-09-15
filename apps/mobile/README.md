@@ -16,8 +16,10 @@ Android local testing needs one manifest tweak (emulator/device IPs are not exem
 ## Run
 
 ```bash
-flutter run --dart-define=API_URL=http://10.0.2.2:3000/api/v1   # Android emulator (also the default)
-flutter run --dart-define=API_URL=http://127.0.0.1:3000/api/v1  # iOS simulator
+flutter run                                                     # Auto-detects platform (localhost for web/desktop/iOS, 10.0.2.2 for Android emulator)
+flutter run -d chrome                                           # Web browser
+flutter run --dart-define=API_URL=http://10.0.2.2:3000/api/v1   # Android emulator
+flutter run --dart-define=API_URL=http://127.0.0.1:3000/api/v1  # iOS simulator / Web
 flutter run --dart-define=API_URL=http://<lan-ip>:3000/api/v1    # physical device
 ```
 
