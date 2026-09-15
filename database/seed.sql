@@ -31,14 +31,17 @@ INSERT INTO games (id, display_name, category, min_players, max_players, support
 ('quick_challenges','Quick Challenges','arcade',1,6,FALSE,'#EAB308','bolt',JSON_OBJECT('rounds',7))
 ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), config=VALUES(config), is_active=TRUE;
 
-INSERT INTO shop_items (id, sku, name, description, category, price_coins, price_pips, asset_key, is_giftable) VALUES
-('10000000-0000-4000-8000-000000000001','avatar-neon','Neon Nova','A bright neon profile avatar.','avatar',500,0,'avatar_neon',TRUE),
-('10000000-0000-4000-8000-000000000002','frame-sunset','Sunset Frame','Warm sunset frame for your profile.','frame',750,0,'frame_sunset',TRUE),
-('10000000-0000-4000-8000-000000000003','emote-fire','Fire Emote','Show the table who is on fire.','emote',250,0,'emote_fire',TRUE),
-('10000000-0000-4000-8000-000000000004','table-aurora','Aurora Table','An aurora-lit table for private rooms.','table',1500,0,'table_aurora',TRUE),
-('10000000-0000-4000-8000-000000000005','dice-crystal','Crystal Dice','Transparent crystal dice with electric edges.','dice',1000,0,'dice_crystal',TRUE),
-('10000000-0000-4000-8000-000000000006','bundle-starter','Starter Vibe Pack','Avatar, frame, emote and 1,500 coins.','bundle',0,150,'bundle_starter',TRUE)
-ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), price_coins=VALUES(price_coins), price_pips=VALUES(price_pips), is_active=TRUE;
+-- `metadata.grants` is what a bundle hands over the moment it is bought: the
+-- wallet service credits the coins/pips and drops the granted items straight
+-- into the buyer's inventory (see WalletService.grantBundle).
+INSERT INTO shop_items (id, sku, name, description, category, price_coins, price_pips, asset_key, is_giftable, metadata) VALUES
+('10000000-0000-4000-8000-000000000001','avatar-neon','Neon Nova','A bright neon profile avatar.','avatar',500,0,'avatar_neon',TRUE,NULL),
+('10000000-0000-4000-8000-000000000002','frame-sunset','Sunset Frame','Warm sunset frame for your profile.','frame',750,0,'frame_sunset',TRUE,NULL),
+('10000000-0000-4000-8000-000000000003','emote-fire','Fire Emote','Show the table who is on fire.','emote',250,0,'emote_fire',TRUE,NULL),
+('10000000-0000-4000-8000-000000000004','table-aurora','Aurora Table','An aurora-lit table for private rooms.','table',1500,0,'table_aurora',TRUE,NULL),
+('10000000-0000-4000-8000-000000000005','dice-crystal','Crystal Dice','Transparent crystal dice with electric edges.','dice',1000,0,'dice_crystal',TRUE,NULL),
+('10000000-0000-4000-8000-000000000006','bundle-starter','Starter Vibe Pack','Neon Nova avatar, Sunset frame, Fire emote and 1,500 coins.','bundle',0,150,'bundle_starter',TRUE,JSON_OBJECT('grants', JSON_OBJECT('coins', 1500, 'pips', 0, 'items', JSON_ARRAY(JSON_OBJECT('itemId','10000000-0000-4000-8000-000000000001','quantity',1), JSON_OBJECT('itemId','10000000-0000-4000-8000-000000000002','quantity',1), JSON_OBJECT('itemId','10000000-0000-4000-8000-000000000003','quantity',1)))))
+ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), price_coins=VALUES(price_coins), price_pips=VALUES(price_pips), metadata=VALUES(metadata), is_active=TRUE;
 
 INSERT INTO seasons (id, name, starts_at, ends_at, status)
 VALUES ('20000000-0000-4000-8000-000000000001','Season One: First Light','2026-01-01 00:00:00.000','2026-12-31 23:59:59.000','active')

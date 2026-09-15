@@ -40,6 +40,8 @@ export class CreateShopItemDto {
   @IsOptional() @IsBoolean() isGiftable?: boolean;
   @IsOptional() @IsBoolean() isLimited?: boolean;
   @IsOptional() @IsInt() @Min(0) stock?: number;
+  /** Bundle contents, e.g. `{ "grants": { "coins": 1500, "items": ["<item uuid>"] } }`. */
+  @IsOptional() @IsObject() metadata?: Record<string, unknown>;
 }
 
 export class UpdateShopItemDto {
@@ -53,6 +55,7 @@ export class UpdateShopItemDto {
   @IsOptional() @IsBoolean() isGiftable?: boolean;
   @IsOptional() @IsBoolean() isLimited?: boolean;
   @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsOptional() @IsObject() metadata?: Record<string, unknown>;
   @IsOptional()
   @ValidateIf((_object, value) => value !== null)
   @IsInt()

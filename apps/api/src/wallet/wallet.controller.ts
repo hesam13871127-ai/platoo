@@ -17,9 +17,11 @@ export class WalletController {
   @RateLimit({ limit: 120, windowMs: MINUTE })
   @Get('wallet/ledger') ledger(@CurrentUser() user: AuthenticatedUser, @Query('limit') limit?: string) { return this.wallet.ledger(user.id, Number(limit ?? 50)); }
   @RateLimit({ limit: 120, windowMs: MINUTE })
-  @Get('shop/items') catalog() { return this.wallet.catalog(); }
+  @Get('shop/items') catalog(@CurrentUser() user: AuthenticatedUser) { return this.wallet.catalog(user.id); }
   @RateLimit({ limit: 120, windowMs: MINUTE })
   @Get('shop/inventory') inventory(@CurrentUser() user: AuthenticatedUser) { return this.wallet.inventory(user.id); }
+  @RateLimit({ limit: 60, windowMs: MINUTE })
+  @Get('shop/gifts') gifts(@CurrentUser() user: AuthenticatedUser, @Query('limit') limit?: string) { return this.wallet.gifts(user.id, Number(limit ?? 30)); }
   @RateLimit({ limit: 30, windowMs: MINUTE })
   @Post('shop/purchase') buy(@CurrentUser() user: AuthenticatedUser, @Body() dto: BuyItemDto) { return this.wallet.buy(user.id, dto); }
   @RateLimit({ limit: 60, windowMs: MINUTE })

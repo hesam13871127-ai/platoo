@@ -265,6 +265,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                       final mine = myId != null && message['senderId']?.toString() == myId;
                       final rally = parseRally(message['body']?.toString() ?? '');
                       if (rally != null) return _RallyBubble(message: message, rally: rally, mine: mine);
+                      if (message['kind']?.toString() == 'gift') return _GiftBubble(message: message, mine: mine);
                       return _MessageBubble(message: message, mine: mine);
                     },
                   ),
@@ -285,6 +286,57 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A cosmetics gift dropped into the conversation by the shop (kind = 'gift').
+/// Reads as a present instead of a plain message so the recipient spots it.
+class _GiftBubble extends StatelessWidget {
+  const _GiftBubble({required this.message, required this.mine});
+  final Map<String, dynamic> message;
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = mine ? AppTheme.pink : AppTheme.mint;
+    return Align(
+      alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .78),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [accent.withOpacity(.2), accent.withOpacity(.07)]),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: accent.withOpacity(.45), width: 1.4),
+          boxShadow: AppTheme.glow(accent, strength: .22),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: mine ? AppTheme.coralGradient : AppTheme.mintGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(accent, strength: .3)), child: const Icon(Icons.card_giftcard_rounded, color: Colors.white, size: 20)),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(mine ? '🎁 Gift sent' : '🎁 Gift for you', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .6, color: accent)),
+                  const SizedBox(height: 2),
+                  Text(message['body']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, height: 1.3)),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Text(
+              mine ? 'It is already in their inventory.' : 'Open the Shop → My inventory to equip it.',
+              style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(friendlyChatTime(message['createdAt']?.toString()), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ),
       ),
     );
   }

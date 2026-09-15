@@ -175,14 +175,14 @@ export class AdminService {
   // ---------------------------------------------------------------- shop
 
   async shop() {
-    return this.mysql.query<RowDataPacket[]>(`SELECT id, sku, name, description, category, price_coins AS priceCoins, price_pips AS pricePips, asset_key AS assetKey, is_active AS isActive, is_limited AS isLimited, stock, is_giftable AS isGiftable, created_at AS createdAt, updated_at AS updatedAt FROM shop_items ORDER BY created_at DESC`);
+    return this.mysql.query<RowDataPacket[]>(`SELECT id, sku, name, description, category, price_coins AS priceCoins, price_pips AS pricePips, asset_key AS assetKey, is_active AS isActive, is_limited AS isLimited, stock, is_giftable AS isGiftable, metadata, created_at AS createdAt, updated_at AS updatedAt FROM shop_items ORDER BY created_at DESC`);
   }
 
   async createShop(adminId: string, dto: CreateShopItemDto) {
     if (dto.priceCoins === 0 && dto.pricePips === 0) throw invalid('An item must have a coin or pip price.');
     const id = randomUUID();
     try {
-      await this.mysql.execute(`INSERT INTO shop_items (id, sku, name, description, category, price_coins, price_pips, asset_key, stock, is_limited, is_giftable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, dto.sku.trim(), dto.name.trim(), dto.description.trim(), dto.category, dto.priceCoins, dto.pricePips, dto.assetKey.trim(), dto.stock ?? null, dto.isLimited ?? false, dto.isGiftable ?? true]);
+      await this.mysql.execute(`INSERT INTO shop_items (id, sku, name, description, category, price_coins, price_pips, asset_key, stock, is_limited, is_giftable, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, dto.sku.trim(), dto.name.trim(), dto.description.trim(), dto.category, dto.priceCoins, dto.pricePips, dto.assetKey.trim(), dto.stock ?? null, dto.isLimited ?? false, dto.isGiftable ?? true, this.shopMetadata(dto.metadata)]);
     } catch (error) {
       if (this.isDuplicateEntry(error)) throw conflict('An item with this SKU already exists.');
       throw error;
@@ -206,6 +206,11 @@ export class AdminService {
     if (dto.isGiftable !== undefined) { fields.push('is_giftable = ?'); values.push(dto.isGiftable); }
     if (dto.isLimited !== undefined) { fields.push('is_limited = ?'); values.push(dto.isLimited); }
     if (dto.isActive !== undefined) { fields.push('is_active = ?'); values.push(dto.isActive); }
+    if (dto.metadata !== undefined) {
+      const current = this.parseJson<Record<string, unknown>>(before[0].metadata, {});
+      fields.push('metadata = ?');
+      values.push(this.shopMetadata({ ...current, ...dto.metadata }));
+    }
     if (!fields.length) throw invalid('No change was supplied.');
     const effectiveCoins = dto.priceCoins ?? Number(before[0].price_coins);
     const effectivePips = dto.pricePips ?? Number(before[0].price_pips);
@@ -216,7 +221,7 @@ export class AdminService {
       if (this.isDuplicateEntry(error)) throw conflict('An item with this SKU already exists.');
       throw error;
     }
-    const after = await this.mysql.query<RowDataPacket[]>(`SELECT id, sku, name, description, category, price_coins AS priceCoins, price_pips AS pricePips, asset_key AS assetKey, is_active AS isActive, is_limited AS isLimited, stock, is_giftable AS isGiftable, updated_at AS updatedAt FROM shop_items WHERE id = ?`, [itemId]);
+    const after = await this.mysql.query<RowDataPacket[]>(`SELECT id, sku, name, description, category, price_coins AS priceCoins, price_pips AS pricePips, asset_key AS assetKey, is_active AS isActive, is_limited AS isLimited, stock, is_giftable AS isGiftable, metadata, updated_at AS updatedAt FROM shop_items WHERE id = ?`, [itemId]);
     await this.audit(adminId, 'shop.update', 'shop_item', itemId, this.slimShop(before[0]), after[0]);
     return after[0];
   }
@@ -456,6 +461,25 @@ export class AdminService {
 
   private series(rows: RowDataPacket[]): Array<{ day: string; value: number }> {
     return rows.map((row) => ({ day: typeof row.day === 'string' ? row.day.slice(0, 10) : String(row.day), value: Number(row.value ?? 0) }));
+  }
+
+  /**
+   * Validates + serialises bundle metadata. `grants` describes what a bundle hands
+   * over on purchase (`{ coins, pips, items: [{ itemId, quantity }] }`) and is read
+   * by the wallet service; anything else is stored as-is.
+   */
+  private shopMetadata(metadata?: Record<string, unknown> | null): string | null {
+    if (!metadata || !Object.keys(metadata).length) return null;
+    const grants = metadata['grants'];
+    if (grants !== undefined) {
+      if (!grants || typeof grants !== 'object' || Array.isArray(grants)) throw invalid('"grants" must be an object such as { "coins": 1500, "items": ["<item id>"] }.');
+      const typed = grants as Record<string, unknown>;
+      const coins = Number(typed['coins'] ?? 0);
+      const pips = Number(typed['pips'] ?? 0);
+      if ((coins && (!Number.isFinite(coins) || coins < 0)) || (pips && (!Number.isFinite(pips) || pips < 0))) throw invalid('Bundle coin and pip grants cannot be negative.');
+      if (typed['items'] !== undefined && !Array.isArray(typed['items'])) throw invalid('"grants.items" must be an array of item ids.');
+    }
+    return JSON.stringify(metadata);
   }
 
   private slimShop(row: RowDataPacket): Record<string, unknown> {

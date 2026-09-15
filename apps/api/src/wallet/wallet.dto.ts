@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 
 export class BuyItemDto {
   @IsUUID()
@@ -13,6 +13,11 @@ export class BuyItemDto {
 export class EquipItemDto {
   @IsUUID()
   itemId!: string;
+
+  /** `false` takes the item off. Omitting it keeps the original equip behaviour. */
+  @IsOptional()
+  @IsBoolean()
+  equipped?: boolean;
 }
 
 export class GiftItemDto {

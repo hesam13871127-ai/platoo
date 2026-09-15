@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
@@ -150,6 +152,7 @@ class AdminShopTab extends ConsumerWidget {
     final pricePips = TextEditingController(text: '${intOf(existing?['pricePips'])}');
     final assetKey = TextEditingController(text: strOf(existing?['assetKey']));
     final stock = TextEditingController(text: existing?['stock'] == null ? '' : '${existing!['stock']}');
+    final metadata = TextEditingController(text: existing?['metadata'] is Map ? jsonEncode(existing!['metadata']) : (existing?['metadata']?.toString() ?? ''));
     var category = strOf(existing?['category'], 'avatar');
     if (!_categories.contains(category)) category = 'avatar';
     var giftable = existing == null ? true : boolOf(existing['isGiftable'], fallback: true);
@@ -189,6 +192,18 @@ class AdminShopTab extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 TextField(controller: assetKey, decoration: const InputDecoration(labelText: 'Asset key')),
+                if (category == 'bundle') ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: metadata,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Bundle contents (JSON)',
+                      helperText: 'e.g. {"grants":{"coins":1500,"items":[{"itemId":"<uuid>","quantity":1}]}}',
+                      helperMaxLines: 3,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 TextField(controller: stock, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Stock (empty = unlimited)')),
                 CheckboxListTile(value: giftable, title: const Text('Giftable'), contentPadding: EdgeInsets.zero, onChanged: (v) => setDialogState(() => giftable = v ?? true)),
@@ -217,6 +232,17 @@ class AdminShopTab extends ConsumerWidget {
       'isLimited': limited,
       'isActive': active,
     };
+    final metadataText = metadata.text.trim();
+    Map<String, dynamic>? parsedMetadata;
+    if (metadataText.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(metadataText);
+        if (decoded is Map) parsedMetadata = Map<String, dynamic>.from(decoded);
+      } catch (_) {
+        parsedMetadata = null;
+      }
+    }
+    final metadataInvalid = metadataText.isNotEmpty && parsedMetadata == null;
     final stockText = stock.text.trim();
     if (existing == null) {
       if (stockText.isNotEmpty) payload['stock'] = int.tryParse(stockText) ?? 0;
@@ -230,7 +256,13 @@ class AdminShopTab extends ConsumerWidget {
     pricePips.dispose();
     assetKey.dispose();
     stock.dispose();
+    metadata.dispose();
     if (saved != true || !context.mounted) return;
+    if (metadataInvalid) {
+      showAdminMessage(context, 'Bundle contents must be a JSON object like {"grants":{"coins":1500}}');
+      return;
+    }
+    if (parsedMetadata != null) payload['metadata'] = parsedMetadata;
 
     final Object? result;
     if (existing == null) {
