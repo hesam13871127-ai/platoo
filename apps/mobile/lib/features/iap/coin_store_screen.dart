@@ -6,6 +6,7 @@ import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_feedback.dart';
 import '../../core/widgets/state_panel.dart';
+import '../../core/widgets/vibe_components.dart';
 import '../../core/widgets/vibe_logo.dart';
 import 'iap_models.dart';
 import 'iap_service.dart';
@@ -23,49 +24,69 @@ class CoinStoreScreen extends ConsumerWidget {
     final buying = ref.watch(iapControllerProvider).isLoading;
     final coins = ref.watch(authProvider).value?.user.coins ?? 0;
     final fa = strings.isPersian;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(fa ? 'خرید سکه' : 'Get coins'),
+        title: Text(fa ? 'خرید سکه' : 'Coin Store', style: const TextStyle(fontWeight: FontWeight.w900)),
         actions: [
           Padding(
             padding: const EdgeInsetsDirectional.only(end: 16),
-            child: Chip(
-              avatar: const Icon(Icons.circle, size: 16, color: AppTheme.gold),
-              label: Text('$coins', style: const TextStyle(fontWeight: FontWeight.w900)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.gold.withOpacity(.14),
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(color: AppTheme.gold.withOpacity(.35)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.circle, size: 14, color: AppTheme.gold),
+                  const SizedBox(width: 6),
+                  Text('$coins', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppTheme.gold)),
+                ],
+              ),
             ),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(coinPacksProvider);
-          try {
-            await ref.read(coinPacksProvider.future);
-          } catch (_) {}
-        },
-        child: packs.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => const StatePanel(
-            icon: Icons.cloud_off_rounded,
-            title: 'The coin store is taking a break',
-            message: 'We could not load the packs. Pull down to try again.',
+      body: VibePageBackground(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(coinPacksProvider);
+            try {
+              await ref.read(coinPacksProvider.future);
+            } catch (_) {}
+          },
+          child: packs.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => StatePanel(
+              icon: Icons.cloud_off_rounded,
+              title: fa ? 'فروشگاه سکه موقتاً در دسترس نیست' : 'The coin store is taking a break',
+              message: fa ? 'نتوانستیم بسته‌های سکه را بارگذاری کنیم.' : 'We could not load the packs. Pull down to try again.',
+              actionLabel: strings.retry,
+              onAction: () => ref.invalidate(coinPacksProvider),
+            ),
+            data: (list) => list.isEmpty
+                ? StatePanel(
+                    icon: Icons.monetization_on_outlined,
+                    title: fa ? 'بسته‌ای برای خرید نیست' : 'No coin packs yet',
+                    message: fa ? 'شارژ سکه در این نسخه فعال نیست.' : 'Top-ups are not available in this build.',
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                    itemCount: list.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (index == 0) return _CoinHero(fa: fa);
+                      final pack = list[index - 1];
+                      return Entrance(
+                        delay: Duration(milliseconds: index * 40),
+                        child: _PackCard(pack: pack, buying: buying, fa: fa, onBuy: () => _buy(context, ref, pack)),
+                      );
+                    },
+                  ),
           ),
-          data: (list) => list.isEmpty
-              ? const StatePanel(
-                  icon: Icons.monetization_on_outlined,
-                  title: 'No coin packs yet',
-                  message: 'Top-ups are not available in this build.',
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                  itemCount: list.length + 1,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    if (index == 0) return _CoinHero(fa: fa);
-                    final pack = list[index - 1];
-                    return _PackCard(pack: pack, buying: buying, fa: fa, onBuy: () => _buy(context, ref, pack));
-                  },
-                ),
         ),
       ),
     );
@@ -96,7 +117,12 @@ class _CoinHero extends StatelessWidget {
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(26),
-          gradient: const LinearGradient(colors: [Color(0xFFF8B75B), Color(0xFFFF735C)]),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF8B75B), Color(0xFFFF735C)],
+          ),
+          boxShadow: AppTheme.glow(const Color(0xFFFF735C), strength: .25),
         ),
         child: Row(
           children: [
@@ -106,16 +132,17 @@ class _CoinHero extends StatelessWidget {
                 children: [
                   Text(
                     fa ? 'موجودی سکه‌ت را شارژ کن' : 'Top up your coin balance',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 21),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 20),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     fa ? 'پرداخت امن از طریق اپ‌استور یا گوگل‌پلی.' : 'Secure checkout through the App Store or Google Play.',
-                    style: const TextStyle(color: Colors.white, height: 1.35),
+                    style: const TextStyle(color: Colors.white, height: 1.35, fontSize: 13),
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 12),
             const VibeLogo(compact: true),
           ],
         ),
@@ -130,44 +157,69 @@ class _PackCard extends StatelessWidget {
   final VoidCallback onBuy;
 
   @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.14), borderRadius: BorderRadius.circular(18)),
-                child: const Icon(Icons.monetization_on_rounded, color: AppTheme.gold, size: 32),
+  Widget build(BuildContext context) => VibeCard(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppTheme.gold.withOpacity(.15),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppTheme.gold.withOpacity(.3)),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '+${pack.totalCoins} ${fa ? 'سکه' : 'coins'}',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      pack.hasBonus
-                          ? (fa ? '${pack.coins} سکه + ${pack.bonusCoins} جایزه' : '${pack.coins} coins + ${pack.bonusCoins} bonus')
-                          : (fa ? 'بدون کارمزد اضافه' : 'No fees, straight to your wallet'),
-                      style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
+              child: const Icon(Icons.monetization_on_rounded, color: AppTheme.gold, size: 30),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '+${pack.totalCoins} ${fa ? 'سکه' : 'coins'}',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                      ),
+                      if (pack.hasBonus) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.primaryGradient,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            fa ? 'ویژه' : 'BONUS',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    pack.hasBonus
+                        ? (fa ? '${pack.coins} سکه + ${pack.bonusCoins} جایزه' : '${pack.coins} coins + ${pack.bonusCoins} bonus')
+                        : (fa ? 'بدون کارمزد اضافه' : 'Instant credit to wallet'),
+                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
               ),
-              FilledButton(
-                onPressed: buying ? null : onBuy,
-                child: buying
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(pack.displayPrice.isEmpty ? (fa ? 'خرید' : 'Buy') : pack.displayPrice),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: buying ? null : onBuy,
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
-            ],
-          ),
+              child: buying
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(pack.displayPrice.isEmpty ? (fa ? 'خرید' : 'Buy') : pack.displayPrice, style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
         ),
       );
 }
