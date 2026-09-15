@@ -14,16 +14,25 @@ export class WalletController {
 
   @RateLimit({ limit: 120, windowMs: MINUTE })
   @Get('wallet') balance(@CurrentUser() user: AuthenticatedUser) { return this.wallet.balance(user.id); }
+
   @RateLimit({ limit: 120, windowMs: MINUTE })
   @Get('wallet/ledger') ledger(@CurrentUser() user: AuthenticatedUser, @Query('limit') limit?: string) { return this.wallet.ledger(user.id, Number(limit ?? 50)); }
+
   @RateLimit({ limit: 120, windowMs: MINUTE })
   @Get('shop/items') catalog() { return this.wallet.catalog(); }
+
   @RateLimit({ limit: 120, windowMs: MINUTE })
   @Get('shop/inventory') inventory(@CurrentUser() user: AuthenticatedUser) { return this.wallet.inventory(user.id); }
+
+  @RateLimit({ limit: 60, windowMs: MINUTE })
+  @Get('shop/gifts') gifts(@CurrentUser() user: AuthenticatedUser) { return this.wallet.gifts(user.id); }
+
   @RateLimit({ limit: 30, windowMs: MINUTE })
   @Post('shop/purchase') buy(@CurrentUser() user: AuthenticatedUser, @Body() dto: BuyItemDto) { return this.wallet.buy(user.id, dto); }
+
   @RateLimit({ limit: 60, windowMs: MINUTE })
   @Put('shop/equip') equip(@CurrentUser() user: AuthenticatedUser, @Body() dto: EquipItemDto) { return this.wallet.equip(user.id, dto); }
+
   @RateLimit({ limit: 30, windowMs: MINUTE })
   @Post('shop/gift') gift(@CurrentUser() user: AuthenticatedUser, @Body() dto: GiftItemDto) { return this.wallet.gift(user.id, dto); }
 }

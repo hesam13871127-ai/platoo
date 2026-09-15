@@ -90,6 +90,23 @@ export interface ShopItem {
   pricePips: number;
   assetKey: string;
   isLimited: boolean;
+  isGiftable?: boolean;
+  stock?: number | null;
+}
+
+export interface InventoryItem {
+  id: string;
+  itemId: string;
+  sku: string;
+  name: string;
+  description: string;
+  category: string;
+  assetKey: string;
+  quantity: number;
+  equipped: boolean;
+  isGiftable?: boolean;
+  acquiredAt?: string;
+  expiresAt?: string;
 }
 
 export interface LeaderboardEntry extends UserSummary {

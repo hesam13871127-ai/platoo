@@ -55,10 +55,132 @@ class GameDescriptor {
 }
 
 class ShopItem {
-  const ShopItem({required this.id, required this.name, required this.description, required this.category, required this.priceCoins, required this.pricePips, required this.assetKey, required this.isGiftable});
-  final String id; final String name; final String description; final String category; final int priceCoins; final int pricePips; final String assetKey; final bool isGiftable;
-  factory ShopItem.fromJson(Map<String, dynamic> json) => ShopItem(id: json['id'] as String, name: json['name'] as String, description: json['description'] as String? ?? '', category: json['category'] as String? ?? 'bundle', priceCoins: (json['priceCoins'] as num?)?.toInt() ?? 0, pricePips: (json['pricePips'] as num?)?.toInt() ?? 0, assetKey: json['assetKey'] as String? ?? 'bundle', isGiftable: _bool(json['isGiftable'], fallback: true));
-  static bool _bool(dynamic value, {bool fallback = false}) => value is bool ? value : value is num ? value != 0 : value is String ? value == '1' || value.toLowerCase() == 'true' : fallback;
+  const ShopItem({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.category,
+    required this.priceCoins,
+    required this.pricePips,
+    required this.assetKey,
+    required this.isGiftable,
+    this.isLimited = false,
+    this.stock,
+  });
+  final String id;
+  final String name;
+  final String description;
+  final String category;
+  final int priceCoins;
+  final int pricePips;
+  final String assetKey;
+  final bool isGiftable;
+  final bool isLimited;
+  final int? stock;
+
+  factory ShopItem.fromJson(Map<String, dynamic> json) => ShopItem(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    description: json['description'] as String? ?? '',
+    category: json['category'] as String? ?? 'bundle',
+    priceCoins: (json['priceCoins'] as num?)?.toInt() ?? 0,
+    pricePips: (json['pricePips'] as num?)?.toInt() ?? 0,
+    assetKey: json['assetKey'] as String? ?? 'bundle',
+    isGiftable: _bool(json['isGiftable'], fallback: true),
+    isLimited: _bool(json['isLimited'], fallback: false),
+    stock: (json['stock'] as num?)?.toInt(),
+  );
+
+  static bool _bool(dynamic value, {bool fallback = false}) =>
+      value is bool ? value : value is num ? value != 0 : value is String ? value == '1' || value.toLowerCase() == 'true' : fallback;
+}
+
+class InventoryItem {
+  const InventoryItem({
+    required this.id,
+    required this.itemId,
+    required this.sku,
+    required this.name,
+    required this.description,
+    required this.category,
+    required this.assetKey,
+    required this.quantity,
+    required this.equipped,
+    this.isGiftable = true,
+    this.acquiredAt,
+    this.expiresAt,
+  });
+  final String id;
+  final String itemId;
+  final String sku;
+  final String name;
+  final String description;
+  final String category;
+  final String assetKey;
+  final int quantity;
+  final bool equipped;
+  final bool isGiftable;
+  final DateTime? acquiredAt;
+  final DateTime? expiresAt;
+
+  factory InventoryItem.fromJson(Map<String, dynamic> json) => InventoryItem(
+    id: json['id'] as String? ?? '',
+    itemId: json['itemId'] as String? ?? json['shop_item_id'] as String? ?? '',
+    sku: json['sku'] as String? ?? '',
+    name: json['name'] as String? ?? 'Item',
+    description: json['description'] as String? ?? '',
+    category: json['category'] as String? ?? 'bundle',
+    assetKey: json['assetKey'] as String? ?? json['asset_key'] as String? ?? 'bundle',
+    quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+    equipped: json['equipped'] == true || json['equipped'] == 1,
+    isGiftable: ShopItem._bool(json['isGiftable'], fallback: true),
+    acquiredAt: json['acquiredAt'] != null ? DateTime.tryParse(json['acquiredAt'].toString()) : null,
+    expiresAt: json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'].toString()) : null,
+  );
+}
+
+class GiftHistoryEntry {
+  const GiftHistoryEntry({
+    required this.id,
+    required this.otherUserId,
+    required this.otherUserName,
+    this.otherUserAvatarUrl,
+    required this.itemId,
+    required this.itemName,
+    required this.category,
+    required this.assetKey,
+    required this.quantity,
+    this.note,
+    this.createdAt,
+    required this.isReceived,
+  });
+  final String id;
+  final String otherUserId;
+  final String otherUserName;
+  final String? otherUserAvatarUrl;
+  final String itemId;
+  final String itemName;
+  final String category;
+  final String assetKey;
+  final int quantity;
+  final String? note;
+  final DateTime? createdAt;
+  final bool isReceived;
+
+  factory GiftHistoryEntry.fromJson(Map<String, dynamic> json, {required bool isReceived}) => GiftHistoryEntry(
+    id: json['id'] as String? ?? '',
+    otherUserId: (isReceived ? json['senderId'] : json['recipientId']) as String? ?? '',
+    otherUserName: (isReceived ? json['senderName'] : json['recipientName']) as String? ?? 'Friend',
+    otherUserAvatarUrl: (isReceived ? json['senderAvatarUrl'] : json['recipientAvatarUrl']) as String?,
+    itemId: json['itemId'] as String? ?? '',
+    itemName: json['itemName'] as String? ?? 'Item',
+    category: json['category'] as String? ?? 'bundle',
+    assetKey: json['assetKey'] as String? ?? 'bundle',
+    quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+    note: json['note'] as String?,
+    createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
+    isReceived: isReceived,
+  );
 }
 
 class MatchModel {
