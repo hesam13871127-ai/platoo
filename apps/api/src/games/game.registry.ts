@@ -7,6 +7,23 @@ import { DicePartyEngine, BingoEngine, WerewolfEngine, WordChainEngine, MemoryRa
 import { ArcheryEngine, BowlingEngine, DartsEngine, MiniGolfEngine, TableSoccerEngine } from './engines/sport.engine';
 import { GameDescriptor } from '@vibetable/contracts';
 
+export const CORE_GAME_IDS = [
+  'ocho',
+  'pool_8_ball',
+  'ludo',
+  'chess',
+  'four_in_a_row',
+  'dominoes',
+  'carrom',
+  'backgammon',
+  'checkers',
+  'werewolf',
+] as const satisfies readonly GameId[];
+
+export const CORE_GAME_ID_SET = new Set<GameId>(CORE_GAME_IDS);
+
+export const isCoreGame = (id: string): id is GameId => CORE_GAME_ID_SET.has(id as GameId);
+
 export const GAME_DESCRIPTORS: GameDescriptor[] = [
   { id: 'ocho', name: 'Ocho', category: 'cards', minPlayers: 2, maxPlayers: 4, supportsTeams: false, accent: '#7C5CFC', icon: 'style' },
   { id: 'pool_8_ball', name: 'Pool 8-ball', category: 'sports', minPlayers: 2, maxPlayers: 2, supportsTeams: false, accent: '#1C9B78', icon: 'sports_bar' },

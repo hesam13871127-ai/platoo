@@ -29,7 +29,11 @@ INSERT INTO games (id, display_name, category, min_players, max_players, support
 ('memory_race','Memory Race','party',2,6,FALSE,'#8B5CF6','memory',JSON_OBJECT('pairs',12)),
 ('impostor_light','Impostor Light','party',4,10,FALSE,'#DC2626','visibility_off',JSON_OBJECT('roundSeconds',90)),
 ('quick_challenges','Quick Challenges','arcade',1,6,FALSE,'#EAB308','bolt',JSON_OBJECT('rounds',7))
-ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), config=VALUES(config), is_active=TRUE;
+ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), config=VALUES(config), is_active=(id IN ('ocho','pool_8_ball','ludo','chess','four_in_a_row','dominoes','carrom','backgammon','checkers','werewolf'));
+
+-- Closed-release gate: only the ten focused core games are available to players.
+-- The remaining engines and rows stay installed for a future release.
+UPDATE games SET is_active = (id IN ('ocho','pool_8_ball','ludo','chess','four_in_a_row','dominoes','carrom','backgammon','checkers','werewolf'));
 
 INSERT INTO shop_items (id, sku, name, description, category, price_coins, price_pips, asset_key, is_giftable) VALUES
 ('10000000-0000-4000-8000-000000000001','avatar-neon','Neon Nova','A bright neon profile avatar.','avatar',500,0,'avatar_neon',TRUE),

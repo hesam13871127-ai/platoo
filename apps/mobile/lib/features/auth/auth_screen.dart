@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -7,6 +8,9 @@ import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/vibe_components.dart';
 import '../../core/widgets/vibe_logo.dart';
+import '../admin/admin_screen.dart';
+
+const _devAdminPassword = 'vibetable-admin';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key, this.errorMessage});
@@ -94,6 +98,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               width: double.infinity,
                               child: OutlinedButton.icon(onPressed: busy ? null : _apple, icon: const Icon(Icons.apple, size: 22), label: VibeText(strings.isPersian ? 'ورود با اپل' : 'Continue with Apple')),
                             ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.tonalIcon(
+                                onPressed: busy ? null : _openAdminEntry,
+                                icon: const Icon(Icons.admin_panel_settings_rounded),
+                                label: VibeText(strings.isPersian ? 'ورود مدیر / کارکنان' : 'Admin / staff entry'),
+                              ),
+                            ),
+                            if (kDebugMode) ...[
+                              const SizedBox(height: 7),
+                              Center(
+                                child: VibeText(
+                                  strings.isPersian ? 'رمز توسعه: $_devAdminPassword' : 'Development password: $_devAdminPassword',
+                                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 24),
                             VibeText(strings.isPersian ? 'با ادامه دادن، قوانین جامعه و حریم خصوصی VibeTable را می‌پذیری.' : 'By continuing, you agree to VibeTable’s community guidelines and privacy policy.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
                           ],
@@ -108,6 +130,49 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openAdminEntry() async {
+    final username = TextEditingController(text: 'admin');
+    final password = TextEditingController(text: _devAdminPassword);
+    final credentials = await showDialog<({String username, String password})>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const VibeText('Admin / staff entry'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: username, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person_outline_rounded))),
+            const SizedBox(height: 12),
+            TextField(controller: password, obscureText: false, decoration: const InputDecoration(labelText: 'Development password', prefixIcon: Icon(Icons.key_rounded))),
+            const SizedBox(height: 10),
+            const VibeText('Only an account with admin or moderator role can enter the console.', style: TextStyle(fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const VibeText('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop((username: username.text.trim(), password: password.text)), child: const VibeText('Enter admin panel')),
+        ],
+      ),
+    );
+    username.dispose();
+    password.dispose();
+    if (credentials == null || !mounted) return;
+    setState(() {
+      sending = true;
+      localError = null;
+    });
+    await ref.read(authProvider.notifier).devAdmin(credentials.username, credentials.password);
+    if (!mounted) return;
+    final auth = ref.read(authProvider);
+    if (auth.hasError) {
+      setState(() => localError = auth.error.toString());
+    } else if (auth.value?.user.role == 'admin' || auth.value?.user.role == 'moderator') {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen()));
+    } else {
+      setState(() => localError = 'This account is not authorized for staff access.');
+    }
+    if (mounted) setState(() => sending = false);
   }
 
   Future<void> _sendCode() async {

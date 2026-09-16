@@ -7,7 +7,7 @@ import { MysqlService } from '../database/mysql.service';
 import { BOT_POOL_SEED, BOT_POOL_SIZE, botPoolId, ensureUsersBotColumn } from '../common/bot-pool';
 import { conflict, forbidden, invalid, notFound } from '../common/errors';
 import { GameActionDto } from './game.dto';
-import { GameRegistry } from './game.registry';
+import { CORE_GAME_IDS, GameRegistry, isCoreGame } from './game.registry';
 import { Action, GamePlayer, GameState } from './game.types';
 import { RankingService } from '../ranking/ranking.service';
 
@@ -32,6 +32,11 @@ export class GameService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     try {
+      await this.disableNonCoreGames();
+    } catch (error) {
+      this.logger.warn(`Core-game release lock could not be applied at startup: ${(error as Error)?.message ?? error}`);
+    }
+    try {
       const pool = await this.ensureBotPool();
       this.logger.log(`Shared bot pool ready (${pool.length} accounts)`);
     } catch (error) {
@@ -47,10 +52,14 @@ export class GameService implements OnModuleInit {
   async listGames() {
     const rows = await this.mysql.query<RowDataPacket[]>(`SELECT id, is_active AS isActive FROM games`);
     const active = new Map(rows.map((row) => [row.id as string, Boolean(row.isActive)]));
-    return this.registry.list().filter((game) => active.get(game.id) !== false);
+    // The mobile catalog is deliberately release-gated here as well as in the
+    // admin UI. A stale client or a hand-written API request cannot start a
+    // game that has not passed the focused core-game release gate.
+    return this.registry.list().filter((game) => CORE_GAME_IDS.includes(game.id as (typeof CORE_GAME_IDS)[number]) && active.get(game.id) === true);
   }
 
   async createMatch(gameId: string, mode: 'casual' | 'ranked' | 'private', playerIds: string[], desiredPlayers?: number, idempotencyKey?: string) {
+    if (!isCoreGame(gameId)) throw notFound('This game is reserved for a future release.');
     const descriptor = this.registry.descriptor(gameId);
     const activeRows = await this.mysql.query<RowDataPacket[]>(`SELECT is_active AS isActive FROM games WHERE id = ?`, [gameId]);
     if (!activeRows[0] || !Boolean(activeRows[0].isActive)) throw notFound('This game is currently unavailable.');
@@ -526,6 +535,11 @@ export class GameService implements OnModuleInit {
     if (!value) return [];
     const parsed = Array.isArray(value) ? value : JSON.parse(value) as unknown;
     return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [];
+  }
+
+  private async disableNonCoreGames(): Promise<void> {
+    const placeholders = CORE_GAME_IDS.map(() => '?').join(', ');
+    await this.mysql.execute(`UPDATE games SET is_active = FALSE WHERE id NOT IN (${placeholders})`, [...CORE_GAME_IDS]);
   }
 
   private async ensureBotPool(): Promise<string[]> {

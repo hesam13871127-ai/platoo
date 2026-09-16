@@ -699,9 +699,9 @@ class PlayTogetherSheet extends ConsumerWidget {
             const SizedBox(height: 14),
             Flexible(
               child: games.when(
-                loading: () => _GameList(games: rallyGames(localGameCatalog, partySize)),
-                error: (_, __) => _GameList(games: rallyGames(localGameCatalog, partySize)),
-                data: (list) => _GameList(games: rallyGames(list.isEmpty ? localGameCatalog : list, partySize)),
+                loading: () => _GameList(games: rallyGames(coreGameCatalog, partySize)),
+                error: (_, __) => _GameList(games: rallyGames(coreGameCatalog, partySize)),
+                data: (list) => _GameList(games: rallyGames(list.isEmpty ? coreGameCatalog : list, partySize)),
               ),
             ),
           ],

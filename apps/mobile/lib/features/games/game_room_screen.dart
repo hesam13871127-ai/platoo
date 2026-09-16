@@ -995,33 +995,50 @@ class _GameCanvasState extends State<GameCanvas> {
   @override
   Widget build(BuildContext context) {
     final id = widget.game.id;
-    if (id == 'four_in_a_row') return _four(context);
-    if (id == 'chess') return _chess(context);
-    if (id == 'ludo') return _ludo(context);
-    if (id == 'pool_8_ball') return _pool(context);
-    if (id == 'werewolf') return _werewolf(context);
-    if (id == 'bingo') return BingoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'dominoes') return DominoesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'carrom') return CarromGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'mini_golf') return MiniGolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'table_soccer') return TableSoccerGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'sketch_guess') return SketchGuessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'trivia_battle') return TriviaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'checkers') return CheckersGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'memory_race') return _memory(context);
-    if (id == 'sea_battle') return SeaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'ocho') return _ocho(context);
-    if (id == 'mancala') return MancalaGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'hearts' || id == 'spades') return HeartsGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'backgammon') return BackgammonGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'dice_party') return DicePartyGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'bowling') return BowlingGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'darts') return DartsGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'emoji_charades') return EmojiCharadesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'impostor_light') return ImpostorLightGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'archery') return ArcheryGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    if (id == 'quick_challenges') return QuickChallengesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
-    return _generic(context);
+    late final Widget board;
+    if (id == 'four_in_a_row') {
+      board = _four(context);
+    } else if (id == 'chess') {
+      board = _chess(context);
+    } else if (id == 'ludo') {
+      board = _ludo(context);
+    } else if (id == 'pool_8_ball') {
+      board = _pool(context);
+    } else if (id == 'werewolf') {
+      board = _werewolf(context);
+    } else if (id == 'dominoes') {
+      board = DominoesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+    } else if (id == 'carrom') {
+      board = CarromGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+    } else if (id == 'checkers') {
+      board = CheckersGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+    } else if (id == 'ocho') {
+      board = _ocho(context);
+    } else if (id == 'backgammon') {
+      board = BackgammonGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+    } else {
+      // All non-core boards remain registered for future releases, but the API
+      // release gate means players cannot reach this branch in the focused
+      // catalog. Keep the dispatch intact for existing replay/deep-link data.
+      if (id == 'bingo') board = BingoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'mini_golf') board = MiniGolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'table_soccer') board = TableSoccerGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'sketch_guess') board = SketchGuessGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'trivia_battle') board = TriviaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'memory_race') board = _memory(context);
+      else if (id == 'sea_battle') board = SeaBattleGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'mancala') board = MancalaGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'hearts' || id == 'spades') board = HeartsGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'dice_party') board = DicePartyGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'bowling') board = BowlingGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'darts') board = DartsGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'emoji_charades') board = EmojiCharadesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'impostor_light') board = ImpostorLightGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'archery') board = ArcheryGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else if (id == 'quick_challenges') board = QuickChallengesGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
+      else board = _generic(context);
+    }
+    return isCoreGame(id) ? _CoreBoardSurface(game: widget.game, child: board) : board;
   }
 
   Widget _four(BuildContext context) => FourInARowGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
@@ -1131,6 +1148,53 @@ class _GameCanvasState extends State<GameCanvas> {
     if (value.isEmpty || !_canAct) return;
     widget.onAction({'type': 'word', 'word': value});
     word.clear();
+  }
+}
+
+class _CoreBoardSurface extends StatelessWidget {
+  const _CoreBoardSurface({required this.game, required this.child});
+  final GameDescriptor game;
+  final Widget child;
+
+  Color _accent() {
+    final value = game.accent.replaceFirst('#', '');
+    final parsed = int.tryParse(value, radix: 16);
+    return parsed == null ? AppTheme.violet : Color(0xFF000000 | parsed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _accent();
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final fa = AppStrings(Localizations.localeOf(context)).isPersian;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [accent.withOpacity(dark ? .16 : .09), Theme.of(context).colorScheme.surface.withOpacity(.96)]),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: accent.withOpacity(dark ? .4 : .22), width: 1.2),
+        boxShadow: [BoxShadow(color: accent.withOpacity(dark ? .18 : .08), blurRadius: 28, offset: const Offset(0, 12))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(5, 2, 5, 9),
+            child: Row(
+              children: [
+                GameLogo(gameId: game.id, accent: game.accent, size: 28),
+                const SizedBox(width: 8),
+                VibeText(fa ? 'میز اصلی' : 'CORE TABLE', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                const Spacer(),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: accent.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: VibeText(fa ? 'تمرکز انتشار' : 'RELEASE FOCUS', style: TextStyle(color: accent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .8))),
+              ],
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
   }
 }
 

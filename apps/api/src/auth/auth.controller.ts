@@ -1,7 +1,7 @@
 import { Body, Controller, Headers, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
-import { RefreshTokenDto, RequestOtpDto, SocialLoginDto, UpdatePreferencesDto, VerifyOtpDto } from './auth.dto';
+import { DevAdminLoginDto, RefreshTokenDto, RequestOtpDto, SocialLoginDto, UpdatePreferencesDto, VerifyOtpDto } from './auth.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { RateLimit } from '../common/rate-limit/rate-limit.decorator';
@@ -26,6 +26,12 @@ export class AuthController {
   @RateLimit({ limit: 10, windowMs: MINUTE, key: 'ip' })
   social(@Body() dto: SocialLoginDto, @Req() request: Request) {
     return this.auth.socialLogin(dto, request.headers['user-agent'], request.ip);
+  }
+
+  @Post('dev-admin')
+  @RateLimit({ limit: 10, windowMs: MINUTE, key: 'ip' })
+  devAdmin(@Body() dto: DevAdminLoginDto, @Req() request: Request) {
+    return this.auth.devAdminLogin(dto, request.headers['user-agent'], request.ip);
   }
 
   @Post('refresh')

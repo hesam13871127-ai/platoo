@@ -387,6 +387,8 @@ describe('authoritative game engines', () => {
     const engine = new CarromEngine(); const roster = players(2); let state = engine.create(roster) as any;
     state = engine.apply(state, 'player-0', { type: 'strike', power: 70, pocketed: [1], queen: false }, roster) as any;
     expect(state.groups).toEqual(['white', 'black']); expect(state.scores[0]).toBe(1); expect(state.turnPlayerId).toBe('player-0');
+    const open = engine.create(roster) as any;
+    expect(() => engine.apply(open, 'player-0', { type: 'strike', power: 70, pocketed: [1, 10], queen: false }, roster)).toThrow('one coin color');
     expect(() => engine.apply(state, 'player-0', { type: 'strike', power: 70, pocketed: [10], queen: false }, roster)).toThrow();
     state = engine.apply(state, 'player-0', { type: 'strike', power: 40, pocketed: [], queen: false }, roster) as any;
     expect(state.turnPlayerId).toBe('player-1');

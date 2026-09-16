@@ -5,8 +5,8 @@ import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { jwtVerify, createRemoteJWKSet, JWTPayload } from 'jose';
 import { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { MysqlService } from '../database/mysql.service';
-import { conflict, invalid, notFound, unauthenticated } from '../common/errors';
-import { RequestOtpDto, SocialLoginDto, UpdatePreferencesDto } from './auth.dto';
+import { conflict, forbidden, invalid, notFound, unauthenticated } from '../common/errors';
+import { DevAdminLoginDto, RequestOtpDto, SocialLoginDto, UpdatePreferencesDto } from './auth.dto';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 
 interface UserRow extends RowDataPacket {
@@ -72,6 +72,29 @@ export class AuthService {
       await connection.execute(`UPDATE otp_challenges SET consumed_at = UTC_TIMESTAMP(3) WHERE id = ?`, [challengeId]);
       return this.upsertPhoneUser(connection, challenge.phone_e164);
     });
+    return this.issueSession(userId, userAgent, ipAddress);
+  }
+
+  async devAdminLogin(dto: DevAdminLoginDto, userAgent?: string, ipAddress?: string) {
+    if (!this.config.get<boolean>('devAdmin.enabled', false)) throw notFound('Development admin access is disabled.');
+    const configuredUsername = this.config.get<string>('devAdmin.username', 'admin');
+    const configuredPassword = this.config.get<string>('devAdmin.password', 'vibetable-admin');
+    if (dto.username.trim() !== configuredUsername || dto.password !== configuredPassword) throw unauthenticated('The development admin credentials are incorrect.');
+
+    const existing = await this.mysql.query<RowDataPacket[]>(`SELECT id, role, status FROM users WHERE username = ? LIMIT 1`, [configuredUsername]);
+    let userId: string;
+    if (existing[0]) {
+      if (existing[0].status !== 'active') throw forbidden('This admin account is not active.');
+      if (!['admin', 'moderator'].includes(String(existing[0].role))) throw forbidden('This account is not authorized for staff access.');
+      userId = String(existing[0].id);
+    } else {
+      userId = randomUUID();
+      await this.mysql.transaction(async (connection) => {
+        await connection.execute(`INSERT INTO users (id, username, display_name, role, status) VALUES (?, ?, ?, 'admin', 'active')`, [userId, configuredUsername, 'VibeTable Admin']);
+        await connection.execute(`INSERT INTO wallets (user_id, coins, pips) VALUES (?, 0, 0)`, [userId]);
+      });
+      this.logger.warn(`Created development admin account ${configuredUsername}; disable DEV_ADMIN_ENABLED outside development.`);
+    }
     return this.issueSession(userId, userAgent, ipAddress);
   }
 

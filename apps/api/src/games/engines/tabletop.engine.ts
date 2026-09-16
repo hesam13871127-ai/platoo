@@ -736,7 +736,7 @@ interface PoolState extends GameState {
   winnerId: string | null;
   winnerIds: string[];
   shots: number;
-  lastShot: { actorId: string; pocketed: number[]; scratch: boolean; legalEight: boolean } | null;
+  lastShot: { actorId: string; pocketed: number[]; scratch: boolean; legalEight: boolean; aim: number | null } | null;
 }
 
 export class PoolEngine implements GameEngine {
@@ -766,8 +766,10 @@ export class PoolEngine implements GameEngine {
     if (action.type !== 'shot') throw new IllegalMoveError('Use the shot action.');
     asInt(action.power, 'power', 1, 100);
     asInt(action.pocket, 'pocket', 0, 5);
+    if (action.aim !== undefined) asInt(action.aim, 'aim', 0, 360);
     if (action.scratch !== undefined && typeof action.scratch !== 'boolean') throw new IllegalMoveError('scratch must be true or false.');
     const balls = this.pocketedBalls(action);
+    if (balls.includes(8) && balls.length !== 1) throw new IllegalMoveError('The eight ball must be pocketed alone.');
     for (const ball of balls) if (!state.remainingBalls.includes(ball)) throw new IllegalMoveError('That ball is no longer on the table.');
     if (state.phase === 'break') {
       if (balls.includes(8) && balls.length !== 1) throw new IllegalMoveError('The eight ball must be the only ball called on a break.');
@@ -791,7 +793,8 @@ export class PoolEngine implements GameEngine {
     next.shots = Number(next.shots) + 1;
     next.remainingBalls = next.remainingBalls.filter((ball) => !balls.includes(ball));
     next.pocketed[side].push(...balls);
-    next.lastShot = { actorId, pocketed: balls, scratch, legalEight };
+    const aim = typeof action.aim === 'number' ? action.aim : null;
+    next.lastShot = { actorId, pocketed: balls, scratch, legalEight, aim };
 
     if (balls.includes(8)) {
       next.finished = true;
@@ -806,6 +809,7 @@ export class PoolEngine implements GameEngine {
         const firstGroup = this.groupFor(balls[0]);
         next.groups[side] = firstGroup;
         next.groups[1 - side] = firstGroup === 'solids' ? 'stripes' : 'solids';
+        next.phase = 'assigned';
       }
       if (!balls.length || scratch) rotateTurn(next, players);
       return next;
@@ -814,6 +818,7 @@ export class PoolEngine implements GameEngine {
     if (next.groups[side] === null && balls.length) {
       next.groups[side] = this.groupFor(balls[0]);
       next.groups[1 - side] = next.groups[side] === 'solids' ? 'stripes' : 'solids';
+      next.phase = 'assigned';
     }
     if (!balls.length || scratch) rotateTurn(next, players);
     return next;
@@ -835,12 +840,13 @@ export class PoolEngine implements GameEngine {
     const pocket = randomInt(6);
     const power = 55 + randomInt(36);
     // Bots miss sometimes: a perfect bot would run every rack unopposed.
-    if (state.phase === 'break') return { type: 'shot', power, pocket, pocketed: available.length && Math.random() < 0.6 ? [available[0]] : [] };
-    if (this.canShootEight(state, side)) return { type: 'shot', power, pocket, pocketed: [8] };
+    const aim = randomInt(361);
+    if (state.phase === 'break') return { type: 'shot', power, aim, pocket, pocketed: available.length && Math.random() < 0.6 ? [available[0]] : [] };
+    if (this.canShootEight(state, side)) return { type: 'shot', power, aim, pocket, pocketed: [8] };
     const group = state.groups[side];
     const target = group === null ? available[0] : available.find((ball) => this.groupFor(ball) === group);
     const pocketed = target === undefined || Math.random() < 0.25 ? [] : [target];
-    return { type: 'shot', power, pocket, pocketed };
+    return { type: 'shot', power, aim, pocket, pocketed };
   }
 
   private pocketedBalls(action: Action): number[] {
@@ -921,6 +927,7 @@ export class CarromEngine implements GameEngine {
     for (const coin of pocketed) if (!state.remainingCoins.includes(coin)) throw new IllegalMoveError('That coin is no longer on the board.');
     if (action.queen === true && !state.queenRemaining) throw new IllegalMoveError('The queen is not on the board.');
     const group = this.groupForSide(state, side);
+    if (group === null && pocketed.length > 1 && pocketed.some((coin) => this.coinColor(coin) !== this.coinColor(pocketed[0]))) throw new IllegalMoveError('An open strike must use one coin color.');
     if (group && pocketed.some((coin) => this.coinColor(coin) !== group)) throw new IllegalMoveError('Pocket only coins from your assigned color.');
     const finalColorCoin = group && pocketed.length > 0 && !state.remainingCoins.some((coin) => this.coinColor(coin) === group && !pocketed.includes(coin));
     if (group && state.queenRemaining && finalColorCoin && action.queen !== true) throw new IllegalMoveError('Pocket your final color coin with the queen to cover it.');

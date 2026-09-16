@@ -25,7 +25,8 @@ class AdminGamesTab extends ConsumerWidget {
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
             final game = items[index];
-            final active = boolOf(game['isActive'], fallback: true);
+            final core = boolOf(game['isCore'], fallback: isCoreGame(strOf(game['id'])));
+            final active = core && boolOf(game['isActive'], fallback: true);
             final hasBoard = gameHasMobileBoard(strOf(game['id']));
             return Card(
               child: ListTile(
@@ -48,7 +49,12 @@ class AdminGamesTab extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     VibeText('${strOf(game['id'])} · ${strOf(game['category'])} · ${intOf(game['minPlayers'], 2)}–${intOf(game['maxPlayers'], 2)} players'),
-                    if (!hasBoard)
+                    if (!core)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 3),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock_rounded, size: 13, color: AppTheme.gold), SizedBox(width: 4), VibeText('Locked for a future release', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.gold))]),
+                      )
+                    else if (!hasBoard)
                       const Padding(
                         padding: EdgeInsets.only(top: 3),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phonelink_erase_rounded, size: 13, color: AppTheme.coral), SizedBox(width: 4), VibeText('No mobile board UI — disable until shipped', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.coral))]),
@@ -59,8 +65,12 @@ class AdminGamesTab extends ConsumerWidget {
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!active) const VibeText('Off  ', style: TextStyle(fontSize: 12)),
-                          Switch(value: active, onChanged: (_) => _toggle(context, ref, game)),
+                          if (!core)
+                            const Padding(padding: EdgeInsetsDirectional.only(end: 8), child: Icon(Icons.lock_rounded, color: AppTheme.gold))
+                          else ...[
+                            if (!active) const VibeText('Off  ', style: TextStyle(fontSize: 12)),
+                            Switch(value: active, onChanged: (_) => _toggle(context, ref, game)),
+                          ],
                           IconButton(
                             tooltip: 'Edit',
                             icon: const Icon(Icons.edit_outlined),
@@ -68,7 +78,7 @@ class AdminGamesTab extends ConsumerWidget {
                           ),
                         ],
                       )
-                    : Icon(active ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                    : Icon(active ? Icons.check_circle_rounded : Icons.lock_rounded,
                         color: active ? AppTheme.mint : Theme.of(context).disabledColor),
                 onTap: admin ? () => _edit(context, ref, game) : null,
               ),
@@ -88,6 +98,10 @@ class AdminGamesTab extends ConsumerWidget {
   }
 
   Future<void> _toggle(BuildContext context, WidgetRef ref, Map<String, dynamic> game) async {
+    if (!boolOf(game['isCore'], fallback: isCoreGame(strOf(game['id'])))) {
+      showAdminMessage(context, 'This game is locked off for the focused release.');
+      return;
+    }
     final next = !boolOf(game['isActive'], fallback: true);
     if (!next) {
       final confirmed = await showDialog<bool>(

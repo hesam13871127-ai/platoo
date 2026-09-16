@@ -67,6 +67,17 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     });
   }
 
+  Future<void> devAdmin(String username, String password) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final data = await _api.post('/auth/dev-admin', data: {'username': username, 'password': password}) as Map;
+      final session = AuthSession.fromJson(Map<String, dynamic>.from(data));
+      _syncPreferences(session.user);
+      await ref.read(tokenStoreProvider).saveSession(session);
+      return session;
+    });
+  }
+
   Future<void> refreshProfile() async {
     final current = state.value;
     if (current == null) return;

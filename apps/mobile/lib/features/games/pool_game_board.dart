@@ -20,6 +20,7 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
   int? selectedBall;
   int selectedPocket = 0;
   double power = 70;
+  double aim = 0;
   bool scratch = false;
 
   static const pockets = [Offset(.035, .06), Offset(.965, .06), Offset(.035, .94), Offset(.965, .94), Offset(.035, .5), Offset(.965, .5)];
@@ -68,7 +69,7 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
             final ballSize = size * .082;
             final dark = Theme.of(context).brightness == Brightness.dark;
             return Stack(children: [
-              Positioned.fill(child: CustomPaint(painter: _PoolTablePainter(selectedPocket: selectedPocket, dark: dark))),
+              Positioned.fill(child: CustomPaint(painter: _PoolTablePainter(selectedPocket: selectedPocket, aim: aim, showCue: isTurn, dark: dark))),
               if (isBreak) Positioned(top: 10, left: 0, right: 0, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), decoration: BoxDecoration(color: Colors.black.withOpacity(.45), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.25))), child: const VibeText('BREAK SHOT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.4))))),
               for (var pocket = 0; pocket < 6; pocket += 1)
                 Positioned(
@@ -105,6 +106,17 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
                     ),
                   ),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: VibeText('${power.round()}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
+                ]),
+                const SizedBox(height: 6),
+                Row(children: [
+                  const VibeText('Aim', style: TextStyle(fontWeight: FontWeight.w800)),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderTheme.of(context).copyWith(trackHeight: 8, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 11), overlayShape: const RoundSliderOverlayShape(overlayRadius: 20), activeTrackColor: AppTheme.violet, inactiveTrackColor: AppTheme.violet.withOpacity(.18), thumbColor: Colors.white),
+                      child: Slider(value: aim, min: 0, max: 360, divisions: 36, label: '${aim.round()}°', onChanged: (value) => setState(() => aim = value)),
+                    ),
+                  ),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: VibeText('${aim.round()}°', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
                 ]),
                 const SizedBox(height: 6),
                 Row(children: [
@@ -211,7 +223,7 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
   }
 
   void _submit() {
-    final action = <String, dynamic>{'type': 'shot', 'power': power.round(), 'pocket': selectedPocket, 'pocketed': selectedBall == null ? <int>[] : [selectedBall], 'scratch': scratch};
+    final action = <String, dynamic>{'type': 'shot', 'power': power.round(), 'aim': aim.round(), 'pocket': selectedPocket, 'pocketed': selectedBall == null ? <int>[] : [selectedBall], 'scratch': scratch};
     // Keep the local aim until a newer server revision arrives. This makes a
     // transient REST failure recoverable instead of silently losing the shot.
     widget.onAction(action);
@@ -275,8 +287,10 @@ class _PocketChip extends StatelessWidget {
 }
 
 class _PoolTablePainter extends CustomPainter {
-  const _PoolTablePainter({required this.selectedPocket, required this.dark});
+  const _PoolTablePainter({required this.selectedPocket, required this.aim, required this.showCue, required this.dark});
   final int selectedPocket;
+  final double aim;
+  final bool showCue;
   final bool dark;
 
   static const holes = [Offset(.035, .06), Offset(.965, .06), Offset(.035, .94), Offset(.965, .94), Offset(.035, .5), Offset(.965, .5)];
@@ -308,6 +322,16 @@ class _PoolTablePainter extends CustomPainter {
     // Head string + foot spot.
     canvas.drawLine(Offset(size.width * .3, clothRect.top + 6), Offset(size.width * .3, clothRect.bottom - 6), Paint()..color = Colors.white.withOpacity(.14)..strokeWidth = 2);
     canvas.drawCircle(Offset(size.width * .68, clothRect.center.dy), 3.5, Paint()..color = Colors.white.withOpacity(.35));
+    if (showCue) {
+      final cueCenter = Offset(size.width * .22, clothRect.center.dy);
+      final direction = Offset(math.cos(aim * math.pi / 180), math.sin(aim * math.pi / 180));
+      final cueTip = cueCenter + direction * size.width * .31;
+      final cueBack = cueCenter - direction * size.width * .13;
+      canvas.drawLine(cueBack, cueTip, Paint()..color = Colors.white.withOpacity(.18)..strokeWidth = 7..strokeCap = StrokeCap.round);
+      canvas.drawLine(cueBack, cueTip, Paint()..color = Colors.white.withOpacity(.72)..strokeWidth = 2..strokeCap = StrokeCap.round);
+      canvas.drawCircle(cueCenter, math.min(size.width, size.height) * .026, Paint()..shader = RadialGradient(colors: [Colors.white, const Color(0xFFD8E6E1)]).createShader(Rect.fromCircle(center: cueCenter, radius: math.min(size.width, size.height) * .026)));
+      canvas.drawCircle(cueCenter, math.min(size.width, size.height) * .026, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.2..color = Colors.white.withOpacity(.8));
+    }
     // Pockets with rims and selection glow.
     for (var index = 0; index < holes.length; index += 1) {
       final center = Offset(holes[index].dx * size.width, holes[index].dy * size.height);
@@ -322,7 +346,7 @@ class _PoolTablePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PoolTablePainter oldDelegate) => oldDelegate.selectedPocket != selectedPocket || oldDelegate.dark != dark;
+  bool shouldRepaint(covariant _PoolTablePainter oldDelegate) => oldDelegate.selectedPocket != selectedPocket || oldDelegate.aim != aim || oldDelegate.showCue != showCue || oldDelegate.dark != dark;
 }
 
 class _PoolBall extends StatelessWidget {

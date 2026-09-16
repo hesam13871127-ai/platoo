@@ -33,7 +33,12 @@ final localGameCatalog = <GameDescriptor>[
   const GameDescriptor(id: 'quick_challenges', name: 'Quick Challenges', category: GameCategory.arcade, minPlayers: 1, maxPlayers: 6, supportsTeams: false, accent: '#EAB308', icon: 'bolt'),
 ];
 
+final coreGameCatalog = localGameCatalog.where((game) => isCoreGame(game.id)).toList(growable: false);
+
 final gamesProvider = FutureProvider<List<GameDescriptor>>((ref) async {
   final data = await ref.watch(apiClientProvider).get('/games') as List;
-  return data.map((item) => GameDescriptor.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+  return data
+      .map((item) => GameDescriptor.fromJson(Map<String, dynamic>.from(item as Map)))
+      .where((game) => isCoreGame(game.id))
+      .toList(growable: false);
 });
