@@ -526,6 +526,7 @@ class _MatchBody extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             if (syncMessage != null) _SyncBanner(message: syncMessage!, onRetry: onRetrySync),
+            if (active && match.state['lastTimeout'] is Map) _TimeoutBanner(match: match),
             if (match.status == 'finished') _ResultBanner(match: match, game: game),
             if (match.status == 'cancelled') const _CancelledBanner(),
             Stack(
@@ -652,6 +653,34 @@ class _SendingMoveOverlay extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _TimeoutBanner extends StatelessWidget {
+  const _TimeoutBanner({required this.match});
+  final MatchModel match;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings(Localizations.localeOf(context));
+    final timeout = Map<String, dynamic>.from(match.state['lastTimeout'] as Map);
+    final playerId = timeout['playerId']?.toString();
+    final count = (timeout['count'] as num?)?.toInt() ?? 1;
+    final player = match.players.where((candidate) => candidate['id']?.toString() == playerId).toList();
+    final name = player.isEmpty ? (strings.isPersian ? 'بازیکن' : 'A player') : player.first['displayName']?.toString() ?? (strings.isPersian ? 'بازیکن' : 'A player');
+    final body = strings.isPersian
+        ? '$name · زمان تمام شد · $count/۳ — یک حرکت قانونی خودکار انجام شد. ${strings.timeoutRule}'
+        : '$name timed out · $count/3 — a legal automatic move was made. ${strings.timeoutRule}';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+      decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.1), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.coral.withOpacity(.32))),
+      child: Row(children: [
+        const Icon(Icons.timer_off_rounded, size: 19, color: AppTheme.coral),
+        const SizedBox(width: 9),
+        Expanded(child: VibeText(body, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+      ]),
+    );
+  }
 }
 
 class _SyncBanner extends StatelessWidget {
@@ -1017,9 +1046,9 @@ class _GameCanvasState extends State<GameCanvas> {
     } else if (id == 'backgammon') {
       board = BackgammonGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
     } else {
-      // All non-core boards remain registered for future releases, but the API
-      // release gate means players cannot reach this branch in the focused
-      // catalog. Keep the dispatch intact for existing replay/deep-link data.
+      // Non-core boards remain registered for later staff-enabled releases.
+      // Keep this dispatch intact for retained matches and deep links even
+      // though the default player catalog contains only the focused games.
       if (id == 'bingo') board = BingoGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
       else if (id == 'mini_golf') board = MiniGolfGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);
       else if (id == 'table_soccer') board = TableSoccerGameBoard(state: widget.state, match: widget.match, onAction: widget.onAction);

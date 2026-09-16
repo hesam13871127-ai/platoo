@@ -5,7 +5,7 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { MysqlService } from '../database/mysql.service';
 import { conflict, invalid, notFound } from '../common/errors';
 import { GameService } from '../games/game.service';
-import { GameRegistry, isCoreGame } from '../games/game.registry';
+import { GameRegistry } from '../games/game.registry';
 import { JoinQueueDto } from './matchmaking.dto';
 
 class TicketClaimLostError extends Error {}
@@ -17,7 +17,6 @@ export class MatchmakingService {
   constructor(private readonly mysql: MysqlService, private readonly games: GameService, private readonly registry: GameRegistry) {}
 
   async join(userId: string, dto: JoinQueueDto) {
-    if (!isCoreGame(dto.gameId)) throw notFound('This game is reserved for a future release.');
     const descriptor = this.registry.descriptor(dto.gameId);
     if (dto.playerCount < descriptor.minPlayers || dto.playerCount > descriptor.maxPlayers) throw invalid(`Choose between ${descriptor.minPlayers} and ${descriptor.maxPlayers} players for this game.`);
     const activeRows = await this.mysql.query<RowDataPacket[]>(`SELECT is_active AS isActive FROM games WHERE id = ? LIMIT 1`, [dto.gameId]);

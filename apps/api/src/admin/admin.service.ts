@@ -5,7 +5,7 @@ import { MysqlService } from '../database/mysql.service';
 import { conflict, forbidden, invalid, notFound } from '../common/errors';
 import { AdjustWalletDto, BanUserDto, CreateSeasonDto, CreateSeasonRewardDto, CreateShopItemDto, ResolveReportDto, ToggleDto, UpdateGameDto, UpdateSeasonDto, UpdateShopItemDto, UpdateUserAdminDto } from './admin.dto';
 import { RankingService } from '../ranking/ranking.service';
-import { CORE_GAME_IDS, isCoreGame } from '../games/game.registry';
+import { isCoreGame } from '../games/game.registry';
 
 export interface Paginated<T> { items: T[]; page: number; limit: number; total: number; totalPages: number; }
 
@@ -249,10 +249,10 @@ export class AdminService {
     return rows.map((row) => ({
       ...row,
       isCore: isCoreGame(String(row.id)),
-      // Non-core games stay visible to staff for inventory and future work, but
-      // are always reported as unavailable to players during this release.
-      isActive: isCoreGame(String(row.id)) && Boolean(row.isActive),
-      releaseState: isCoreGame(String(row.id)) ? 'core' : 'locked_future',
+      // Non-core games stay visible to staff for inventory and future work.
+      // Their database flag remains the deliberate, reversible release switch.
+      isActive: Boolean(row.isActive),
+      releaseState: isCoreGame(String(row.id)) ? 'core' : Boolean(row.isActive) ? 'enabled_future' : 'disabled_future',
     }));
   }
 
@@ -263,13 +263,10 @@ export class AdminService {
   async updateGame(adminId: string, gameId: string, dto: UpdateGameDto) {
     const before = await this.mysql.query<RowDataPacket[]>(`SELECT * FROM games WHERE id = ?`, [gameId]);
     if (!before[0]) throw notFound('Game not found.');
-    const core = isCoreGame(gameId);
-    if (!core && dto.isActive === true) throw invalid('This game is locked off until a future release.');
     const minPlayers = dto.minPlayers ?? Number(before[0].min_players);
     const maxPlayers = dto.maxPlayers ?? Number(before[0].max_players);
     if (minPlayers < 1 || maxPlayers < minPlayers) throw invalid('The player range is invalid.');
     const fields: string[] = []; const values: unknown[] = [];
-    if (!core && dto.isActive === undefined) fields.push('is_active = FALSE');
     if (dto.displayName !== undefined) { fields.push('display_name = ?'); values.push(dto.displayName.trim()); }
     if (dto.minPlayers !== undefined) { fields.push('min_players = ?'); values.push(dto.minPlayers); }
     if (dto.maxPlayers !== undefined) { fields.push('max_players = ?'); values.push(dto.maxPlayers); }

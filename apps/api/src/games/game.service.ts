@@ -7,7 +7,7 @@ import { MysqlService } from '../database/mysql.service';
 import { BOT_POOL_SEED, BOT_POOL_SIZE, botPoolId, ensureUsersBotColumn } from '../common/bot-pool';
 import { conflict, forbidden, invalid, notFound } from '../common/errors';
 import { GameActionDto } from './game.dto';
-import { CORE_GAME_IDS, GameRegistry, isCoreGame } from './game.registry';
+import { GameRegistry } from './game.registry';
 import { Action, GamePlayer, GameState } from './game.types';
 import { RankingService } from '../ranking/ranking.service';
 
@@ -31,11 +31,10 @@ export class GameService implements OnModuleInit {
   constructor(private readonly mysql: MysqlService, private readonly registry: GameRegistry, private readonly ranking: RankingService) {}
 
   async onModuleInit(): Promise<void> {
-    try {
-      await this.disableNonCoreGames();
-    } catch (error) {
-      this.logger.warn(`Core-game release lock could not be applied at startup: ${(error as Error)?.message ?? error}`);
-    }
+    // Game availability is stored in games.is_active so staff can expand the
+    // catalog later. The seed/migration establishes the closed ten-game
+    // release default; do not overwrite an administrator's later decision on
+    // every API restart.
     try {
       const pool = await this.ensureBotPool();
       this.logger.log(`Shared bot pool ready (${pool.length} accounts)`);
@@ -52,14 +51,13 @@ export class GameService implements OnModuleInit {
   async listGames() {
     const rows = await this.mysql.query<RowDataPacket[]>(`SELECT id, is_active AS isActive FROM games`);
     const active = new Map(rows.map((row) => [row.id as string, Boolean(row.isActive)]));
-    // The mobile catalog is deliberately release-gated here as well as in the
-    // admin UI. A stale client or a hand-written API request cannot start a
-    // game that has not passed the focused core-game release gate.
-    return this.registry.list().filter((game) => CORE_GAME_IDS.includes(game.id as (typeof CORE_GAME_IDS)[number]) && active.get(game.id) === true);
+    // The database flag is the release switch. Seed data starts with only the
+    // ten focused games active, while an authenticated administrator can later
+    // re-enable a retained game without a code or restart change.
+    return this.registry.list().filter((game) => active.get(game.id) === true);
   }
 
   async createMatch(gameId: string, mode: 'casual' | 'ranked' | 'private', playerIds: string[], desiredPlayers?: number, idempotencyKey?: string) {
-    if (!isCoreGame(gameId)) throw notFound('This game is reserved for a future release.');
     const descriptor = this.registry.descriptor(gameId);
     const activeRows = await this.mysql.query<RowDataPacket[]>(`SELECT is_active AS isActive FROM games WHERE id = ?`, [gameId]);
     if (!activeRows[0] || !Boolean(activeRows[0].isActive)) throw notFound('This game is currently unavailable.');
@@ -119,15 +117,27 @@ export class GameService implements OnModuleInit {
       const enginePlayers: GamePlayer[] = players.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
       const engine = this.registry.engine(match.game_id);
       const currentState = this.parseState(match.state);
+      const turnStartedMs = new Date(String(match.updated_at)).getTime();
+      const turnSeconds = this.registry.turnSeconds(match.game_id, currentState);
+      if (currentState.turnPlayerId === actorId && Number.isFinite(turnStartedMs) && Date.now() >= turnStartedMs + turnSeconds * 1000) {
+        throw conflict('This turn has expired. The server is applying the timeout result.');
+      }
       const updated = engine.apply(currentState, actorId, dto as Action, enginePlayers);
       if (idleStrike !== undefined) {
         const strikes = { ...((updated._idleStrikes as Record<string, number> | undefined) ?? {}) };
         strikes[actorId] = idleStrike;
         updated._idleStrikes = strikes;
-      } else if (!internalBot && updated._idleStrikes !== undefined) {
-        const strikes = { ...((updated._idleStrikes as Record<string, number> | undefined) ?? {}) };
-        delete strikes[actorId];
-        if (Object.keys(strikes).length) updated._idleStrikes = strikes; else delete updated._idleStrikes;
+        updated.lastTimeout = { playerId: actorId, count: idleStrike };
+      } else {
+        if (!internalBot && updated._idleStrikes !== undefined) {
+          const strikes = { ...((updated._idleStrikes as Record<string, number> | undefined) ?? {}) };
+          delete strikes[actorId];
+          if (Object.keys(strikes).length) updated._idleStrikes = strikes; else delete updated._idleStrikes;
+        }
+        // The timeout banner is a one-update notification. The durable audit
+        // remains in match_moves and match_events instead of sticking to the
+        // table forever after the next accepted action.
+        delete updated.lastTimeout;
       }
       const outcome = engine.outcome(updated, enginePlayers);
       const nextRevision = Number(match.revision) + 1;
@@ -141,7 +151,7 @@ export class GameService implements OnModuleInit {
         }
         completed = true;
       }
-      const refreshed = { ...match, state: updated, revision: nextRevision, status, winner_ids: outcome.winnerIds, loser_ids: outcome.loserIds, draw: outcome.draw ? 1 : 0 } as MatchRow;
+      const refreshed = { ...match, state: updated, revision: nextRevision, status, winner_ids: outcome.winnerIds, loser_ids: outcome.loserIds, draw: outcome.draw ? 1 : 0, updated_at: new Date().toISOString() } as MatchRow;
       const visiblePlayers = outcome.finished ? players.map((player) => ({ ...player, result: outcome.draw ? 'draw' : outcome.winnerIds.includes(player.userId) ? 'win' : 'loss' })) : players;
       result = this.publicMatch(refreshed, visiblePlayers, resultViewerId);
     });
@@ -535,11 +545,6 @@ export class GameService implements OnModuleInit {
     if (!value) return [];
     const parsed = Array.isArray(value) ? value : JSON.parse(value) as unknown;
     return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [];
-  }
-
-  private async disableNonCoreGames(): Promise<void> {
-    const placeholders = CORE_GAME_IDS.map(() => '?').join(', ');
-    await this.mysql.execute(`UPDATE games SET is_active = FALSE WHERE id NOT IN (${placeholders})`, [...CORE_GAME_IDS]);
   }
 
   private async ensureBotPool(): Promise<string[]> {

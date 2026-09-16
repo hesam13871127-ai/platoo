@@ -50,10 +50,11 @@ class _BackgammonGameBoardState extends State<BackgammonGameBoard> {
 
   bool _canBearOff(List<int> points, int from, int die, int bar) {
     if (bar > 0 || (_seat == 0 ? from < 18 : from > 5)) return false;
+    if (List.generate(24, (point) => point).any((point) => points[point] * _own > 0 && (_seat == 0 ? point < 18 : point > 5))) return false;
     final distance = _seat == 0 ? 24 - from : from + 1;
     if (die < distance) return false;
     if (die > distance) {
-      for (var point = _seat == 0 ? from + 1 : from - 1; point >= 0 && point < 24; point += _seat == 0 ? 1 : -1) {
+      for (var point = _seat == 0 ? from - 1 : from + 1; point >= 0 && point < 24; point += _seat == 0 ? -1 : 1) {
         if (points[point] * _own > 0) return false;
       }
     }

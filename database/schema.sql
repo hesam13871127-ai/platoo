@@ -264,6 +264,13 @@ CREATE TABLE IF NOT EXISTS messages (
   CONSTRAINT fk_message_reply FOREIGN KEY (reply_to_id) REFERENCES messages(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS app_settings (
+  setting_key VARCHAR(80) NOT NULL,
+  setting_value VARCHAR(255) NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (setting_key)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS games (
   id VARCHAR(40) NOT NULL,
   display_name VARCHAR(80) NOT NULL,
@@ -273,7 +280,7 @@ CREATE TABLE IF NOT EXISTS games (
   supports_teams BOOLEAN NOT NULL DEFAULT FALSE,
   accent_color CHAR(7) NOT NULL,
   icon_key VARCHAR(40) NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
   config JSON NOT NULL,
   PRIMARY KEY (id),
   CONSTRAINT chk_game_player_count CHECK (min_players > 0 AND max_players >= min_players)

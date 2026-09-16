@@ -37,8 +37,11 @@ final coreGameCatalog = localGameCatalog.where((game) => isCoreGame(game.id)).to
 
 final gamesProvider = FutureProvider<List<GameDescriptor>>((ref) async {
   final data = await ref.watch(apiClientProvider).get('/games') as List;
+  // The API returns only games currently enabled by staff. The local catalog
+  // remains core-only as the safe offline fallback, but an administrator can
+  // later re-enable a retained game and have it appear here without an app
+  // update.
   return data
       .map((item) => GameDescriptor.fromJson(Map<String, dynamic>.from(item as Map)))
-      .where((game) => isCoreGame(game.id))
       .toList(growable: false);
 });

@@ -195,8 +195,9 @@ class FriendEntry {
   factory FriendEntry.fromJson(Map<String, dynamic> json) => FriendEntry(id: json['userId'] as String, friendshipId: json['friendshipId'] as String? ?? '', displayName: json['displayName'] as String? ?? 'Player', username: json['username'] as String? ?? 'player', status: json['status'] as String? ?? 'pending', isOnline: json['isOnline'] as bool? ?? false, isRequester: json['isRequester'] as bool? ?? false);
 }
 
-/// The focused closed-release catalog. Every other registered engine remains
-/// installed on the server but is locked out of player-facing catalogs.
+/// The focused closed-release catalog used by offline/fallback surfaces. Every
+/// other registered engine remains installed and disabled by default; the API
+/// can expose one later when staff re-enable it.
 const kCoreGameIds = <String>{
   'ocho',
   'pool_8_ball',

@@ -135,7 +135,23 @@ export class CheckersEngine implements GameEngine {
     for (let r = 5; r < 8; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'r';
     return { board, turnIndex: 0, turnPlayerId: players[0].id, forcedFrom: null, winnerId: null, finished: false, draw: false, halfmoveClock: 0, positionCounts: { [this.positionKey(board)]: 1 } };
   }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { turnCheck(state, actorId); if (action.type !== 'move') throw new IllegalMoveError('Use the move action.'); const from = this.square(action.fromRow, action.fromCol); const to = this.square(action.toRow, action.toCol); const board = state.board as (string | null)[][]; const piece = board[from.r][from.c]; const color = players.findIndex((p) => p.id === actorId) === 0 ? 'r' : 'b'; if (!piece || piece.toLowerCase() !== color) throw new IllegalMoveError('That is not your piece.'); if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).r !== from.r) throw new IllegalMoveError('You must continue the capture.'); if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).c !== from.c) throw new IllegalMoveError('You must continue the capture.'); if (board[to.r][to.c]) throw new IllegalMoveError('The destination is occupied.'); const moves = this.movesFor(board, from.r, from.c, piece, this.hasAnyCapture(board, color)); if (!moves.some((m) => m.r === to.r && m.c === to.c)) throw new IllegalMoveError('That move is not legal.'); }
+  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void {
+    turnCheck(state, actorId);
+    if (action.type !== 'move') throw new IllegalMoveError('Use the move action.');
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    const from = this.square(action.fromRow, action.fromCol);
+    const to = this.square(action.toRow, action.toCol);
+    const board = state.board as (string | null)[][];
+    const piece = board[from.r][from.c];
+    const color = side === 0 ? 'r' : 'b';
+    if (!piece || piece.toLowerCase() !== color) throw new IllegalMoveError('That is not your piece.');
+    if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).r !== from.r) throw new IllegalMoveError('You must continue the capture.');
+    if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).c !== from.c) throw new IllegalMoveError('You must continue the capture.');
+    if (board[to.r][to.c]) throw new IllegalMoveError('The destination is occupied.');
+    const moves = this.movesFor(board, from.r, from.c, piece, this.hasAnyCapture(board, color));
+    if (!moves.some((move) => move.r === to.r && move.c === to.c)) throw new IllegalMoveError('That move is not legal.');
+  }
   apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState {
     this.validate(state, actorId, action, players);
     const next = clone(state);

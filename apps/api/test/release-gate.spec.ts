@@ -1,14 +1,15 @@
 import { CORE_GAME_IDS, GameRegistry } from '../src/games/game.registry';
 import { GameService } from '../src/games/game.service';
 import { MatchmakingService } from '../src/matchmaking/matchmaking.service';
+import { AdminController } from '../src/admin/admin.controller';
 import { AdminService } from '../src/admin/admin.service';
 import { AuthService } from '../src/auth/auth.service';
 import { RolesGuard } from '../src/common/guards/roles.guard';
 
-const coreRows = () => [
+const coreRows = (futureEnabled = false) => [
   ...CORE_GAME_IDS.map((id) => ({ id, isActive: 1 })),
-  { id: 'bingo', isActive: 1 },
-  { id: 'mini_golf', isActive: 1 },
+  { id: 'bingo', isActive: futureEnabled ? 1 : 0 },
+  { id: 'mini_golf', isActive: 0 },
 ];
 
 const executionContext = (user: unknown) => ({
@@ -18,10 +19,8 @@ const executionContext = (user: unknown) => ({
 });
 
 describe('focused core-game release gate', () => {
-  it('keeps the server catalog to the ten active core games', async () => {
-    const mysql = {
-      query: jest.fn(async () => coreRows()),
-    };
+  it('keeps the default server catalog to the ten active core games', async () => {
+    const mysql = { query: jest.fn(async () => coreRows()) };
     const service = new GameService(mysql as any, new GameRegistry(), {} as any);
 
     const games = await service.listGames();
@@ -31,21 +30,33 @@ describe('focused core-game release gate', () => {
     expect(games).not.toContainEqual(expect.objectContaining({ id: 'bingo' }));
   });
 
+  it('lets a re-enabled retained game flow through the player catalog', async () => {
+    const mysql = { query: jest.fn(async () => coreRows(true)) };
+    const games = new GameService(mysql as any, new GameRegistry(), {} as any);
+
+    const listed = await games.listGames();
+
+    expect(listed).toContainEqual(expect.objectContaining({ id: 'bingo' }));
+  });
+
   it('rejects disabled games before any match can be created or queued', async () => {
-    const mysql = { query: jest.fn(), execute: jest.fn(), transaction: jest.fn() };
+    const mysql = {
+      query: jest.fn(async (sql: string) => sql.includes('is_active') ? [{ isActive: 0 }] : []),
+      execute: jest.fn(),
+      transaction: jest.fn(),
+    };
     const games = new GameService(mysql as any, new GameRegistry(), {} as any);
     const matchmaking = new MatchmakingService(mysql as any, games, new GameRegistry());
 
-    await expect(games.createMatch('bingo', 'casual', ['player-1'])).rejects.toThrow('reserved for a future release');
-    await expect(matchmaking.join('player-1', { gameId: 'bingo', mode: 'casual', playerCount: 2 } as any)).rejects.toThrow('reserved for a future release');
-    expect(mysql.query).not.toHaveBeenCalled();
+    await expect(games.createMatch('bingo', 'casual', ['player-1'])).rejects.toThrow('currently unavailable');
+    await expect(matchmaking.join('player-1', { gameId: 'bingo', mode: 'casual', playerCount: 2 } as any)).rejects.toThrow('currently unavailable');
   });
 
-  it('reports future games as locked and prevents admin reactivation', async () => {
+  it('reports future games as disabled by default and permits reversible admin reactivation', async () => {
     const mysql = {
       query: jest.fn(async (sql: string) => {
-        if (sql.includes('ORDER BY displayName')) return [{ id: 'bingo', displayName: 'Bingo', isActive: 1 }];
-        if (sql.includes('FROM games WHERE id')) return [{ id: 'bingo', is_active: 1, min_players: 2, max_players: 8 }];
+        if (sql.includes('ORDER BY displayName')) return [{ id: 'bingo', displayName: 'Bingo', isActive: 0 }];
+        if (sql.includes('FROM games WHERE id')) return [{ id: 'bingo', is_active: 0, min_players: 2, max_players: 8, config: '{}' }];
         return [];
       }),
       execute: jest.fn(async () => ({ affectedRows: 1 })),
@@ -53,9 +64,13 @@ describe('focused core-game release gate', () => {
     const service = new AdminService(mysql as any, { finishSeason: jest.fn() } as any);
 
     const listed = await service.games();
-    expect(listed[0]).toMatchObject({ isCore: false, isActive: false, releaseState: 'locked_future' });
-    await expect(service.updateGame('admin-1', 'bingo', { isActive: true })).rejects.toThrow('locked off');
-    expect(mysql.execute).not.toHaveBeenCalled();
+    expect(listed[0]).toMatchObject({ isCore: false, isActive: false, releaseState: 'disabled_future' });
+    await expect(service.updateGame('admin-1', 'bingo', { isActive: true })).resolves.toMatchObject({ id: 'bingo' });
+    expect(mysql.execute).toHaveBeenCalledWith(expect.stringContaining('is_active = ?'), [true, 'bingo']);
+
+    const controller = new AdminController(service);
+    await expect(controller.updateGame({ id: 'mod-1', role: 'moderator' }, 'bingo', { isActive: true })).resolves.toMatchObject({ id: 'bingo' });
+    await expect(Promise.resolve().then(() => controller.updateGame({ id: 'mod-1', role: 'moderator' }, 'bingo', { displayName: 'Hidden' }))).rejects.toThrow('only change game availability');
   });
 });
 

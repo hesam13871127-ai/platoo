@@ -49,7 +49,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final strings = AppStrings(Localizations.localeOf(context));
     final user = ref.watch(authProvider).value?.user;
     final catalog = ref.watch(gamesProvider);
-    final games = catalog.maybeWhen(data: (value) => value, orElse: () => coreGameCatalog);
+    final games = catalog.maybeWhen(data: (value) => value.isEmpty ? coreGameCatalog : value, orElse: () => coreGameCatalog);
     final filtered = games.where((game) {
       final matchesCategory = category == null || game.category == category;
       final matchesQuery = query.trim().isEmpty || game.name.toLowerCase().contains(query.trim().toLowerCase());

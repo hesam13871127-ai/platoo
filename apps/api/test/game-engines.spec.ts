@@ -86,6 +86,9 @@ describe('authoritative game engines', () => {
     expect(state.positions[0][0]).toBe(1); expect(state.positions[1][0]).toBe(-1); expect(state.turnPlayerId).toBe('player-1');
     state.turnPlayerId = 'player-0'; state.turnIndex = 0; state.pendingRoll = 1; state.positions[0][0] = 0; state.positions[1][0] = 40; state.positions[1][1] = 40;
     expect(() => engine.apply(state, 'player-0', { type: 'move', token: 0 }, roster)).toThrow();
+    state.positions[1][0] = -1; state.positions[1][1] = -1; state.positions[0][1] = 1; state.positions[0][2] = 1;
+    expect(() => engine.apply(state, 'player-0', { type: 'move', token: 0 }, roster)).toThrow();
+    state.positions[0][1] = -1; state.positions[0][2] = -1; state.positions[1][0] = 40; state.positions[1][1] = 40;
     expect(engine.botAction(state, 'player-0', roster).type).toBe('pass');
     const botState = engine.create(roster) as any; botState.pendingRoll = 6;
     expect(engine.botAction(botState, 'player-0', roster)).toEqual({ type: 'move', token: 0 });

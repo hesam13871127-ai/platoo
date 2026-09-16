@@ -181,18 +181,21 @@ export class LudoEngine implements GameEngine {
     if (destination > LUDO_FINISHED) return false;
     const firstTrackProgress = position === LUDO_HOME ? destination : position + 1;
     for (let progress = firstTrackProgress; progress <= Math.min(destination, LUDO_TRACK_SIZE - 1); progress += 1) {
-      if (this.hasOpponentBlockade(state, side, progress, players)) return false;
+      if (this.hasBlockade(state, side, progress)) return false;
     }
     return true;
   }
 
-  private hasOpponentBlockade(state: LudoState, side: number, progress: number, players: GamePlayer[]): boolean {
+  private hasBlockade(state: LudoState, side: number, progress: number): boolean {
     if (progress >= LUDO_TRACK_SIZE) return false;
     const absolute = this.absolutePosition(side, progress);
-    const opponents = state.positions
-      .map((positions, other) => other === side || this.sameTeam(players, side, other) ? 0 : positions.filter((position) => position >= 0 && position < LUDO_TRACK_SIZE && this.absolutePosition(other, position) === absolute).length)
+    // A blockade is made by any two tokens on the shared track, including a
+    // player's own tokens and a teammate's tokens in four-player team mode.
+    // Opponent tokens may still be captured when there is only one of them.
+    const occupied = state.positions
+      .map((positions, other) => positions.filter((position) => position >= 0 && position < LUDO_TRACK_SIZE && this.absolutePosition(other, position) === absolute).length)
       .reduce((sum, count) => sum + count, 0);
-    return opponents >= 2;
+    return occupied >= 2;
   }
 
   private captureOpponents(state: LudoState, side: number, progress: number, players: GamePlayer[]): void {
@@ -575,17 +578,23 @@ export class BackgammonEngine implements GameEngine {
     const own = side === 0 ? 1 : -1;
     if (state.bar[side] > 0 || from < 0 || from > 23 || Math.sign(state.points[from]) !== own) return false;
     const inHome = side === 0 ? from >= 18 : from <= 5;
-    if (!inHome) return false;
+    if (!inHome || !this.allCheckersInHome(state, side)) return false;
     const distance = side === 0 ? 24 - from : from + 1;
     if (die < distance) return false;
-    // An oversized die may only bear off the furthest checker: no checker may
-    // sit farther from the exit than the one being removed.
+    // An oversized die may only bear off the furthest checker. Positive
+    // checkers exit above point 23, while negative checkers exit below point
+    // 0, so the search must move away from the exit in each orientation.
     if (die > distance) {
-      for (let point = side === 0 ? from + 1 : from - 1; point >= 0 && point < 24; point += side === 0 ? 1 : -1) {
+      for (let point = side === 0 ? from - 1 : from + 1; point >= 0 && point < 24; point += side === 0 ? -1 : 1) {
         if (Math.sign(state.points[point]) === own) return false;
       }
     }
     return true;
+  }
+
+  private allCheckersInHome(state: BackgammonState, side: number): boolean {
+    const own = side === 0 ? 1 : -1;
+    return state.points.every((value, point) => Math.sign(value) !== own || (side === 0 ? point >= 18 : point <= 5));
   }
 
   private moveValue(state: BackgammonState, side: number, move: [number, number]): number {

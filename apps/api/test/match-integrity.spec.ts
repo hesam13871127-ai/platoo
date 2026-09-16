@@ -96,6 +96,23 @@ describe('match integrity: engine repairs', () => {
     expect(engine.botAction(botEntry, 'player-1', roster)).toEqual({ type: 'move', from: -1, to: 18 });
     const fresh = engine.apply(engine.create(roster), 'player-0', { type: 'roll' }, roster) as any;
     expect(() => engine.apply(fresh, 'player-0', { type: 'move', from: -1, to: 0 }, roster)).toThrow('no checker on the bar');
+
+    const bearingOff = engine.create(roster) as any;
+    bearingOff.points = Array(24).fill(0);
+    bearingOff.points[18] = 1;
+    bearingOff.points[23] = 1;
+    bearingOff.borneOff = [13, 15];
+    bearingOff.dice = [6];
+    expect(() => engine.apply(bearingOff, 'player-0', { type: 'move', from: 18, to: 24 }, roster)).not.toThrow();
+
+    const oversized = engine.create(roster) as any;
+    oversized.points = Array(24).fill(0);
+    oversized.points[18] = 1;
+    oversized.points[21] = 1;
+    oversized.points[23] = 1;
+    oversized.borneOff = [12, 15];
+    oversized.dice = [6];
+    expect(() => engine.apply(oversized, 'player-0', { type: 'move', from: 21, to: 24 }, roster)).toThrow('die is not available');
   });
 
   it('exposes per-game turn clocks with a sketch drawing override', () => {
@@ -178,7 +195,7 @@ describe('match integrity: resign, timers, and sweeper', () => {
 
   it('records idle strikes on auto-moves and clears them when the human acts', async () => {
     const states: unknown[] = [];
-    const row = matchRow({ state: { turnPlayerId: 'user-1', _idleStrikes: { 'user-1': 1, 'user-2': 2 } } });
+    const row = matchRow({ state: { turnPlayerId: 'user-1', _idleStrikes: { 'user-1': 1, 'user-2': 2 } }, updated_at: new Date().toISOString() });
     const connection = connectionWith(
       (sql) => sql.includes('FROM matches') ? [[row]] : [[human('user-1', 0), human('user-2', 1)]],
       (sql, params) => { if (sql.startsWith('UPDATE matches')) states.push(JSON.parse(params[0] as string)); },
@@ -194,6 +211,23 @@ describe('match integrity: resign, timers, and sweeper', () => {
     expect((states[0] as any)._idleStrikes).toEqual({ 'user-1': 2, 'user-2': 2 });
     await service.act('match-1', 'user-1', { type: 'drop', column: 0 } as any);
     expect((states[1] as any)._idleStrikes).toEqual({ 'user-2': 2 });
+    expect((states[1] as any).lastTimeout).toBeUndefined();
+  });
+
+  it('rejects a human action that arrives after the server deadline', async () => {
+    const row = matchRow({ updated_at: isoAgo(61_000) });
+    const connection = connectionWith(
+      (sql) => sql.includes('FROM matches') ? [[row]] : [[human('user-1', 0), bot('bot-1', 1)]],
+    );
+    const mysql = {
+      transaction: jest.fn(async (callback: (connection: unknown) => Promise<unknown>) => callback(connection)),
+      query: jest.fn(),
+    };
+    const engine = { apply: jest.fn(), outcome: jest.fn() };
+    const service = new GameService(mysql as any, { engine: jest.fn().mockReturnValue(engine), turnSeconds: jest.fn().mockReturnValue(30) } as any, {} as any);
+
+    await expect(service.act('match-1', 'user-1', { type: 'drop', column: 0 } as any)).rejects.toThrow('turn has expired');
+    expect(engine.apply).not.toHaveBeenCalled();
   });
 
   it('auto-moves an idle human past the turn deadline', async () => {
