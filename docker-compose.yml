@@ -35,37 +35,37 @@ services:
 
   # Local development stack. For production, override NODE_ENV=production with
   # real JWT secrets, explicit CORS origins, and DEV_OTP_ENABLED=false (see README).
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    environment:
-      NODE_ENV: development
-      PORT: 3000
-      CORS_ORIGINS: http://localhost:3000
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USER: vibetable
-      DB_PASSWORD: vibetable
-      DB_NAME: vibetable
-      JWT_ACCESS_SECRET: replace-with-a-64-character-random-secret
-      JWT_REFRESH_SECRET: replace-with-a-different-64-character-random-secret
-      DEV_OTP_ENABLED: "true"
-      REDIS_URL: redis://redis:6379
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/v1/health/ready"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/api/Dockerfile
+  #   environment:
+  #     NODE_ENV: development
+  #     PORT: 3000
+  #     CORS_ORIGINS: http://localhost:3000
+  #     DB_HOST: mysql
+  #     DB_PORT: 3306
+  #     DB_USER: vibetable
+  #     DB_PASSWORD: vibetable
+  #     DB_NAME: vibetable
+  #     JWT_ACCESS_SECRET: replace-with-a-64-character-random-secret
+  #     JWT_REFRESH_SECRET: replace-with-a-different-64-character-random-secret
+  #     DEV_OTP_ENABLED: "true"
+  #     REDIS_URL: redis://redis:6379
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     mysql:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/v1/health/ready"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
 
 volumes:
   vibetable_mysql:
