@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../localization/app_strings.dart';
 import '../theme/app_theme.dart';
 
 /// Staggered entrance micro-animation: fades in while sliding up, once.
@@ -131,6 +132,7 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppStrings(Localizations.localeOf(context));
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -139,13 +141,13 @@ class SectionHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(title, style: theme.textTheme.titleLarge),
-              if (subtitle != null) ...[const SizedBox(height: 2), Text(subtitle!, style: theme.textTheme.bodySmall)],
+              VibeText(strings.translateText(title), style: theme.textTheme.titleLarge),
+              if (subtitle != null) ...[const SizedBox(height: 2), VibeText(strings.translateText(subtitle!), style: theme.textTheme.bodySmall)],
             ],
           ),
         ),
         if (trailing != null) trailing!,
-        if (actionLabel != null && onAction != null) TextButton(onPressed: onAction, child: Text(actionLabel!)),
+        if (actionLabel != null && onAction != null) TextButton(onPressed: onAction, child: VibeText(strings.translateText(actionLabel!))),
       ],
     );
   }
@@ -162,6 +164,7 @@ class VibePrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings(Localizations.localeOf(context));
     final enabled = onPressed != null && !busy;
     final leadingIcon = icon;
     return PressableScale(
@@ -183,7 +186,7 @@ class VibePrimaryButton extends StatelessWidget {
             if (busy)
               const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
             else if (leadingIcon != null) ...[Icon(leadingIcon, color: Colors.white, size: 20), const SizedBox(width: 9)],
-            Text(label, style: TextStyle(color: enabled ? Colors.white : scheme.onSurfaceVariant, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: -.2)),
+            VibeText(strings.translateText(label), style: TextStyle(color: enabled ? Colors.white : scheme.onSurfaceVariant, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: -.2)),
           ],
         ),
       ),

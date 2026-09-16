@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/vibe_components.dart';
 import '../../models/models.dart';
@@ -52,9 +53,9 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
         Row(children: [
           Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.mintGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(AppTheme.mint, strength: .35)), child: const Icon(Icons.sports_bar_rounded, color: Colors.white, size: 20)),
           const SizedBox(width: 10),
-          Text('Pool 8-ball', style: Theme.of(context).textTheme.titleLarge),
+          VibeText('Pool 8-ball', style: Theme.of(context).textTheme.titleLarge),
           const Spacer(),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.mint.withOpacity(.3))), child: Text('${remaining.length} balls', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.mint.withOpacity(.3))), child: VibeText('${remaining.length} balls', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12))),
         ]),
         const SizedBox(height: 8),
         _StatusDot(text: _status(isTurn, group, ownRemaining), active: isTurn, finished: widget.match.status == 'finished'),
@@ -68,7 +69,7 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
             final dark = Theme.of(context).brightness == Brightness.dark;
             return Stack(children: [
               Positioned.fill(child: CustomPaint(painter: _PoolTablePainter(selectedPocket: selectedPocket, dark: dark))),
-              if (isBreak) Positioned(top: 10, left: 0, right: 0, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), decoration: BoxDecoration(color: Colors.black.withOpacity(.45), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.25))), child: const Text('BREAK SHOT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.4))))),
+              if (isBreak) Positioned(top: 10, left: 0, right: 0, child: Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), decoration: BoxDecoration(color: Colors.black.withOpacity(.45), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.25))), child: const VibeText('BREAK SHOT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.4))))),
               for (var pocket = 0; pocket < 6; pocket += 1)
                 Positioned(
                   left: pockets[pocket].dx * constraints.maxWidth - 22,
@@ -96,18 +97,18 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  const Text('Power', style: TextStyle(fontWeight: FontWeight.w800)),
+                  const VibeText('Power', style: TextStyle(fontWeight: FontWeight.w800)),
                   Expanded(
                     child: SliderTheme(
                       data: SliderTheme.of(context).copyWith(trackHeight: 8, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 11), overlayShape: const RoundSliderOverlayShape(overlayRadius: 20), activeTrackColor: AppTheme.mint, inactiveTrackColor: AppTheme.mint.withOpacity(.18), thumbColor: Colors.white),
                       child: Slider(value: power, min: 20, max: 100, divisions: 80, label: '${power.round()}', onChanged: (value) => setState(() => power = value)),
                     ),
                   ),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: Text('${power.round()}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: VibeText('${power.round()}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
                 ]),
                 const SizedBox(height: 6),
                 Row(children: [
-                  const Text('Pocket', style: TextStyle(fontWeight: FontWeight.w800)),
+                  const VibeText('Pocket', style: TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(width: 10),
                   Expanded(child: Wrap(spacing: 6, runSpacing: 6, children: [for (var index = 0; index < 6; index += 1) _PocketChip(number: index + 1, selected: selectedPocket == index, onTap: () => setState(() => selectedPocket = index))])),
                 ]),
@@ -120,7 +121,7 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
                     child: Row(children: [
                       AnimatedContainer(duration: const Duration(milliseconds: 180), width: 40, height: 22, alignment: scratch ? Alignment.centerRight : Alignment.centerLeft, padding: const EdgeInsets.all(3), decoration: BoxDecoration(color: scratch ? AppTheme.coral : Theme.of(context).colorScheme.surfaceVariant, borderRadius: BorderRadius.circular(99)), child: Container(width: 16, height: 16, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
                       const SizedBox(width: 10),
-                      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Cue-ball scratch', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text('Use for a foul or a missed shot', style: TextStyle(fontSize: 11))])),
+                      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [VibeText('Cue-ball scratch', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), VibeText('Use for a foul or a missed shot', style: TextStyle(fontSize: 11))])),
                     ]),
                   ),
                 ),
@@ -130,7 +131,7 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
           const SizedBox(height: 12),
           VibePrimaryButton(onPressed: _submit, icon: Icons.sports_bar_rounded, label: _buttonLabel(canEight)),
         ] else
-          Text('Waiting for the other player to take a shot…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          VibeText('Waiting for the other player to take a shot…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ],
     );
   }
@@ -156,7 +157,7 @@ class _PoolGameBoardState extends State<PoolGameBoard> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
         decoration: BoxDecoration(color: (shot['scratch'] == true ? AppTheme.coral : AppTheme.mint).withOpacity(.1), borderRadius: BorderRadius.circular(14), border: Border.all(color: (shot['scratch'] == true ? AppTheme.coral : AppTheme.mint).withOpacity(.3))),
-        child: Row(children: [Icon(shot['scratch'] == true ? Icons.warning_amber_rounded : Icons.check_circle_rounded, size: 17, color: shot['scratch'] == true ? AppTheme.coral : AppTheme.mint), const SizedBox(width: 8), Expanded(child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))]),
+        child: Row(children: [Icon(shot['scratch'] == true ? Icons.warning_amber_rounded : Icons.check_circle_rounded, size: 17, color: shot['scratch'] == true ? AppTheme.coral : AppTheme.mint), const SizedBox(width: 8), Expanded(child: VibeText(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))]),
       ),
     );
   }
@@ -250,7 +251,7 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = finished ? AppTheme.gold : active ? AppTheme.mint : Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
+    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: VibeText(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
   }
 }
 
@@ -268,7 +269,7 @@ class _PocketChip extends StatelessWidget {
           height: 38,
           alignment: Alignment.center,
           decoration: BoxDecoration(color: selected ? AppTheme.mint : Theme.of(context).colorScheme.surfaceVariant, shape: BoxShape.circle, border: Border.all(color: selected ? AppTheme.mint : Colors.transparent, width: 2), boxShadow: selected ? AppTheme.glow(AppTheme.mint, strength: .4) : null),
-          child: Text('$number', style: TextStyle(fontWeight: FontWeight.w900, color: selected ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant)),
+          child: VibeText('$number', style: TextStyle(fontWeight: FontWeight.w900, color: selected ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant)),
         ),
       );
 }
@@ -350,7 +351,7 @@ class _PoolBall extends StatelessWidget {
             width: size * .44,
             height: size * .44,
             decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-            child: Center(child: Text('$number', style: TextStyle(fontSize: size * .2, color: Colors.black, fontWeight: FontWeight.w900))),
+            child: Center(child: VibeText('$number', style: TextStyle(fontSize: size * .2, color: Colors.black, fontWeight: FontWeight.w900))),
           ),
           Positioned(top: size * .12, left: size * .18, child: Container(width: size * .22, height: size * .12, decoration: BoxDecoration(color: Colors.white.withOpacity(.65), borderRadius: BorderRadius.circular(99)))),
         ],
@@ -384,9 +385,9 @@ class _GroupChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(color: active ? color.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: active ? color : Theme.of(context).dividerColor, width: active ? 1.8 : 1)),
           child: Column(children: [
-            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+            VibeText(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
             const SizedBox(height: 2),
-            Text(group == null ? 'open table' : '$group · $remaining left', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: active ? color : Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText(group == null ? 'open table' : '$group · $remaining left', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: active ? color : Theme.of(context).colorScheme.onSurfaceVariant)),
           ]),
         ),
       );

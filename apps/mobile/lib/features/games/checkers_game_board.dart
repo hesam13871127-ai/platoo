@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -152,14 +153,14 @@ class _CheckersGameBoardState extends State<CheckersGameBoard> {
           Row(children: [
             const Icon(Icons.grid_4x4_rounded, color: AppTheme.coral),
             const SizedBox(width: 8),
-            const Text('Checkers', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            const VibeText('Checkers', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             const Spacer(),
             _CountPill(count: mine, mine: true),
             const SizedBox(width: 6),
             _CountPill(count: theirs, mine: false),
           ]),
           const SizedBox(height: 7),
-          Align(alignment: Alignment.centerLeft, child: Text(status, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700))),
+          Align(alignment: Alignment.centerLeft, child: VibeText(status, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700))),
           const SizedBox(height: 12),
           AspectRatio(
             aspectRatio: 1,
@@ -232,6 +233,6 @@ class _CountPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(color: (mine ? AppTheme.coral : AppTheme.gold).withOpacity(.14), borderRadius: BorderRadius.circular(99)),
-        child: Text(mine ? 'You · $count' : 'Foe · $count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: mine ? AppTheme.coral : AppTheme.gold)),
+        child: VibeText(mine ? 'You · $count' : 'Foe · $count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: mine ? AppTheme.coral : AppTheme.gold)),
       );
 }

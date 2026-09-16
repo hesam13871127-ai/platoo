@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -60,7 +61,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   Widget build(BuildContext context) {
     final data = ref.watch(chatConversationsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat')),
+      appBar: AppBar(title: const VibeText('Chat')),
       body: Column(
         children: [
           Padding(
@@ -116,18 +117,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      Expanded(child: Text(item['title']?.toString() ?? 'Conversation', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+                                      Expanded(child: VibeText(item['title']?.toString() ?? 'Conversation', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
                                       const SizedBox(width: 8),
-                                      Text(friendlyChatTime(item['lastMessageAt']?.toString()), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                      VibeText(friendlyChatTime(item['lastMessageAt']?.toString()), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                     ],
                                   ),
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
-                                      Expanded(child: Text(preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: unread > 0 ? Theme.of(context).colorScheme.onSurface : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w400))),
+                                      Expanded(child: VibeText(preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: unread > 0 ? Theme.of(context).colorScheme.onSurface : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w400))),
                                       if (unread > 0) ...[
                                         const SizedBox(width: 8),
-                                        Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(gradient: AppTheme.coralGradient, borderRadius: BorderRadius.circular(99), boxShadow: AppTheme.glow(AppTheme.coral, strength: .35)), child: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12))),
+                                        Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(gradient: AppTheme.coralGradient, borderRadius: BorderRadius.circular(99), boxShadow: AppTheme.glow(AppTheme.coral, strength: .35)), child: VibeText(unread > 99 ? '99+' : '$unread', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12))),
                                       ],
                                     ],
                                   ),
@@ -164,8 +165,8 @@ class _ChatConnectionBanner extends StatelessWidget {
       child: Row(children: [
         Icon(offline ? Icons.cloud_off_rounded : Icons.sync_rounded, size: 17, color: Theme.of(context).colorScheme.onSurfaceVariant),
         const SizedBox(width: 8),
-        Expanded(child: Text(offline ? 'Chat is offline.' : 'Reconnecting chat…', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
-        TextButton(onPressed: onRetry, child: const Text('Retry')),
+        Expanded(child: VibeText(offline ? 'Chat is offline.' : 'Reconnecting chat…', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+        TextButton(onPressed: onRetry, child: const VibeText('Retry')),
       ]),
     );
   }
@@ -247,7 +248,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       appBar: AppBar(
         title: Row(children: [
           if (isGroup) ...[Container(width: 34, height: 34, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.14), shape: BoxShape.circle), child: const Icon(Icons.group_rounded, color: AppTheme.violet, size: 18)), const SizedBox(width: 9)],
-          Expanded(child: Text(widget.conversation['title']?.toString() ?? 'Chat', maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(child: VibeText(widget.conversation['title']?.toString() ?? 'Chat', maxLines: 1, overflow: TextOverflow.ellipsis)),
         ]),
       ),
       body: Column(
@@ -313,10 +314,10 @@ class _MessageBubble extends StatelessWidget {
           crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!mine && sender.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 3), child: Text(sender, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant))),
-            Text(message['body']?.toString() ?? '', style: TextStyle(height: 1.35, color: mine ? Colors.white : null)),
+            if (!mine && sender.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 3), child: VibeText(sender, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+            VibeText(message['body']?.toString() ?? '', style: TextStyle(height: 1.35, color: mine ? Colors.white : null)),
             const SizedBox(height: 3),
-            Text(friendlyChatTime(message['createdAt']?.toString()), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: mine ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText(friendlyChatTime(message['createdAt']?.toString()), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: mine ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -360,24 +361,24 @@ class _RallyBubble extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('🎮 Game invite', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .6, color: AppTheme.violet)),
+                      VibeText('🎮 Game invite', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .6, color: AppTheme.violet)),
                       const SizedBox(height: 2),
-                      Text(mine ? 'You rallied for ${game.name}' : '$sender rallied for ${game.name}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                      VibeText(mine ? 'You rallied for ${game.name}' : '$sender rallied for ${game.name}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                     ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Text('Queue up for the same game to land at one table.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText('Queue up for the same game to land at one table.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 10),
             Row(
               children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.14), borderRadius: BorderRadius.circular(99)), child: Text('${game.minPlayers}–${game.maxPlayers} players', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppTheme.violet))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.14), borderRadius: BorderRadius.circular(99)), child: VibeText('${game.minPlayers}–${game.maxPlayers} players', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppTheme.violet))),
                 const Spacer(),
                 PressableScale(
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchSetupScreen(game: game))),
-                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9), decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(99), boxShadow: AppTheme.glow(AppTheme.violet, strength: .35)), child: const Text('Join queue', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13))),
+                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9), decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(99), boxShadow: AppTheme.glow(AppTheme.violet, strength: .35)), child: const VibeText('Join queue', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13))),
                 ),
               ],
             ),

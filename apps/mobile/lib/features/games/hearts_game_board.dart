@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -57,9 +58,9 @@ class HeartsGameBoard extends StatelessWidget {
           Row(children: [
             Icon(_isHearts ? Icons.favorite_rounded : Icons.style_rounded, color: _isHearts ? AppTheme.coral : AppTheme.violet),
             const SizedBox(width: 8),
-            Text(_isHearts ? 'Hearts' : 'Spades', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            VibeText(_isHearts ? 'Hearts' : 'Spades', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             const Spacer(),
-            Text('Target $target', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
+            VibeText('Target $target', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
           ]),
           const SizedBox(height: 10),
           Wrap(
@@ -76,7 +77,7 @@ class HeartsGameBoard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Text(
+          VibeText(
             finished ? 'Match complete' : isTurn ? (mustFollow ? 'Your turn — follow ${_suitName(leadSuit!)}.' : 'Your turn — play a card.') : 'Waiting for ${_turnName()}…',
             style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700),
           ),
@@ -88,9 +89,9 @@ class HeartsGameBoard extends StatelessWidget {
               decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.08), borderRadius: BorderRadius.circular(16)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Text('On the table', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  VibeText('On the table', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   const Spacer(),
-                  if (_isHearts && points > 0) Text('worth $points pts', style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800)),
+                  if (_isHearts && points > 0) VibeText('worth $points pts', style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800)),
                 ]),
                 const SizedBox(height: 8),
                 Wrap(
@@ -103,9 +104,9 @@ class HeartsGameBoard extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           if (mine.isEmpty)
-            Text(finished ? 'No cards left.' : 'Your hand is hidden until the deal reaches you.', style: Theme.of(context).textTheme.bodySmall)
+            VibeText(finished ? 'No cards left.' : 'Your hand is hidden until the deal reaches you.', style: Theme.of(context).textTheme.bodySmall)
           else ...[
-            const Text('Your hand', style: TextStyle(fontWeight: FontWeight.w800)),
+            const VibeText('Your hand', style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -122,7 +123,7 @@ class HeartsGameBoard extends StatelessWidget {
           ],
           if (_isHearts) ...[
             const SizedBox(height: 10),
-            Text('Avoid hearts and the Q♠ — lowest score wins.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText('Avoid hearts and the Q♠ — lowest score wins.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ],
         ]),
       ),
@@ -147,7 +148,7 @@ class _ScoreChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(99),
           border: turn ? Border.all(color: AppTheme.mint) : null,
         ),
-        child: Text('$name · $score${mine ? ' (you)' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+        child: VibeText('$name · $score${mine ? ' (you)' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
       );
 }
 
@@ -162,7 +163,7 @@ class _TrickCard extends StatelessWidget {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       _HandCard(card: card is Map ? card : const {}, enabled: false, onTap: null),
       const SizedBox(height: 3),
-      SizedBox(width: 64, child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700))),
+      SizedBox(width: 64, child: VibeText(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700))),
     ]);
   }
 }
@@ -194,7 +195,7 @@ class _HandCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.withOpacity(enabled ? .7 : .25), width: enabled ? 2 : 1),
         ),
-        child: Text('$face$pip', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: enabled || onTap == null ? color : Theme.of(context).disabledColor)),
+        child: VibeText('$face$pip', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: enabled || onTap == null ? color : Theme.of(context).disabledColor)),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -40,12 +41,12 @@ class MancalaGameBoard extends StatelessWidget {
           Row(children: [
             const Icon(Icons.circle_rounded, color: AppTheme.gold),
             const SizedBox(width: 8),
-            const Text('Mancala', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            const VibeText('Mancala', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             const Spacer(),
-            Text('$myStore · $theirStore', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText('$myStore · $theirStore', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ]),
           const SizedBox(height: 7),
-          Align(alignment: Alignment.centerLeft, child: Text(status, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700))),
+          Align(alignment: Alignment.centerLeft, child: VibeText(status, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700))),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -68,7 +69,7 @@ class MancalaGameBoard extends StatelessWidget {
             ]),
           ),
           const SizedBox(height: 10),
-          Text('Sow stones around the board — landing your last stone in your store earns another turn.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          VibeText('Sow stones around the board — landing your last stone in your store earns another turn.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ]),
       ),
     );
@@ -99,7 +100,7 @@ class _Pit extends StatelessWidget {
             shape: BoxShape.circle,
             border: enabled ? Border.all(color: color, width: 2) : null,
           ),
-          child: Text('$count', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: enabled || count > 0 ? color : Theme.of(context).disabledColor)),
+          child: VibeText('$count', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: enabled || count > 0 ? color : Theme.of(context).disabledColor)),
         ),
       ),
     );
@@ -117,9 +118,9 @@ class _Store extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.18), borderRadius: BorderRadius.circular(28), border: Border.all(color: AppTheme.gold.withOpacity(.5))),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('$count', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: AppTheme.gold)),
+          VibeText('$count', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: AppTheme.gold)),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppTheme.gold)),
+          VibeText(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppTheme.gold)),
         ]),
       );
 }

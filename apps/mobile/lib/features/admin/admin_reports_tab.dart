@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -29,9 +30,9 @@ class AdminReportsTab extends ConsumerWidget {
         Expanded(
           child: reports.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(child: Text(error.toString())),
+            error: (error, _) => Center(child: VibeText(error.toString())),
             data: (page) => page.items.isEmpty
-                ? const Center(child: Text('All clear. No reports here.'))
+                ? const Center(child: VibeText('All clear. No reports here.'))
                 : RefreshIndicator(
                     onRefresh: () async => ref.invalidate(adminReportsProvider),
                     child: ListView.separated(
@@ -76,7 +77,7 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(right: 8),
-        child: ChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onTap()),
+        child: ChoiceChip(label: VibeText(label), selected: selected, onSelected: (_) => onTap()),
       );
 }
 
@@ -96,7 +97,7 @@ class _ReportPager extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('Page ${page.page + 1} of ${page.totalPages == 0 ? 1 : page.totalPages} · ${page.total} total',
+              child: VibeText('Page ${page.page + 1} of ${page.totalPages == 0 ? 1 : page.totalPages} · ${page.total} total',
                   style: const TextStyle(fontSize: 12)),
             ),
             IconButton.filledTonal(
@@ -128,7 +129,7 @@ class _ReportCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.12), borderRadius: BorderRadius.circular(8)),
-                      child: Text(strOf(item['category'], 'report'),
+                      child: VibeText(strOf(item['category'], 'report'),
                           style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800, fontSize: 12)),
                     ),
                     const SizedBox(width: 8),
@@ -136,16 +137,16 @@ class _ReportCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surfaceVariant, borderRadius: BorderRadius.circular(8)),
-                      child: Text(strOf(item['status']), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      child: VibeText(strOf(item['status']), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                     ),
                     const Spacer(),
-                    Text(dateLabel(item['createdAt']), style: const TextStyle(fontSize: 11)),
+                    VibeText(dateLabel(item['createdAt']), style: const TextStyle(fontSize: 11)),
                   ],
                 ),
                 const SizedBox(height: 9),
-                Text(strOf(item['description']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                VibeText(strOf(item['description']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
-                Text('${strOf(item['reporterName'], 'Someone')} → ${strOf(item['reportedUserName'], '—')}',
+                VibeText('${strOf(item['reporterName'], 'Someone')} → ${strOf(item['reportedUserName'], '—')}',
                     style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ],
             ),
@@ -183,7 +184,7 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
         padding: EdgeInsets.fromLTRB(20, 6, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
         child: detail.when(
           loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
-          error: (error, _) => Padding(padding: const EdgeInsets.all(24), child: Text(error.toString())),
+          error: (error, _) => Padding(padding: const EdgeInsets.all(24), child: VibeText(error.toString())),
           data: (item) {
             final prior = asItemList(item['priorReports']);
             return SingleChildScrollView(
@@ -196,17 +197,17 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.12), borderRadius: BorderRadius.circular(8)),
-                        child: Text(strOf(item['category'], 'report'),
+                        child: VibeText(strOf(item['category'], 'report'),
                             style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800, fontSize: 12)),
                       ),
                       const SizedBox(width: 8),
-                      Text('Current: ${strOf(item['status'])}', style: const TextStyle(fontSize: 12)),
+                      VibeText('Current: ${strOf(item['status'])}', style: const TextStyle(fontSize: 12)),
                       const Spacer(),
-                      Text(dateLabel(item['createdAt']), style: const TextStyle(fontSize: 11)),
+                      VibeText(dateLabel(item['createdAt']), style: const TextStyle(fontSize: 11)),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text(strOf(item['description']), style: const TextStyle(fontSize: 15, height: 1.4)),
+                  VibeText(strOf(item['description']), style: const TextStyle(fontSize: 15, height: 1.4)),
                   const SizedBox(height: 12),
                   _PersonRow(
                     label: 'Reporter',
@@ -222,24 +223,24 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                   ),
                   if (strOf(item['gameId']).isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Text('Match: ${strOf(item['matchId'])} · ${strOf(item['gameId'])} (${strOf(item['matchMode'])})',
+                    VibeText('Match: ${strOf(item['matchId'])} · ${strOf(item['gameId'])} (${strOf(item['matchMode'])})',
                         style: const TextStyle(fontSize: 12)),
                   ],
                   if (prior.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text('${prior.length} earlier report(s) against this user (latest: ${strOf(prior.first['category'])} · ${strOf(prior.first['status'])})',
+                    VibeText('${prior.length} earlier report(s) against this user (latest: ${strOf(prior.first['category'])} · ${strOf(prior.first['status'])})',
                         style: const TextStyle(fontSize: 12, color: AppTheme.coral, fontWeight: FontWeight.w700)),
                   ],
                   const SizedBox(height: 16),
-                  const Text('Resolution', style: TextStyle(fontWeight: FontWeight.w900)),
+                  const VibeText('Resolution', style: TextStyle(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: _status,
                     decoration: const InputDecoration(labelText: 'Status'),
                     items: const [
-                      DropdownMenuItem(value: 'investigating', child: Text('investigating')),
-                      DropdownMenuItem(value: 'resolved', child: Text('resolved')),
-                      DropdownMenuItem(value: 'dismissed', child: Text('dismissed')),
+                      DropdownMenuItem(value: 'investigating', child: VibeText('investigating')),
+                      DropdownMenuItem(value: 'resolved', child: VibeText('resolved')),
+                      DropdownMenuItem(value: 'dismissed', child: VibeText('dismissed')),
                     ],
                     onChanged: (value) {
                       if (value != null) setState(() => _status = value);
@@ -250,9 +251,9 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                     value: _action,
                     decoration: const InputDecoration(labelText: 'Moderation action'),
                     items: [
-                      const DropdownMenuItem(value: 'none', child: Text('No action on user')),
-                      const DropdownMenuItem(value: 'warn', child: Text('Send warning')),
-                      DropdownMenuItem(value: 'suspend_reported', enabled: admin, child: Text('Suspend reported user${admin ? '' : ' (admin only)'}')),
+                      const DropdownMenuItem(value: 'none', child: VibeText('No action on user')),
+                      const DropdownMenuItem(value: 'warn', child: VibeText('Send warning')),
+                      DropdownMenuItem(value: 'suspend_reported', enabled: admin, child: VibeText('Suspend reported user${admin ? '' : ' (admin only)'}')),
                     ],
                     onChanged: (value) {
                       if (value != null) setState(() => _action = value);
@@ -274,7 +275,7 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                     child: FilledButton.icon(
                       onPressed: () => _submit(context, ref),
                       icon: const Icon(Icons.check_rounded),
-                      label: const Text('Apply resolution'),
+                      label: const VibeText('Apply resolution'),
                     ),
                   ),
                 ],
@@ -313,8 +314,8 @@ class _PersonRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))),
-          Expanded(child: Text('$name${handle.isEmpty ? '' : ' · @$handle'}${extra == null ? '' : ' $extra'}', style: const TextStyle(fontWeight: FontWeight.w700))),
+          SizedBox(width: 70, child: VibeText(label, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+          Expanded(child: VibeText('$name${handle.isEmpty ? '' : ' · @$handle'}${extra == null ? '' : ' $extra'}', style: const TextStyle(fontWeight: FontWeight.w700))),
         ],
       );
 }

@@ -14,6 +14,7 @@ import '../../core/widgets/vibe_logo.dart';
 import '../../models/models.dart';
 import 'game_rules_sheet.dart';
 import 'game_socket.dart';
+import 'game_tutorial.dart';
 import 'four_in_a_row_game_board.dart';
 import 'ocho_game_board.dart';
 import 'chess_game_board.dart';
@@ -64,6 +65,7 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
   GameSocketStatus socketStatus = GameSocketStatus.connecting;
   int socketRetries = 0;
   int loadFailures = 0;
+  bool tutorialShown = false;
 
   // Floating live reaction overlay
   final List<_FloatingEmote> _activeEmotes = [];
@@ -133,11 +135,11 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
     final leave = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Leave the table?'),
-        content: const Text('The match will keep running while you are away. You can return from your active matches later.'),
+        title: const VibeText('Leave the table?'),
+        content: const VibeText('The match will keep running while you are away. You can return from your active matches later.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Stay')),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Leave')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const VibeText('Stay')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const VibeText('Leave')),
         ],
       ),
     );
@@ -159,11 +161,18 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
       if (current != null && next.revision < current.revision) return;
       if (current != null && next.revision == current.revision && current.status == 'finished' && (next.status != 'finished' || (current.reward != null && next.reward == null))) return;
       _noteTurnTransition(current, next);
+      final showTutorial = current == null && next.status == 'active' && !tutorialShown;
+      if (showTutorial) tutorialShown = true;
       setState(() {
         match = next;
         error = null;
         loadFailures = 0;
       });
+      if (showTutorial) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_showTutorial());
+        });
+      }
       if (next.status == 'finished') {
         if (next.reward != null) {
           poller?.cancel();
@@ -187,6 +196,19 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
     } catch (_) {
       if (mounted) setState(() => error = 'The match update could not be read.');
     }
+  }
+
+  Future<void> _showTutorial() async {
+    if (!mounted || match?.status != 'active') return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (_) => GameTutorialSheet(game: widget.game),
+    );
   }
 
   Future<void> _load() async {
@@ -229,14 +251,14 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Resign this match?'),
-        content: const Text('Resigning counts as a loss and your opponents win the table. This cannot be undone.'),
+        title: const VibeText('Resign this match?'),
+        content: const VibeText('Resigning counts as a loss and your opponents win the table. This cannot be undone.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Keep playing')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const VibeText('Keep playing')),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: AppTheme.coral),
-            child: const Text('Resign'),
+            child: const VibeText('Resign'),
           ),
         ],
       ),
@@ -293,6 +315,8 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final current = match;
+    final strings = AppStrings(Localizations.localeOf(context));
+    final gameName = strings.gameName(widget.game.id, widget.game.name);
     return PopScope(
       canPop: current == null || current.status == 'finished' || current.status == 'cancelled' || leaving,
       onPopInvokedWithResult: (didPop, _) {
@@ -300,12 +324,12 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: IconButton(onPressed: leaving ? null : _leave, icon: const Icon(Icons.arrow_back_rounded), tooltip: 'Leave table'),
+          leading: IconButton(onPressed: leaving ? null : _leave, icon: const Icon(Icons.arrow_back_rounded), tooltip: strings.leaveTable),
           title: Row(
             children: [
               Hero(tag: 'game-${widget.game.id}', child: GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 34)),
               const SizedBox(width: 10),
-              Expanded(child: Text(widget.game.name, style: const TextStyle(fontWeight: FontWeight.w900))),
+              Expanded(child: VibeText(gameName, style: const TextStyle(fontWeight: FontWeight.w900))),
               if (current?.status == 'finished') const Icon(Icons.emoji_events_rounded, color: AppTheme.gold),
             ],
           ),
@@ -313,12 +337,12 @@ class _GameRoomScreenState extends ConsumerState<GameRoomScreen> {
             IconButton(
               onPressed: () => GameRulesSheet.show(context, widget.game),
               icon: const Icon(Icons.help_outline_rounded),
-              tooltip: 'How to play & rules',
+              tooltip: strings.howToPlay,
             ),
             _ConnectionDot(status: socketStatus, onTap: _retryLiveUpdates),
             VoiceRoomButton(api: ref.read(apiClientProvider), matchId: widget.matchId),
-            IconButton(onPressed: () => unawaited(_load()), icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh match'),
-            if (current?.status == 'active') IconButton(onPressed: actionPending ? null : _resign, icon: const Icon(Icons.flag_outlined), tooltip: 'Resign match'),
+            IconButton(onPressed: () => unawaited(_load()), icon: const Icon(Icons.refresh_rounded), tooltip: strings.refreshMatch),
+            if (current?.status == 'active') IconButton(onPressed: actionPending ? null : _resign, icon: const Icon(Icons.flag_outlined), tooltip: strings.resignMatch),
           ],
         ),
         body: Stack(
@@ -400,7 +424,7 @@ class _AnimatedFloatingEmoteState extends State<_AnimatedFloatingEmote> with Sin
                       boxShadow: AppTheme.glow(AppTheme.violet, strength: .4),
                       border: Border.all(color: Colors.white.withOpacity(.3), width: 1.5),
                     ),
-                    child: Text(
+                    child: VibeText(
                       widget.emote,
                       style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white),
                     ),
@@ -438,12 +462,12 @@ class _RoomLoading extends StatelessWidget {
                         : Icon(Icons.cloud_off_rounded, color: Theme.of(context).colorScheme.primary, size: 27),
                   ),
                   const SizedBox(height: 18),
-                  Text(error == null ? 'Loading your table…' : 'We could not load this table.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+                  VibeText(error == null ? 'Loading your table…' : 'We could not load this table.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
-                  Text(error ?? 'Connecting to the latest confirmed match state.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+                  VibeText(error ?? 'Connecting to the latest confirmed match state.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
                   if (error != null) ...[
                     const SizedBox(height: 16),
-                    OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('Try again')),
+                    OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const VibeText('Try again')),
                   ],
                 ],
               ),
@@ -475,6 +499,8 @@ class _MatchBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = match.status == 'active';
+    final strings = AppStrings(Localizations.localeOf(context));
+    final gameName = strings.gameName(game.id, game.name);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
@@ -491,7 +517,6 @@ class _MatchBody extends StatelessWidget {
                   final player = match.players[index];
                   return _PlayerChip(
                     name: player['displayName']?.toString() ?? 'Player',
-                    bot: player['isBot'] as bool? ?? false,
                     active: active && match.state['turnPlayerId'] == player['id'],
                     winner: match.winnerIds.contains(player['id']),
                     color: index.isEven ? AppTheme.violet : AppTheme.coral,
@@ -522,7 +547,7 @@ class _MatchBody extends StatelessWidget {
                   : () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => ConversationScreen(
-                            conversation: {'id': match.conversationId, 'title': '${game.name} table'},
+                            conversation: {'id': match.conversationId, 'title': '$gameName table'},
                           ),
                         ),
                       ),
@@ -560,7 +585,7 @@ class _QuickReactionRow extends StatelessWidget {
                   boxShadow: AppTheme.softShadow(dark: Theme.of(context).brightness == Brightness.dark),
                 ),
                 child: Center(
-                  child: Text(
+                  child: VibeText(
                     emote,
                     style: TextStyle(
                       fontSize: emote.length > 2 ? 12 : 16,
@@ -621,7 +646,7 @@ class _SendingMoveOverlay extends StatelessWidget {
               children: [
                 SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                 SizedBox(width: 9),
-                Text('Sending move…', style: TextStyle(fontWeight: FontWeight.w800)),
+                VibeText('Sending move…', style: TextStyle(fontWeight: FontWeight.w800)),
               ],
             ),
           ),
@@ -635,25 +660,27 @@ class _SyncBanner extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-        decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.14), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.gold.withOpacity(.35))),
-        child: Row(
-          children: [
-            const Icon(Icons.sync_problem_rounded, size: 19, color: AppTheme.gold),
-            const SizedBox(width: 9),
-            Expanded(child: Text(message, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
-            TextButton(onPressed: onRetry, child: const Text('Retry')),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final strings = AppStrings(Localizations.localeOf(context));
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+      decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.14), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.gold.withOpacity(.35))),
+      child: Row(
+        children: [
+          const Icon(Icons.sync_problem_rounded, size: 19, color: AppTheme.gold),
+          const SizedBox(width: 9),
+          Expanded(child: VibeText(strings.translateText(message), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+          TextButton(onPressed: onRetry, child: VibeText(strings.retry)),
+        ],
+      ),
+    );
+  }
 }
 
 class _PlayerChip extends StatelessWidget {
-  const _PlayerChip({required this.name, required this.bot, required this.active, required this.winner, required this.color});
+  const _PlayerChip({required this.name, required this.active, required this.winner, required this.color});
   final String name;
-  final bool bot;
   final bool active;
   final bool winner;
   final Color color;
@@ -673,10 +700,10 @@ class _PlayerChip extends StatelessWidget {
             CircleAvatar(
               radius: 14,
               backgroundColor: color.withOpacity(.2),
-              child: Icon(bot ? Icons.smart_toy_rounded : Icons.person_rounded, size: 15, color: color),
+              child: const Icon(Icons.person_rounded, size: 15),
             ),
             const SizedBox(width: 7),
-            Flexible(child: Text(name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
+            Flexible(child: VibeText(name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
             if (winner) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.emoji_events_rounded, size: 16, color: AppTheme.gold)),
           ],
         ),
@@ -690,6 +717,7 @@ class _ResultBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(Localizations.localeOf(context));
     final viewer = match.players.where((player) => player['seat'] == match.viewerSeat).toList();
     final viewerResult = viewer.isEmpty ? null : viewer.first['result']?.toString();
     final winners = match.players.where((player) => match.winnerIds.contains(player['id'])).map((player) => player['displayName']?.toString() ?? 'Player').toList();
@@ -733,8 +761,8 @@ class _ResultBanner extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(headline, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 19)),
-                      if (subline.isNotEmpty) Text(subline, overflow: TextOverflow.ellipsis, maxLines: 2, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
+                      VibeText(strings.translateText(headline), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 19)),
+                      if (subline.isNotEmpty) VibeText(strings.translateText(subline), overflow: TextOverflow.ellipsis, maxLines: 2, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
                     ],
                   ),
                 ),
@@ -742,7 +770,7 @@ class _ResultBanner extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             if (xp != null && coins != null) ...[
-              const Text('Rewards added to your profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+              const VibeText('Rewards added to your profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
               const SizedBox(height: 9),
               Wrap(
                 spacing: 8,
@@ -758,7 +786,7 @@ class _ResultBanner extends StatelessWidget {
                 children: [
                   SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.gold)),
                   SizedBox(width: 9),
-                  Expanded(child: Text('Result saved · rewards are being settled. This card will update automatically.', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700))),
+                  Expanded(child: VibeText('Result saved · rewards are being settled. This card will update automatically.', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700))),
                 ],
               ),
             const SizedBox(height: 14),
@@ -768,7 +796,7 @@ class _ResultBanner extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
                     icon: const Icon(Icons.home_rounded, color: Colors.white),
-                    label: const Text('Back to games', style: TextStyle(color: Colors.white)),
+                    label: const VibeText('Back to games', style: TextStyle(color: Colors.white)),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -777,7 +805,7 @@ class _ResultBanner extends StatelessWidget {
                     onPressed: () => Navigator.of(context).pop(),
                     style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF2D2264)),
                     icon: const Icon(Icons.replay_rounded),
-                    label: const Text('Play again'),
+                    label: const VibeText('Play again'),
                   ),
                 ),
               ],
@@ -802,7 +830,7 @@ class _RewardPill extends StatelessWidget {
           children: [
             Icon(icon, size: 16, color: AppTheme.gold),
             const SizedBox(width: 5),
-            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
+            VibeText(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
           ],
         ),
       );
@@ -819,7 +847,7 @@ class _CancelledBanner extends StatelessWidget {
           children: [
             Icon(Icons.pause_circle_outline_rounded, size: 19),
             SizedBox(width: 9),
-            Expanded(child: Text('This match was cancelled after too long without a move. No rating changed.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+            Expanded(child: VibeText('This match was cancelled after too long without a move. No rating changed.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
           ],
         ),
       );
@@ -880,6 +908,7 @@ class _TurnHintState extends State<_TurnHint> {
   @override
   Widget build(BuildContext context) {
     final match = widget.match;
+    final strings = AppStrings(Localizations.localeOf(context));
     final turnPlayers = match.players.where((player) => player['id'] == match.state['turnPlayerId']).toList();
     final turn = turnPlayers.isEmpty ? null : turnPlayers.first['displayName']?.toString();
     final viewer = match.players.where((player) => player['seat'] == match.viewerSeat).toList();
@@ -924,8 +953,8 @@ class _TurnHintState extends State<_TurnHint> {
             color: color,
           ),
           const SizedBox(width: 9),
-          Expanded(child: Text(message, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: color))),
-          if (trailing != null) Text(trailing, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w900)),
+          Expanded(child: VibeText(strings.translateText(message), overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: color))),
+          if (trailing != null) VibeText(strings.translateText(trailing), style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w900)),
         ],
       ),
     );
@@ -939,7 +968,7 @@ class _RoomChatHint extends StatelessWidget {
   Widget build(BuildContext context) => OutlinedButton.icon(
         onPressed: onTap,
         icon: const Icon(Icons.forum_outlined),
-        label: const Text('Open table chat'),
+        label: const VibeText('Open table chat'),
       );
 }
 
@@ -1021,7 +1050,7 @@ class _GameCanvasState extends State<GameCanvas> {
               child: Container(
                 decoration: BoxDecoration(color: visible ? AppTheme.violet.withOpacity(.16) : AppTheme.violet, borderRadius: BorderRadius.circular(12)),
                 child: Center(
-                  child: Text(
+                  child: VibeText(
                     visible ? '${values[index] ?? '•'}' : '?',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: visible ? AppTheme.violet : Colors.white),
                   ),
@@ -1051,11 +1080,11 @@ class _GameCanvasState extends State<GameCanvas> {
                 children: [
                   GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 52),
                   const SizedBox(width: 12),
-                  Expanded(child: Text('Build the chain', style: Theme.of(context).textTheme.titleMedium)),
+                  Expanded(child: VibeText('Build the chain', style: Theme.of(context).textTheme.titleMedium)),
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
+              VibeText(
                 finished
                     ? 'This table is complete.'
                     : canAct
@@ -1120,13 +1149,13 @@ class _ComingSoon extends StatelessWidget {
           children: [
             GameLogo(gameId: game.id, accent: game.accent, size: 72),
             const SizedBox(height: 14),
-            Text(
+            VibeText(
               finished ? 'Match complete' : '${game.name} is coming soon',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            Text(
+            VibeText(
               finished
                   ? 'The final result is shown above.'
                   : 'This game does not have a mobile board yet, so the table is parked here. Your match is safe — check back after the next update.',
@@ -1137,7 +1166,7 @@ class _ComingSoon extends StatelessWidget {
             FilledButton.tonalIcon(
               onPressed: () => Navigator.of(context).maybePop(),
               icon: const Icon(Icons.home_rounded),
-              label: const Text('Back to games'),
+              label: const VibeText('Back to games'),
             ),
           ],
         ),

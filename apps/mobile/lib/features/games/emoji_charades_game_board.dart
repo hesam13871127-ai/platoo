@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -51,29 +52,29 @@ class _EmojiCharadesGameBoardState extends State<EmojiCharadesGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: _emojiOrange.withOpacity(.17), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.emoji_emotions_rounded, color: _emojiOrange)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Emoji Charades', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Emoji Charades', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _EmojiBadge(label: finished ? 'Final' : 'Round $round / $rounds'),
           ]),
           const SizedBox(height: 10),
-          Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: _emojiOrange.withOpacity(.08), borderRadius: BorderRadius.circular(12)), child: Text(finished ? 'The final round is revealed below.' : phase == 'clue' ? '🎭 ${_presenterName(presenterIndex)} is picking an emoji clue…' : '🔍 ${_presenterName(presenterIndex)} posted a clue — guess the word!', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))),
+          Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: _emojiOrange.withOpacity(.08), borderRadius: BorderRadius.circular(12)), child: VibeText(finished ? 'The final round is revealed below.' : phase == 'clue' ? '🎭 ${_presenterName(presenterIndex)} is picking an emoji clue…' : '🔍 ${_presenterName(presenterIndex)} posted a clue — guess the word!', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))),
           const SizedBox(height: 12),
           if (!finished && isPresenter && phase == 'clue') ...[
             Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: _emojiOrange.withOpacity(.1), borderRadius: BorderRadius.circular(14), border: Border.all(color: _emojiOrange.withOpacity(.4))), child: Column(children: [
-              const Text('YOUR SECRET WORD', style: TextStyle(color: _emojiOrange, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
+              const VibeText('YOUR SECRET WORD', style: TextStyle(color: _emojiOrange, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
               const SizedBox(height: 4),
-              Text(prompt?.toUpperCase() ?? '…', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24)),
+              VibeText(prompt?.toUpperCase() ?? '…', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24)),
               const SizedBox(height: 4),
-              Text(isTurn ? 'Pick the emoji that sells it.' : 'Waiting for your turn…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+              VibeText(isTurn ? 'Pick the emoji that sells it.' : 'Waiting for your turn…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
             ])),
             const SizedBox(height: 10),
             Row(children: [
               for (var index = 0; index < clueOptions.length; index += 1) ...[
-                Expanded(child: FilledButton(onPressed: isTurn ? () => widget.onAction({'type': 'post_clue', 'emoji': clueOptions[index]}) : null, style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)), child: Text(clueOptions[index], style: const TextStyle(fontSize: 26)))),
+                Expanded(child: FilledButton(onPressed: isTurn ? () => widget.onAction({'type': 'post_clue', 'emoji': clueOptions[index]}) : null, style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)), child: VibeText(clueOptions[index], style: const TextStyle(fontSize: 26)))),
                 if (index < clueOptions.length - 1) const SizedBox(width: 8),
               ],
             ]),
           ] else if (!finished && phase == 'guessing') ...[
-            Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14), decoration: BoxDecoration(color: _emojiOrange.withOpacity(.1), borderRadius: BorderRadius.circular(18)), child: Text(clue ?? '…', style: const TextStyle(fontSize: 52)))),
+            Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14), decoration: BoxDecoration(color: _emojiOrange.withOpacity(.1), borderRadius: BorderRadius.circular(18)), child: VibeText(clue ?? '…', style: const TextStyle(fontSize: 52)))),
             const SizedBox(height: 12),
             if (!isPresenter) ...[
               for (var index = 0; index < options.length; index += 1) ...[
@@ -81,16 +82,16 @@ class _EmojiCharadesGameBoardState extends State<EmojiCharadesGameBoard> {
                 if (index < options.length - 1) const SizedBox(height: 8),
               ],
               const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: isTurn && myGuess == null && selected != null ? () => widget.onAction({'type': 'guess', 'answer': selected}) : null, icon: const Icon(Icons.check_circle_rounded), label: Text(myGuess != null ? 'Guess locked in' : isTurn ? 'Lock in guess' : 'Waiting for your turn'))),
+              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: isTurn && myGuess == null && selected != null ? () => widget.onAction({'type': 'guess', 'answer': selected}) : null, icon: const Icon(Icons.check_circle_rounded), label: VibeText(myGuess != null ? 'Guess locked in' : isTurn ? 'Lock in guess' : 'Waiting for your turn'))),
             ] else ...[
-              Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).dividerColor)), child: Text('You posted $clue — $guessedCount of ${widget.match.players.length - 1} players guessed.', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))),
+              Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).dividerColor)), child: VibeText('You posted $clue — $guessedCount of ${widget.match.players.length - 1} players guessed.', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))),
             ],
           ] else if (!finished) ...[
-            Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 18), child: Text('Waiting for ${_presenterName(presenterIndex)} to post the clue…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700)))),
+            Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 18), child: VibeText('Waiting for ${_presenterName(presenterIndex)} to post the clue…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700)))),
           ],
           if (lastRound != null) ...[
             const SizedBox(height: 12),
-            Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: Text('${lastRound['clue'] ?? ''} was “${(lastRound['word']?.toString() ?? '').toUpperCase()}” — ${(lastRound['correctIds'] as List? ?? const []).length} guessed it!', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
+            Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: VibeText('${lastRound['clue'] ?? ''} was “${(lastRound['word']?.toString() ?? '').toUpperCase()}” — ${(lastRound['correctIds'] as List? ?? const []).length} guessed it!', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
           ],
           const SizedBox(height: 14),
           _EmojiScores(match: widget.match, scores: scores, viewerSeat: widget.match.viewerSeat),
@@ -126,9 +127,9 @@ class _GuessOption extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
           decoration: BoxDecoration(color: selected ? _emojiOrange.withOpacity(.18) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: selected ? _emojiOrange : Theme.of(context).dividerColor, width: selected ? 2 : 1)),
           child: Row(children: [
-            Container(width: 29, height: 29, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? _emojiOrange : _emojiOrange.withOpacity(.14), shape: BoxShape.circle), child: Text(String.fromCharCode(65 + index), style: TextStyle(fontWeight: FontWeight.w900, color: selected ? Colors.white : _emojiOrange))),
+            Container(width: 29, height: 29, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? _emojiOrange : _emojiOrange.withOpacity(.14), shape: BoxShape.circle), child: VibeText(String.fromCharCode(65 + index), style: TextStyle(fontWeight: FontWeight.w900, color: selected ? Colors.white : _emojiOrange))),
             const SizedBox(width: 10),
-            Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800))),
+            Expanded(child: VibeText(label, style: const TextStyle(fontWeight: FontWeight.w800))),
             if (selected) const Icon(Icons.check_circle_rounded, color: _emojiOrange),
             if (!selected && locked) Icon(Icons.lock_rounded, size: 16, color: Theme.of(context).disabledColor),
           ]),
@@ -140,7 +141,7 @@ class _EmojiBadge extends StatelessWidget {
   const _EmojiBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _emojiOrange.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: _emojiOrange, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _emojiOrange.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: _emojiOrange, fontWeight: FontWeight.w900, fontSize: 12)));
 }
 
 class _EmojiScores extends StatelessWidget {
@@ -149,5 +150,5 @@ class _EmojiScores extends StatelessWidget {
   final List<int> scores;
   final int viewerSeat;
   @override
-  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (var index = 0; index < match.players.length; index += 1) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: index == viewerSeat ? _emojiOrange.withOpacity(.16) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: index == viewerSeat ? _emojiOrange.withOpacity(.4) : Theme.of(context).dividerColor)), child: Text('${match.players[index]['displayName']?.toString() ?? 'Player'} · ${scores.length > index ? scores[index] : 0}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)))]);
+  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (var index = 0; index < match.players.length; index += 1) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: index == viewerSeat ? _emojiOrange.withOpacity(.16) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: index == viewerSeat ? _emojiOrange.withOpacity(.4) : Theme.of(context).dividerColor)), child: VibeText('${match.players[index]['displayName']?.toString() ?? 'Player'} · ${scores.length > index ? scores[index] : 0}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)))]);
 }

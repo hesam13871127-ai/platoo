@@ -63,9 +63,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           children: [
                             const Center(child: VibeLogo()),
                             const SizedBox(height: 26),
-                            Text(strings.welcome, style: Theme.of(context).textTheme.headlineMedium),
+                            VibeText(strings.welcome, style: Theme.of(context).textTheme.headlineMedium),
                             const SizedBox(height: 10),
-                            Text(strings.isPersian ? 'با دوستانت بازی کن، رقابت کن و حال خوب بساز.' : 'Play, compete and make a little more room for good vibes.', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant)),
+                            VibeText(strings.isPersian ? 'با دوستانت بازی کن، رقابت کن و حال خوب بساز.' : 'Play, compete and make a little more room for good vibes.', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant)),
                             const SizedBox(height: 26),
                             if (widget.errorMessage != null || localError != null) _ErrorBanner(localError ?? widget.errorMessage!),
                             TextField(controller: phone, keyboardType: TextInputType.phone, enabled: challenge == null && !busy, decoration: InputDecoration(labelText: strings.phone, hintText: '+14155552671', prefixIcon: const Icon(Icons.phone_rounded))),
@@ -81,21 +81,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             const SizedBox(height: 18),
                             VibePrimaryButton(onPressed: busy ? null : (challenge == null ? _sendCode : _verify), busy: busy, icon: challenge == null ? Icons.sms_rounded : Icons.verified_rounded, label: challenge == null ? strings.sendCode : strings.verify),
                             if (challenge != null)
-                              Align(alignment: Alignment.center, child: TextButton(onPressed: busy ? null : () => setState(() { challenge = null; devCode = null; }), child: Text(strings.isPersian ? 'تغییر شماره' : 'Use another number'))),
+                              Align(alignment: Alignment.center, child: TextButton(onPressed: busy ? null : () => setState(() { challenge = null; devCode = null; }), child: VibeText(strings.isPersian ? 'تغییر شماره' : 'Use another number'))),
                             const SizedBox(height: 16),
-                            Row(children: [const Expanded(child: Divider()), Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text(strings.isPersian ? 'یا' : 'or', style: Theme.of(context).textTheme.bodySmall)), const Expanded(child: Divider())]),
+                            Row(children: [const Expanded(child: Divider()), Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: VibeText(strings.isPersian ? 'یا' : 'or', style: Theme.of(context).textTheme.bodySmall)), const Expanded(child: Divider())]),
                             const SizedBox(height: 16),
                             SizedBox(
                               width: double.infinity,
-                              child: OutlinedButton.icon(onPressed: busy ? null : _google, icon: const Icon(Icons.g_mobiledata_rounded, size: 26), label: Text(strings.isPersian ? 'ورود با گوگل' : 'Continue with Google')),
+                              child: OutlinedButton.icon(onPressed: busy ? null : _google, icon: const Icon(Icons.g_mobiledata_rounded, size: 26), label: VibeText(strings.isPersian ? 'ورود با گوگل' : 'Continue with Google')),
                             ),
                             const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
-                              child: OutlinedButton.icon(onPressed: busy ? null : _apple, icon: const Icon(Icons.apple, size: 22), label: Text(strings.isPersian ? 'ورود با اپل' : 'Continue with Apple')),
+                              child: OutlinedButton.icon(onPressed: busy ? null : _apple, icon: const Icon(Icons.apple, size: 22), label: VibeText(strings.isPersian ? 'ورود با اپل' : 'Continue with Apple')),
                             ),
                             const SizedBox(height: 24),
-                            Text(strings.isPersian ? 'با ادامه دادن، قوانین جامعه و حریم خصوصی VibeTable را می‌پذیری.' : 'By continuing, you agree to VibeTable’s community guidelines and privacy policy.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+                            VibeText(strings.isPersian ? 'با ادامه دادن، قوانین جامعه و حریم خصوصی VibeTable را می‌پذیری.' : 'By continuing, you agree to VibeTable’s community guidelines and privacy policy.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
                           ],
                         ),
                       ),
@@ -185,6 +185,6 @@ class _ErrorBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: Theme.of(context).colorScheme.error.withOpacity(.25)),
         ),
-        child: Row(children: [Icon(Icons.error_outline_rounded, color: Theme.of(context).colorScheme.onErrorContainer, size: 20), const SizedBox(width: 10), Expanded(child: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontWeight: FontWeight.w600)))]),
+        child: Row(children: [Icon(Icons.error_outline_rounded, color: Theme.of(context).colorScheme.onErrorContainer, size: 20), const SizedBox(width: 10), Expanded(child: VibeText(message, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontWeight: FontWeight.w600)))]),
       );
 }

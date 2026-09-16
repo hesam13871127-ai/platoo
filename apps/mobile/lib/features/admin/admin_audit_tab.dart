@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import 'admin_api.dart';
@@ -11,9 +12,9 @@ class AdminAuditTab extends ConsumerWidget {
     final audit = ref.watch(adminAuditProvider);
     return audit.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text(error.toString())),
+      error: (error, _) => Center(child: VibeText(error.toString())),
       data: (page) => page.items.isEmpty
-          ? const Center(child: Text('No admin actions logged yet.'))
+          ? const Center(child: VibeText('No admin actions logged yet.'))
           : RefreshIndicator(
               onRefresh: () async => ref.invalidate(adminAuditProvider),
               child: ListView.separated(
@@ -33,7 +34,7 @@ class AdminAuditTab extends ConsumerWidget {
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text('Page ${page.page + 1} of ${page.totalPages == 0 ? 1 : page.totalPages} · ${page.total} total',
+                            child: VibeText('Page ${page.page + 1} of ${page.totalPages == 0 ? 1 : page.totalPages} · ${page.total} total',
                                 style: const TextStyle(fontSize: 12)),
                           ),
                           IconButton.filledTonal(
@@ -56,32 +57,31 @@ class AdminAuditTab extends ConsumerWidget {
                         decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(12)),
                         child: const Icon(Icons.history_rounded, color: AppTheme.violet, size: 20),
                       ),
-                      title: Text(strOf(entry['action']), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                      subtitle: Text(
-                        '${strOf(entry['adminName'], 'admin')} · ${strOf(entry['entityType'])}${strOf(entry['entityId']).isEmpty ? '' : ' ${strOf(entry['entityId']).substring(0, strOf(entry['entityId']).length > 8 ? 8 : strOf(entry['entityId']).length)}…'} · ${dateLabel(entry['createdAt'])}',
+                      title: VibeText(strOf(entry['action']), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                      subtitle: VibeText('${strOf(entry['adminName'], 'admin')} · ${strOf(entry['entityType'])}${strOf(entry['entityId']).isEmpty ? '' : ' ${strOf(entry['entityId']).substring(0, strOf(entry['entityId']).length > 8 ? 8 : strOf(entry['entityId']).length)}…'} · ${dateLabel(entry['createdAt'])}',
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => showDialog<void>(
                         context: context,
                         builder: (_) => AlertDialog(
-                          title: Text(strOf(entry['action'])),
+                          title: VibeText(strOf(entry['action'])),
                           content: SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('By ${strOf(entry['adminName'], 'admin')} · ${strOf(entry['createdAt'])}',
+                                VibeText('By ${strOf(entry['adminName'], 'admin')} · ${strOf(entry['createdAt'])}',
                                     style: const TextStyle(fontSize: 12)),
                                 const SizedBox(height: 10),
-                                const Text('Before', style: TextStyle(fontWeight: FontWeight.w900)),
-                                Text(_preview(entry['before'])),
+                                const VibeText('Before', style: TextStyle(fontWeight: FontWeight.w900)),
+                                VibeText(_preview(entry['before'])),
                                 const SizedBox(height: 8),
-                                const Text('After', style: TextStyle(fontWeight: FontWeight.w900)),
-                                Text(_preview(entry['after'])),
+                                const VibeText('After', style: TextStyle(fontWeight: FontWeight.w900)),
+                                VibeText(_preview(entry['after'])),
                               ],
                             ),
                           ),
-                          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+                          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const VibeText('Close'))],
                         ),
                       ),
                     ),

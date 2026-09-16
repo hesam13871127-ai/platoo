@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -45,7 +46,7 @@ class GroupsSection extends ConsumerWidget {
     final groups = ref.watch(groupsProvider);
     return groups.when(
       loading: () => SizedBox(height: 148, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: 3, separatorBuilder: (_, __) => const SizedBox(width: 10), itemBuilder: (_, __) => const ShimmerBox(width: 168, height: 148, borderRadius: BorderRadius.all(Radius.circular(22))))),
-      error: (_, __) => VibeCard(onTap: () => ref.invalidate(groupsProvider), child: Row(children: [const Icon(Icons.refresh_rounded, color: AppTheme.violet), const SizedBox(width: 10), Text('Could not load groups. Tap to retry.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700))])),
+      error: (_, __) => VibeCard(onTap: () => ref.invalidate(groupsProvider), child: Row(children: [const Icon(Icons.refresh_rounded, color: AppTheme.violet), const SizedBox(width: 10), VibeText('Could not load groups. Tap to retry.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700))])),
       data: (list) => SizedBox(
         height: 152,
         child: ListView.separated(
@@ -96,13 +97,13 @@ class _GroupCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(group['name']?.toString() ?? 'Group', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, height: 1.2)),
+            VibeText(group['name']?.toString() ?? 'Group', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, height: 1.2)),
             const Spacer(),
             Row(
               children: [
                 Icon(Icons.group_rounded, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 const SizedBox(width: 4),
-                Text('$count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                VibeText('$count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 const Spacer(),
                 if (role == 'owner') const Icon(Icons.workspace_premium_rounded, size: 15, color: AppTheme.gold),
                 if (role == 'admin') const Icon(Icons.shield_rounded, size: 15, color: AppTheme.violet),
@@ -126,7 +127,7 @@ class _NewGroupCard extends StatelessWidget {
           child: Container(
             alignment: Alignment.center,
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.violet.withOpacity(.5), width: 1.6), color: AppTheme.violet.withOpacity(.07)),
-            child: const Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.group_add_rounded, color: AppTheme.violet, size: 28), SizedBox(height: 8), Text('New\ngroup', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 13, height: 1.25))]),
+            child: const Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.group_add_rounded, color: AppTheme.violet, size: 28), SizedBox(height: 8), VibeText('New\ngroup', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 13, height: 1.25))]),
           ),
         ),
       );
@@ -170,9 +171,9 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
               children: [
                 Center(child: Container(width: 42, height: 5, decoration: BoxDecoration(color: Theme.of(context).dividerColor, borderRadius: BorderRadius.circular(99)))),
                 const SizedBox(height: 16),
-                const Text('Create a group', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
+                const VibeText('Create a group', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
                 const SizedBox(height: 4),
-                Text('A home base for your table — with its own chat and game nights.', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                VibeText('A home base for your table — with its own chat and game nights.', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 16),
                 TextField(controller: name, autofocus: true, maxLength: 80, decoration: const InputDecoration(labelText: 'Group name', hintText: 'Friday night champions')),
                 const SizedBox(height: 10),
@@ -186,20 +187,20 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
                     child: Row(children: [
                       Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(12)), child: Icon(private ? Icons.lock_outline_rounded : Icons.public_rounded, color: AppTheme.violet, size: 19)),
                       const SizedBox(width: 11),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(private ? 'Private group' : 'Open group', style: const TextStyle(fontWeight: FontWeight.w800)), Text(private ? 'Only invited members can join' : 'Anyone with the group can join', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))])),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [VibeText(private ? 'Private group' : 'Open group', style: const TextStyle(fontWeight: FontWeight.w800)), VibeText(private ? 'Only invited members can join' : 'Anyone with the group can join', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))])),
                       Switch(value: private, onChanged: (value) => setState(() => private = value)),
                     ]),
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text('Invite friends', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                const VibeText('Invite friends', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                 const SizedBox(height: 8),
                 FutureBuilder<List<FriendEntry>>(
                   future: friendsFuture,
                   builder: (_, snapshot) {
                     final friends = (snapshot.data ?? const <FriendEntry>[]).where((friend) => friend.status == 'accepted').toList();
                     if (snapshot.connectionState == ConnectionState.waiting) return const ShimmerBox(height: 52, borderRadius: BorderRadius.all(Radius.circular(16)));
-                    if (friends.isEmpty) return Text('No friends yet — you can invite people after creating the group.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant));
+                    if (friends.isEmpty) return VibeText('No friends yet — you can invite people after creating the group.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant));
                     return Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -211,7 +212,7 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
                               duration: const Duration(milliseconds: 160),
                               padding: const EdgeInsets.only(left: 5, right: 12, top: 5, bottom: 5),
                               decoration: BoxDecoration(color: selected.contains(friend.id) ? AppTheme.violet : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(99), border: Border.all(color: selected.contains(friend.id) ? AppTheme.violet : Theme.of(context).dividerColor)),
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [VibeInitial(name: friend.displayName, radius: 15), const SizedBox(width: 7), Text(friend.displayName, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: selected.contains(friend.id) ? Colors.white : null))]),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [VibeInitial(name: friend.displayName, radius: 15), const SizedBox(width: 7), VibeText(friend.displayName, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: selected.contains(friend.id) ? Colors.white : null))]),
                             ),
                           ),
                       ],
@@ -260,7 +261,7 @@ class GroupDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(groupDetailProvider(groupId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Group')),
+      appBar: AppBar(title: const VibeText('Group')),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => StatePanel(icon: Icons.cloud_off_rounded, title: 'Group unavailable', message: 'We could not load this group.', actionLabel: 'Try again', onAction: () => ref.invalidate(groupDetailProvider(groupId))),
@@ -303,10 +304,10 @@ class _GroupDetailBody extends ConsumerWidget {
               children: [
                 VibeInitial(name: group['name']?.toString() ?? 'G', radius: 34),
                 const SizedBox(height: 12),
-                Text(group['name']?.toString() ?? 'Group', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
+                VibeText(group['name']?.toString() ?? 'Group', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
                 if ((group['description']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Text(group['description'].toString(), textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  VibeText(group['description'].toString(), textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 ],
                 const SizedBox(height: 12),
                 Wrap(
@@ -335,20 +336,20 @@ class _GroupDetailBody extends ConsumerWidget {
           const SizedBox(height: 20),
           Row(
             children: [
-              Text('Members', style: Theme.of(context).textTheme.titleMedium),
+              VibeText('Members', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(width: 8),
-              Text('${members.length}', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              VibeText('${members.length}', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               const Spacer(),
-              if (!canManage) Text('Ask an admin to invite friends', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              if (!canManage) VibeText('Ask an admin to invite friends', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ],
           ),
           const SizedBox(height: 10),
           for (final member in members) _MemberTile(groupId: groupId, member: member, myId: myId, myRole: myRole, onChanged: onChanged),
           const SizedBox(height: 20),
           if (members.length <= 1)
-            OutlinedButton.icon(onPressed: () => _leave(context, ref, disband: true), icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.coral), label: const Text('Disband group', style: TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800)))
+            OutlinedButton.icon(onPressed: () => _leave(context, ref, disband: true), icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.coral), label: const VibeText('Disband group', style: TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800)))
           else
-            OutlinedButton.icon(onPressed: () => _leave(context, ref, disband: false), icon: const Icon(Icons.logout_rounded, color: AppTheme.coral), label: const Text('Leave group', style: TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800))),
+            OutlinedButton.icon(onPressed: () => _leave(context, ref, disband: false), icon: const Icon(Icons.logout_rounded, color: AppTheme.coral), label: const VibeText('Leave group', style: TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800))),
         ],
       ),
     );
@@ -398,9 +399,9 @@ class _GroupDetailBody extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(disband ? 'Disband this group?' : 'Leave this group?'),
-        content: Text(disband ? 'The group, its members, and its chat will be removed for everyone.' : (group['role']?.toString() == 'owner' ? 'Ownership passes to the longest-standing admin or member.' : 'You can be invited back at any time.')),
-        actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(disband ? 'Disband' : 'Leave'))],
+        title: VibeText(disband ? 'Disband this group?' : 'Leave this group?'),
+        content: VibeText(disband ? 'The group, its members, and its chat will be removed for everyone.' : (group['role']?.toString() == 'owner' ? 'Ownership passes to the longest-standing admin or member.' : 'You can be invited back at any time.')),
+        actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: VibeText(disband ? 'Disband' : 'Leave'))],
       ),
     );
     if (confirmed != true || !context.mounted) return;
@@ -426,7 +427,7 @@ class _HeaderChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.55), borderRadius: BorderRadius.circular(99)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 14, color: iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 5), Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))]),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 14, color: iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 5), VibeText(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))]),
       );
 }
 
@@ -444,7 +445,7 @@ class _DetailAction extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 13),
             decoration: primary ? BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(16), boxShadow: AppTheme.glow(AppTheme.violet, strength: .35)) : BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: Theme.of(context).dividerColor)),
-            child: Column(children: [Icon(icon, color: primary ? Colors.white : AppTheme.violet, size: 22), const SizedBox(height: 4), Text(label, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: primary ? Colors.white : null))]),
+            child: Column(children: [Icon(icon, color: primary ? Colors.white : AppTheme.violet, size: 22), const SizedBox(height: 4), VibeText(label, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: primary ? Colors.white : null))]),
           ),
         ),
       );
@@ -482,9 +483,9 @@ class _MemberTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [Flexible(child: Text('${member['displayName'] ?? 'Player'}${isSelf ? ' (you)' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)))]),
+                  Row(children: [Flexible(child: VibeText('${member['displayName'] ?? 'Player'}${isSelf ? ' (you)' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)))]),
                   const SizedBox(height: 3),
-                  Row(children: [if (role == 'owner') const _RolePill(icon: Icons.workspace_premium_rounded, label: 'Owner', color: AppTheme.gold) else if (role == 'admin') const _RolePill(icon: Icons.shield_rounded, label: 'Admin', color: AppTheme.violet) else Text('@${member['username'] ?? 'player'}', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))]),
+                  Row(children: [if (role == 'owner') const _RolePill(icon: Icons.workspace_premium_rounded, label: 'Owner', color: AppTheme.gold) else if (role == 'admin') const _RolePill(icon: Icons.shield_rounded, label: 'Admin', color: AppTheme.violet) else VibeText('@${member['username'] ?? 'player'}', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))]),
                 ],
               ),
             ),
@@ -511,7 +512,7 @@ class _MemberTile extends ConsumerWidget {
   }
 
   Future<void> _remove(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: const Text('Remove member?'), content: Text('${member['displayName'] ?? 'This player'} will lose access to the group and its chat.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove'))]));
+    final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: const VibeText('Remove member?'), content: VibeText('${member['displayName'] ?? 'This player'} will lose access to the group and its chat.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const VibeText('Remove'))]));
     if (confirmed != true || !context.mounted) return;
     try {
       await ref.read(apiClientProvider).delete('/users/groups/$groupId/members/${member['id']}');
@@ -529,7 +530,7 @@ class _RolePill extends StatelessWidget {
   final String label;
   final Color color;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.withOpacity(.13), borderRadius: BorderRadius.circular(99)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 12, color: color), const SizedBox(width: 4), Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: color))]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.withOpacity(.13), borderRadius: BorderRadius.circular(99)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 12, color: color), const SizedBox(width: 4), VibeText(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: color))]));
 }
 
 class InviteToGroupSheet extends ConsumerStatefulWidget {
@@ -571,9 +572,9 @@ class _InviteToGroupSheetState extends ConsumerState<InviteToGroupSheet> {
             children: [
               Center(child: Container(width: 42, height: 5, decoration: BoxDecoration(color: Theme.of(context).dividerColor, borderRadius: BorderRadius.circular(99)))),
               const SizedBox(height: 16),
-              const Text('Invite to group', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
+              const VibeText('Invite to group', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
               const SizedBox(height: 4),
-              Text('Friends join instantly. Anyone you find by search can be added too.', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              VibeText('Friends join instantly. Anyone you find by search can be added too.', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               const SizedBox(height: 14),
               TextField(controller: search, onChanged: _search, decoration: InputDecoration(hintText: 'Search players', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: searching ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : null)),
               const SizedBox(height: 12),
@@ -587,7 +588,7 @@ class _InviteToGroupSheetState extends ConsumerState<InviteToGroupSheet> {
                         builder: (_, snapshot) {
                           final friends = (snapshot.data ?? const <FriendEntry>[]).where((friend) => friend.status == 'accepted' && !widget.memberIds.contains(friend.id)).toList();
                           if (snapshot.connectionState == ConnectionState.waiting) return const ShimmerBox(height: 120, borderRadius: BorderRadius.all(Radius.circular(16)));
-                          if (friends.isEmpty && results.isEmpty) return Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('Everyone you know is already here. Search above to find more players.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)));
+                          if (friends.isEmpty && results.isEmpty) return Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: VibeText('Everyone you know is already here. Search above to find more players.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)));
                           final friendIds = friends.map((friend) => friend.id).toSet();
                           final extra = results.where((user) => !widget.memberIds.contains(user['id']?.toString()) && !friendIds.contains(user['id']?.toString())).toList();
                           return Column(
@@ -595,7 +596,7 @@ class _InviteToGroupSheetState extends ConsumerState<InviteToGroupSheet> {
                               for (final friend in friends) _InviteRow(id: friend.id, name: friend.displayName, username: friend.username, online: friend.isOnline, state: added.contains(friend.id) ? 2 : adding.contains(friend.id) ? 1 : 0, onAdd: () => _add(friend.id)),
                               if (extra.isNotEmpty) ...[
                                 const SizedBox(height: 8),
-                                Align(alignment: Alignment.centerLeft, child: Text('Search results', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                                Align(alignment: Alignment.centerLeft, child: VibeText('Search results', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurfaceVariant))),
                                 const SizedBox(height: 6),
                                 for (final user in extra) _InviteRow(id: user['id'].toString(), name: user['displayName']?.toString() ?? 'Player', username: user['username']?.toString() ?? 'player', online: user['isOnline'] == true, state: added.contains(user['id']?.toString()) ? 2 : adding.contains(user['id']?.toString()) ? 1 : 0, onAdd: () => _add(user['id'].toString())),
                               ],
@@ -664,13 +665,13 @@ class _InviteRow extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)), Text('@$username', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))])),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [VibeText(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)), VibeText('@$username', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))])),
               if (state == 2)
-                const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_rounded, color: AppTheme.mint, size: 19), SizedBox(width: 5), Text('Added', style: TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 13))])
+                const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_rounded, color: AppTheme.mint, size: 19), SizedBox(width: 5), VibeText('Added', style: TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 13))])
               else if (state == 1)
                 const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
               else
-                FilledButton.tonal(onPressed: onAdd, style: FilledButton.styleFrom(minimumSize: const Size(64, 36), padding: const EdgeInsets.symmetric(horizontal: 14)), child: const Text('Add')),
+                FilledButton.tonal(onPressed: onAdd, style: FilledButton.styleFrom(minimumSize: const Size(64, 36), padding: const EdgeInsets.symmetric(horizontal: 14)), child: const VibeText('Add')),
             ],
           ),
         ),
@@ -692,9 +693,9 @@ class PlayTogetherSheet extends ConsumerWidget {
           children: [
             Center(child: Container(width: 42, height: 5, decoration: BoxDecoration(color: Theme.of(context).dividerColor, borderRadius: BorderRadius.circular(99)))),
             const SizedBox(height: 16),
-            const Text('Play together', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
+            const VibeText('Play together', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21)),
             const SizedBox(height: 4),
-            Text('Pick a game — an invite lands in the chat and you jump into the queue.', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText('Pick a game — an invite lands in the chat and you jump into the queue.', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 14),
             Flexible(
               child: games.when(
@@ -715,7 +716,7 @@ class _GameList extends StatelessWidget {
   final List<GameDescriptor> games;
   @override
   Widget build(BuildContext context) {
-    if (games.isEmpty) return Padding(padding: const EdgeInsets.symmetric(vertical: 18), child: Text('No games fit this party size right now.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)));
+    if (games.isEmpty) return Padding(padding: const EdgeInsets.symmetric(vertical: 18), child: VibeText('No games fit this party size right now.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)));
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -729,7 +730,7 @@ class _GameList extends StatelessWidget {
                   children: [
                     GameLogo(gameId: game.id, accent: game.accent, size: 46),
                     const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(game.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)), const SizedBox(height: 3), Text('${game.minPlayers}–${game.maxPlayers} players${game.supportsTeams ? ' · teams' : ''}', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))])),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [VibeText(game.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)), const SizedBox(height: 3), VibeText('${game.minPlayers}–${game.maxPlayers} players${game.supportsTeams ? ' · teams' : ''}', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))])),
                     const Icon(Icons.chevron_right_rounded, color: AppTheme.violet),
                   ],
                 ),

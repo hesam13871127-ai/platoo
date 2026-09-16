@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/vibe_components.dart';
 import '../../models/models.dart';
@@ -46,11 +47,11 @@ class _WerewolfGameBoardState extends State<WerewolfGameBoard> {
         Row(children: [
           Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: night ? const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5B3FA8), Color(0xFF2A1B52)]) : AppTheme.goldGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(night ? const Color(0xFF8B5CF6) : AppTheme.gold, strength: .35)), child: Icon(night ? Icons.nightlight_round : Icons.wb_sunny_rounded, color: Colors.white, size: 20)),
           const SizedBox(width: 10),
-          Text('Werewolf', style: Theme.of(context).textTheme.titleLarge),
+          VibeText('Werewolf', style: Theme.of(context).textTheme.titleLarge),
           const Spacer(),
           _PhaseChip(label: night ? 'Night ${widget.state['nightNumber'] ?? 1}' : 'Day', night: night),
           const SizedBox(width: 7),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.mint.withOpacity(.3))), child: Text('$aliveCount alive', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.mint.withOpacity(.3))), child: VibeText('$aliveCount alive', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12))),
         ]),
         const SizedBox(height: 11),
         _RoleCard(role: role, finished: widget.match.status == 'finished', won: widget.match.winnerIds.contains(viewerId)),
@@ -59,12 +60,12 @@ class _WerewolfGameBoardState extends State<WerewolfGameBoard> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(gradient: LinearGradient(colors: [AppTheme.gold.withOpacity(.2), AppTheme.gold.withOpacity(.08)]), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.gold.withOpacity(.4))),
-            child: Row(children: [Container(width: 34, height: 34, alignment: Alignment.center, decoration: const BoxDecoration(color: AppTheme.gold, shape: BoxShape.circle), child: const Icon(Icons.visibility_rounded, color: Colors.white, size: 18)), const SizedBox(width: 10), Expanded(child: Text('Seer vision: ${_playerName((seerResult['target'] as num).toInt())} is ${seerResult['isWerewolf'] == true ? 'a WEREWOLF' : 'NOT a werewolf'}.', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)))]),
+            child: Row(children: [Container(width: 34, height: 34, alignment: Alignment.center, decoration: const BoxDecoration(color: AppTheme.gold, shape: BoxShape.circle), child: const Icon(Icons.visibility_rounded, color: Colors.white, size: 18)), const SizedBox(width: 10), Expanded(child: VibeText('Seer vision: ${_playerName((seerResult['target'] as num).toInt())} is ${seerResult['isWerewolf'] == true ? 'a WEREWOLF' : 'NOT a werewolf'}.', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)))]),
           ),
         ],
         if (widget.state['lastEvent'] != null) ...[
           const SizedBox(height: 10),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.45), borderRadius: BorderRadius.circular(14)), child: Row(children: [Icon(Icons.auto_stories_rounded, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 8), Expanded(child: Text(widget.state['lastEvent'].toString(), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic, fontSize: 12.5)))])),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.45), borderRadius: BorderRadius.circular(14)), child: Row(children: [Icon(Icons.auto_stories_rounded, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 8), Expanded(child: VibeText(widget.state['lastEvent'].toString(), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic, fontSize: 12.5)))])),
         ],
         const SizedBox(height: 13),
         _StatusDot(text: _instruction(phase, role, isTurn), active: isTurn, finished: widget.match.status == 'finished'),
@@ -78,7 +79,7 @@ class _WerewolfGameBoardState extends State<WerewolfGameBoard> {
         else if (isTurn)
           VibePrimaryButton(onPressed: selectedTarget == null ? null : () => night ? _submitNight(selectedTarget) : _submitVote(selectedTarget!), icon: night ? Icons.nightlight_round : Icons.how_to_vote_rounded, label: night ? 'Submit night action' : 'Cast vote')
         else
-          Text('Waiting for ${_turnName()}…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          VibeText('Waiting for ${_turnName()}…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ],
     );
   }
@@ -131,7 +132,7 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = finished ? AppTheme.gold : active ? AppTheme.violet : Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
+    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: VibeText(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
   }
 }
 
@@ -180,8 +181,8 @@ class _RoleCard extends StatelessWidget {
         child: Row(children: [
           Container(width: 46, height: 46, alignment: Alignment.center, decoration: BoxDecoration(color: Colors.white.withOpacity(.2), shape: BoxShape.circle, border: Border.all(color: Colors.white.withOpacity(.5), width: 1.5)), child: Icon(icon, color: Colors.white, size: 24)),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR ROLE', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2)), Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 19)), Text(blurb, style: const TextStyle(color: Colors.white70, fontSize: 11.5))])),
-          if (finished) Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7), decoration: BoxDecoration(color: Colors.white.withOpacity(.22), borderRadius: BorderRadius.circular(99)), child: Text(won ? 'Winner' : 'Defeated', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12))),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const VibeText('YOUR ROLE', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2)), VibeText(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 19)), VibeText(blurb, style: const TextStyle(color: Colors.white70, fontSize: 11.5))])),
+          if (finished) Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7), decoration: BoxDecoration(color: Colors.white.withOpacity(.22), borderRadius: BorderRadius.circular(99)), child: VibeText(won ? 'Winner' : 'Defeated', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12))),
         ]),
       );
 }
@@ -235,15 +236,15 @@ class _PlayerList extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [Flexible(child: Text(playerName(seat), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: isAlive ? null : Theme.of(context).disabledColor))), if (isSelf) Container(margin: const EdgeInsets.only(left: 6), padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.14), borderRadius: BorderRadius.circular(99)), child: const Text('you', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.violet)))]),
+                  Row(children: [Flexible(child: VibeText(playerName(seat), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: isAlive ? null : Theme.of(context).disabledColor))), if (isSelf) Container(margin: const EdgeInsets.only(left: 6), padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.14), borderRadius: BorderRadius.circular(99)), child: const VibeText('you', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.violet)))]),
                   const SizedBox(height: 3),
                   _RoleLine(role: visibleRole, reveal: finished || isSelf),
                 ],
               ),
             ),
-            if (votedTarget) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.15), borderRadius: BorderRadius.circular(99)), child: const Text('your vote', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.gold))),
+            if (votedTarget) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.15), borderRadius: BorderRadius.circular(99)), child: const VibeText('your vote', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.gold))),
             if (acted && !votedTarget) const Icon(Icons.check_circle_rounded, size: 19, color: AppTheme.mint),
-            if (!isAlive) ...[const SizedBox(width: 7), const Text('out', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))],
+            if (!isAlive) ...[const SizedBox(width: 7), const VibeText('out', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))],
           ]),
         ),
       ),
@@ -271,7 +272,7 @@ class _RoleLine extends StatelessWidget {
   final bool reveal;
   @override
   Widget build(BuildContext context) {
-    if (!reveal || role == 'hidden') return Text('role hidden', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant));
+    if (!reveal || role == 'hidden') return VibeText('role hidden', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant));
     final color = switch (role) {
       'werewolf' => const Color(0xFF8B5CF6),
       'seer' => AppTheme.gold,
@@ -279,7 +280,7 @@ class _RoleLine extends StatelessWidget {
       'villager' => AppTheme.coral,
       _ => Theme.of(context).colorScheme.onSurfaceVariant,
     };
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.withOpacity(.13), borderRadius: BorderRadius.circular(99)), child: Text(role, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: color)));
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.withOpacity(.13), borderRadius: BorderRadius.circular(99)), child: VibeText(role, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: color)));
   }
 }
 
@@ -288,7 +289,7 @@ class _PhaseChip extends StatelessWidget {
   final String label;
   final bool night;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6), decoration: BoxDecoration(color: (night ? const Color(0xFF34235E) : AppTheme.gold).withOpacity(.2), borderRadius: BorderRadius.circular(99)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(night ? Icons.nightlight_round : Icons.wb_sunny_rounded, size: 15, color: night ? const Color(0xFF8B5CF6) : AppTheme.gold), const SizedBox(width: 5), Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6), decoration: BoxDecoration(color: (night ? const Color(0xFF34235E) : AppTheme.gold).withOpacity(.2), borderRadius: BorderRadius.circular(99)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(night ? Icons.nightlight_round : Icons.wb_sunny_rounded, size: 15, color: night ? const Color(0xFF8B5CF6) : AppTheme.gold), const SizedBox(width: 5), VibeText(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))]));
 }
 
 class _ResultBanner extends StatelessWidget {
@@ -298,6 +299,6 @@ class _ResultBanner extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(gradient: won ? AppTheme.goldGradient : null, color: won ? null : Theme.of(context).colorScheme.surfaceVariant.withOpacity(.5), borderRadius: BorderRadius.circular(16)),
-        child: Row(children: [Icon(won ? Icons.celebration_rounded : Icons.nights_stay_rounded, color: won ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 9), Expanded(child: Text(won ? 'Your faction won the village.' : 'Your faction lost the village.', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.white : null)))]),
+        child: Row(children: [Icon(won ? Icons.celebration_rounded : Icons.nights_stay_rounded, color: won ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 9), Expanded(child: VibeText(won ? 'Your faction won the village.' : 'Your faction lost the village.', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.white : null)))]),
       );
 }

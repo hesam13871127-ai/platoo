@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -133,16 +134,16 @@ class _BackgammonGameBoardState extends State<BackgammonGameBoard> {
           Row(children: [
             const Icon(Icons.casino_rounded, color: AppTheme.gold),
             const SizedBox(width: 8),
-            const Text('Backgammon', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            const VibeText('Backgammon', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             const Spacer(),
             for (final d in dice) _Die(value: d),
             if (dice.isEmpty && _isTurn && !finished)
-              FilledButton.icon(onPressed: () => widget.onAction({'type': 'roll'}), icon: const Icon(Icons.casino_rounded, size: 18), label: const Text('Roll')),
+              FilledButton.icon(onPressed: () => widget.onAction({'type': 'roll'}), icon: const Icon(Icons.casino_rounded, size: 18), label: const VibeText('Roll')),
             if (dice.isNotEmpty && moves.isEmpty && _isTurn && !finished)
-              OutlinedButton.icon(onPressed: () => widget.onAction({'type': 'pass'}), icon: const Icon(Icons.skip_next_rounded, size: 18), label: const Text('Pass')),
+              OutlinedButton.icon(onPressed: () => widget.onAction({'type': 'pass'}), icon: const Icon(Icons.skip_next_rounded, size: 18), label: const VibeText('Pass')),
           ]),
           const SizedBox(height: 7),
-          Align(alignment: Alignment.centerLeft, child: Text(status, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700))),
+          Align(alignment: Alignment.centerLeft, child: VibeText(status, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700))),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(8),
@@ -174,7 +175,7 @@ class _BackgammonGameBoardState extends State<BackgammonGameBoard> {
                     borderRadius: BorderRadius.circular(14),
                     border: canBearOff ? Border.all(color: AppTheme.mint, width: 2) : null,
                   ),
-                  child: Text('Your off · $off/15${canBearOff ? ' — tap to bear off' : ''}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  child: VibeText('Your off · $off/15${canBearOff ? ' — tap to bear off' : ''}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                 ),
               ),
             ),
@@ -183,7 +184,7 @@ class _BackgammonGameBoardState extends State<BackgammonGameBoard> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.5), borderRadius: BorderRadius.circular(14)),
-                child: Text('Foe off · $foeOff/15', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                child: VibeText('Foe off · $foeOff/15', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ),
             ),
           ]),
@@ -265,7 +266,7 @@ class _OverflowBadge extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 1),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(99)),
-        child: Text('+$total', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+        child: VibeText('+$total', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
       );
 }
 
@@ -286,8 +287,8 @@ class _BarCell extends StatelessWidget {
           border: count > 0 && mine ? Border.all(color: AppTheme.coral, width: 2) : null,
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text('$count', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-          Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+          VibeText('$count', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+          VibeText(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
         ]),
       );
 }
@@ -303,7 +304,7 @@ class _Die extends StatelessWidget {
         margin: const EdgeInsets.only(left: 6),
         alignment: Alignment.center,
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppTheme.gold, width: 2), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(0, 1))]),
-        child: Text('$value', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: Color(0xFF3A2C22))),
+        child: VibeText('$value', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: Color(0xFF3A2C22))),
       );
 }
 

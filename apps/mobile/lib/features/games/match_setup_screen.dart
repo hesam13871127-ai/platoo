@@ -34,8 +34,9 @@ class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
   Widget build(BuildContext context) {
     final strings = AppStrings(Localizations.localeOf(context));
     final scheme = Theme.of(context).colorScheme;
+    final gameName = strings.gameName(widget.game.id, widget.game.name);
     return Scaffold(
-      appBar: AppBar(leading: const BackButton(), title: Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 32), const SizedBox(width: 9), Expanded(child: Text(widget.game.name))])),
+      appBar: AppBar(leading: const BackButton(), title: Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 32), const SizedBox(width: 9), Expanded(child: VibeText(gameName))])),
       body: SafeArea(
         child: VibePageBackground(
           child: ListView(
@@ -44,9 +45,9 @@ class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
             children: [
               Entrance(child: _GameHero(game: widget.game)),
               const SizedBox(height: 22),
-              Entrance(delay: const Duration(milliseconds: 60), child: Text(strings.isPersian ? 'میز خودت را بساز' : 'Set up your table', style: Theme.of(context).textTheme.headlineSmall)),
+              Entrance(delay: const Duration(milliseconds: 60), child: VibeText(strings.isPersian ? 'میز خودت را بساز' : 'Set up your table', style: Theme.of(context).textTheme.headlineSmall)),
               const SizedBox(height: 7),
-              Entrance(delay: const Duration(milliseconds: 90), child: Text(strings.isPersian ? 'حریف‌ها و قوانین را انتخاب کن؛ بعد وارد صف می‌شوی.' : 'Choose a room style and player count. We will find a fair table for you.', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant))),
+              Entrance(delay: const Duration(milliseconds: 90), child: VibeText(strings.isPersian ? 'حریف‌ها و قوانین را انتخاب کن؛ بعد وارد صف می‌شوی.' : 'Choose a room style and player count. We will find a fair table for you.', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant))),
               const SizedBox(height: 22),
               Entrance(
                 delay: const Duration(milliseconds: 120),
@@ -60,13 +61,13 @@ class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: SegmentedButton<String>(
-                          segments: [ButtonSegment(value: 'casual', label: Text(strings.casual), icon: const Icon(Icons.celebration_outlined)), ButtonSegment(value: 'ranked', label: Text(strings.ranked), icon: const Icon(Icons.emoji_events_outlined))],
+                          segments: [ButtonSegment(value: 'casual', label: VibeText(strings.casual), icon: const Icon(Icons.celebration_outlined)), ButtonSegment(value: 'ranked', label: VibeText(strings.ranked), icon: const Icon(Icons.emoji_events_outlined))],
                           selected: {mode},
                           onSelectionChanged: busy ? null : (value) => setState(() => mode = value.first),
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Text(mode == 'ranked' ? 'Your result changes your seasonal rating.' : 'Play for fun while keeping your profile stats.', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                      VibeText(mode == 'ranked' ? 'Your result changes your seasonal rating.' : 'Play for fun while keeping your profile stats.', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                     ],
                   ),
                 ),
@@ -83,7 +84,7 @@ class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
                     children: [
                       Wrap(spacing: 9, runSpacing: 9, children: [for (var count = widget.game.minPlayers; count <= widget.game.maxPlayers; count++) _PlayerCountChip(count: count, selected: players == count, onTap: busy ? null : () => setState(() => players = count))]),
                       const SizedBox(height: 12),
-                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.timer_outlined, size: 17, color: scheme.onSurfaceVariant), const SizedBox(width: 7), Expanded(child: Text('$players players · after 15 seconds, the table can start with an invisible bot.', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)))]),
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.timer_outlined, size: 17, color: scheme.onSurfaceVariant), const SizedBox(width: 7), Expanded(child: VibeText('$players players · after 15 seconds, the table can start with a ready opponent.', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)))]),
                     ],
                   ),
                 ),
@@ -98,7 +99,7 @@ class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
                     child: Row(children: [
                       Container(width: 40, height: 40, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.16), shape: BoxShape.circle), child: const Icon(Icons.groups_rounded, color: AppTheme.mint, size: 21)),
                       const SizedBox(width: 12),
-                      Expanded(child: Text(strings.isPersian ? 'این بازی از تیم‌های متعادل پشتیبانی می‌کند.' : 'This game supports balanced teams.', style: const TextStyle(fontWeight: FontWeight.w700))),
+                      Expanded(child: VibeText(strings.isPersian ? 'این بازی از تیم‌های متعادل پشتیبانی می‌کند.' : 'This game supports balanced teams.', style: const TextStyle(fontWeight: FontWeight.w700))),
                     ]),
                   ),
                 ),
@@ -107,7 +108,7 @@ class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
               const SizedBox(height: 26),
               VibePrimaryButton(onPressed: busy ? null : _find, busy: busy, icon: Icons.radar_rounded, label: strings.findMatch),
               const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: busy ? null : _instant, icon: const Icon(Icons.smart_toy_outlined), label: Text(strings.isPersian ? 'بازی فوری با بات' : 'Start instantly with bots'))),
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: busy ? null : _instant, icon: const Icon(Icons.bolt_rounded), label: VibeText(strings.isPersian ? 'شروع فوری' : 'Start a table now'))),
             ],
           ),
         ),
@@ -186,7 +187,7 @@ class _SetupCard extends StatelessWidget {
             Row(children: [
               Container(width: 36, height: 36, alignment: Alignment.center, decoration: BoxDecoration(color: color.withOpacity(.13), borderRadius: BorderRadius.circular(12)), child: Icon(icon, size: 19, color: color)),
               const SizedBox(width: 10),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: -.2)),
+              VibeText(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: -.2)),
             ]),
             const SizedBox(height: 14),
             child,
@@ -203,7 +204,7 @@ class _PlayerCountChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ChoiceChip(
-        label: SizedBox(width: 26, child: Center(child: Text('$count'))),
+        label: SizedBox(width: 26, child: Center(child: VibeText('$count'))),
         selected: selected,
         onSelected: onTap == null ? null : (_) => onTap!(),
         showCheckmark: false,
@@ -222,7 +223,7 @@ class _SetupError extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: Theme.of(context).colorScheme.errorContainer, borderRadius: BorderRadius.circular(18), border: Border.all(color: Theme.of(context).colorScheme.error.withOpacity(.2))),
-        child: Row(children: [Icon(Icons.error_outline_rounded, color: Theme.of(context).colorScheme.onErrorContainer), const SizedBox(width: 9), Expanded(child: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontWeight: FontWeight.w700))), IconButton(onPressed: onRetry, icon: const Icon(Icons.close_rounded))]),
+        child: Row(children: [Icon(Icons.error_outline_rounded, color: Theme.of(context).colorScheme.onErrorContainer), const SizedBox(width: 9), Expanded(child: VibeText(message, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontWeight: FontWeight.w700))), IconButton(onPressed: onRetry, icon: const Icon(Icons.close_rounded))]),
       );
 }
 
@@ -349,7 +350,7 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
     if (cancelling || navigating) return;
     final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(title: const Text('Leave matchmaking?'), content: const Text('Your place in the queue will be cancelled.'), actions: [TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Stay')), FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Leave queue'))]));
+        builder: (context) => AlertDialog(title: const VibeText('Leave matchmaking?'), content: const VibeText('Your place in the queue will be cancelled.'), actions: [TextButton(onPressed: () => Navigator.of(context).pop(false), child: const VibeText('Stay')), FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const VibeText('Leave queue'))]));
     if (confirmed != true || !mounted) return;
     setState(() {
       cancelling = true;
@@ -383,7 +384,7 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
   String get _description => switch (queueStatus) {
         'matched' => 'The room is being synchronized. One moment…',
         'cancelled' || 'expired' => 'This queue is no longer active.',
-        _ => fallbackReady ? 'No human table yet. An invisible bot is ready to fill the seats.' : 'We are looking for real players with a compatible table.',
+        _ => fallbackReady ? 'No human table yet. A ready opponent will complete the table.' : 'We are looking for real players with a compatible table.',
       };
 
   @override
@@ -396,7 +397,7 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
         if (!didPop) unawaited(_cancel());
       },
       child: Scaffold(
-        appBar: AppBar(leading: IconButton(onPressed: cancelling ? null : _cancel, icon: const Icon(Icons.close_rounded), tooltip: strings.cancel), title: Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 31), const SizedBox(width: 9), Expanded(child: Text(strings.isPersian ? 'در حال پیدا کردن حریف' : 'Finding your table'))])),
+        appBar: AppBar(leading: IconButton(onPressed: cancelling ? null : _cancel, icon: const Icon(Icons.close_rounded), tooltip: strings.cancel), title: Row(children: [GameLogo(gameId: widget.game.id, accent: widget.game.accent, size: 31), const SizedBox(width: 9), Expanded(child: VibeText(strings.isPersian ? 'در حال پیدا کردن حریف' : 'Finding your table'))])),
         body: SafeArea(
           child: VibePageBackground(
             child: Center(
@@ -409,9 +410,9 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
                     children: [
                       _QueueArtwork(game: widget.game, matched: queueStatus == 'matched', pulse: (elapsedSeconds % 2) * .035),
                       const SizedBox(height: 20),
-                      Entrance(delay: const Duration(milliseconds: 60), child: Text(_headline, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall)),
+                      Entrance(delay: const Duration(milliseconds: 60), child: VibeText(_headline, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall)),
                       const SizedBox(height: 8),
-                      Entrance(delay: const Duration(milliseconds: 100), child: Text(_description, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35))),
+                      Entrance(delay: const Duration(milliseconds: 100), child: VibeText(_description, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35))),
                       const SizedBox(height: 14),
                       Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
                         _QueueChip(icon: widget.mode == 'ranked' ? Icons.emoji_events_outlined : Icons.celebration_outlined, label: widget.mode == 'ranked' ? 'Ranked' : 'Casual'),
@@ -424,19 +425,19 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
                           Row(children: [
                             Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.13), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.schedule_rounded, size: 20, color: AppTheme.violet)),
                             const SizedBox(width: 10),
-                            const Text('Queue time', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                            const VibeText('Queue time', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                             const Spacer(),
-                            Text(elapsedLabel, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: .5)),
+                            VibeText(elapsedLabel, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: .5)),
                           ]),
                           const SizedBox(height: 13),
                           ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: progress, minHeight: 10)),
                           const SizedBox(height: 10),
-                          Align(alignment: AlignmentDirectional.centerStart, child: Text(fallbackReady ? 'Bot fallback is ready' : 'Human search runs for up to 15 seconds', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                          Align(alignment: AlignmentDirectional.centerStart, child: VibeText(fallbackReady ? 'A ready opponent is available' : 'Human search runs for up to 15 seconds', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))),
                         ]),
                       ),
                       const SizedBox(height: 14),
                       _QueueStep(icon: Icons.people_alt_rounded, title: 'Human players', active: queueStatus == 'queued' && !fallbackReady, complete: queueStatus == 'matched'),
-                      _QueueStep(icon: Icons.smart_toy_rounded, title: 'Invisible bot fallback', active: fallbackReady, complete: queueStatus == 'matched'),
+                      _QueueStep(icon: Icons.bolt_rounded, title: 'Complete the table', active: fallbackReady, complete: queueStatus == 'matched'),
                       _QueueStep(icon: Icons.sync_rounded, title: 'Synchronize the game room', active: queueStatus == 'matched', complete: false),
                       if (error != null) ...[
                         const SizedBox(height: 12),
@@ -451,9 +452,9 @@ class _MatchQueueScreenState extends ConsumerState<MatchQueueScreen> {
                               unawaited(_poll());
                             }),
                       ],
-                      if (error == null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(updatedAgo, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+                      if (error == null) Padding(padding: const EdgeInsets.only(top: 10), child: VibeText(updatedAgo, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))),
                       const SizedBox(height: 18),
-                      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: cancelling ? null : _cancel, icon: cancelling ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.close_rounded), label: Text(cancelling ? 'Leaving queue…' : strings.cancel))),
+                      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: cancelling ? null : _cancel, icon: cancelling ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.close_rounded), label: VibeText(cancelling ? 'Leaving queue…' : strings.cancel))),
                     ],
                   ),
                 ),
@@ -496,11 +497,14 @@ class _QueueChip extends StatelessWidget {
   final IconData icon;
   final String label;
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.6), borderRadius: BorderRadius.circular(99), border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(.25))),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 5), Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))]),
-      );
+  Widget build(BuildContext context) {
+    final strings = AppStrings(Localizations.localeOf(context));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.6), borderRadius: BorderRadius.circular(99), border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(.25))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(width: 5), VibeText(strings.translateText(label), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))]),
+    );
+  }
 }
 
 class _QueueStep extends StatelessWidget {
@@ -511,6 +515,7 @@ class _QueueStep extends StatelessWidget {
   final bool complete;
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(Localizations.localeOf(context));
     final color = complete ? AppTheme.mint : active ? AppTheme.violet : Theme.of(context).colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
@@ -529,7 +534,7 @@ class _QueueStep extends StatelessWidget {
           child: Icon(complete ? Icons.check_rounded : icon, size: 18, color: complete || active ? Colors.white : color),
         ),
         const SizedBox(width: 11),
-        Text(title, style: TextStyle(fontWeight: active || complete ? FontWeight.w800 : FontWeight.w600, color: active || complete ? null : Theme.of(context).colorScheme.onSurfaceVariant)),
+        VibeText(strings.translateText(title), style: TextStyle(fontWeight: active || complete ? FontWeight.w800 : FontWeight.w600, color: active || complete ? null : Theme.of(context).colorScheme.onSurfaceVariant)),
       ]),
     );
   }
@@ -547,8 +552,8 @@ class _QueueError extends StatelessWidget {
         child: Row(children: [
           Icon(Icons.cloud_off_rounded, size: 19, color: Theme.of(context).colorScheme.onErrorContainer),
           const SizedBox(width: 9),
-          Expanded(child: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontSize: 12, fontWeight: FontWeight.w700))),
-          TextButton(onPressed: onRetry, child: Text(retrying ? 'Retry now' : 'Retry')),
+          Expanded(child: VibeText(message, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontSize: 12, fontWeight: FontWeight.w700))),
+          TextButton(onPressed: onRetry, child: VibeText(retrying ? 'Retry now' : 'Retry')),
         ]),
       );
 }

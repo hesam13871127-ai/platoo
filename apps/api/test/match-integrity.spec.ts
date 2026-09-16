@@ -235,6 +235,29 @@ describe('match integrity: resign, timers, and sweeper', () => {
     expect(emitted).toEqual(['match-1']);
   });
 
+  it('forfeits the third consecutive idle turn in casual and private matches too', async () => {
+    for (const mode of ['casual', 'private']) {
+      const row = matchRow({ mode, state: { turnPlayerId: 'user-1', _idleStrikes: { 'user-1': 2 } } });
+      const executed: Array<{ sql: string; params: unknown[] }> = [];
+      const connection = connectionWith(
+        (sql) => sql.includes('FROM matches') ? [[row]] : [[human('user-1', 0), bot('bot-1', 1)]],
+        (sql, params) => executed.push({ sql, params }),
+      );
+      const mysql = {
+        transaction: jest.fn(async (callback: (connection: unknown) => Promise<unknown>) => callback(connection)),
+        query: jest.fn(async (sql: string) => sql.includes('match_players') ? [human('user-1', 0), bot('bot-1', 1)] : [row]),
+      };
+      const service = new GameService(mysql as any, { engine: jest.fn(), turnSeconds: jest.fn().mockReturnValue(30) } as any, { recordMatch: jest.fn().mockResolvedValue(undefined) } as any);
+      (service as any).settleCompletedMatch = jest.fn().mockResolvedValue({});
+
+      await service.sweepStaleMatches();
+
+      expect(executed.some(({ sql, params }) => sql.includes('match_moves') && params[3] === 'forfeit')).toBe(true);
+      const update = executed.find(({ sql }) => sql.includes('UPDATE matches SET'));
+      expect(JSON.parse(update?.params[1] as string)).toEqual(['bot-1']);
+    }
+  });
+
   it('cancels stuck matches and abandoned sea battle placement', async () => {
     const stuck = matchRow({ id: 'match-stuck', updated_at: isoAgo(16 * 60_000) });
     const placing = matchRow({ id: 'match-placing', game_id: 'sea_battle', state: { phase: 'placing', turnPlayerId: null }, updated_at: isoAgo(11 * 60_000) });

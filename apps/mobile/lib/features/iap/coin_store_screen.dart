@@ -27,7 +27,7 @@ class CoinStoreScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(fa ? 'خرید سکه' : 'Coin Store', style: const TextStyle(fontWeight: FontWeight.w900)),
+        title: VibeText(fa ? 'خرید سکه' : 'Coin Store', style: const TextStyle(fontWeight: FontWeight.w900)),
         actions: [
           Padding(
             padding: const EdgeInsetsDirectional.only(end: 16),
@@ -43,7 +43,7 @@ class CoinStoreScreen extends ConsumerWidget {
                 children: [
                   const Icon(Icons.circle, size: 14, color: AppTheme.gold),
                   const SizedBox(width: 6),
-                  Text('$coins', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppTheme.gold)),
+                  VibeText('$coins', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppTheme.gold)),
                 ],
               ),
             ),
@@ -130,12 +130,12 @@ class _CoinHero extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  VibeText(
                     fa ? 'موجودی سکه‌ت را شارژ کن' : 'Top up your coin balance',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 20),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  VibeText(
                     fa ? 'پرداخت امن از طریق اپ‌استور یا گوگل‌پلی.' : 'Secure checkout through the App Store or Google Play.',
                     style: const TextStyle(color: Colors.white, height: 1.35, fontSize: 13),
                   ),
@@ -178,8 +178,7 @@ class _PackCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        '+${pack.totalCoins} ${fa ? 'سکه' : 'coins'}',
+                      VibeText('+${pack.totalCoins} ${fa ? 'سکه' : 'coins'}',
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                       ),
                       if (pack.hasBonus) ...[
@@ -190,7 +189,7 @@ class _PackCard extends StatelessWidget {
                             gradient: AppTheme.primaryGradient,
                             borderRadius: BorderRadius.circular(99),
                           ),
-                          child: Text(
+                          child: VibeText(
                             fa ? 'ویژه' : 'BONUS',
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10),
                           ),
@@ -199,7 +198,7 @@ class _PackCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Text(
+                  VibeText(
                     pack.hasBonus
                         ? (fa ? '${pack.coins} سکه + ${pack.bonusCoins} جایزه' : '${pack.coins} coins + ${pack.bonusCoins} bonus')
                         : (fa ? 'بدون کارمزد اضافه' : 'Instant credit to wallet'),
@@ -217,7 +216,7 @@ class _PackCard extends StatelessWidget {
               ),
               child: buying
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text(pack.displayPrice.isEmpty ? (fa ? 'خرید' : 'Buy') : pack.displayPrice, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  : VibeText(pack.displayPrice.isEmpty ? (fa ? 'خرید' : 'Buy') : pack.displayPrice, style: const TextStyle(fontWeight: FontWeight.w800)),
             ),
           ],
         ),

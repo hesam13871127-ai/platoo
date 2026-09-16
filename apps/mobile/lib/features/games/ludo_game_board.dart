@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/vibe_components.dart';
 import '../../models/models.dart';
@@ -51,7 +52,7 @@ class LudoGameBoard extends StatelessWidget {
         Row(children: [
           Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.sunsetGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(AppTheme.coral, strength: .35)), child: const Icon(Icons.casino_rounded, color: Colors.white, size: 20)),
           const SizedBox(width: 10),
-          Text('Ludo', style: Theme.of(context).textTheme.titleLarge),
+          VibeText('Ludo', style: Theme.of(context).textTheme.titleLarge),
           const Spacer(),
           AnimatedSwitcher(duration: const Duration(milliseconds: 260), transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child), child: roll != null ? _Die(value: roll, key: ValueKey(roll)) : _DiePlaceholder(dark: dark)),
         ]),
@@ -73,13 +74,13 @@ class LudoGameBoard extends StatelessWidget {
         const SizedBox(height: 12),
         if (isTurn && roll == null) VibePrimaryButton(onPressed: () => onAction({'type': 'roll'}), icon: Icons.casino_rounded, label: 'Roll dice'),
         if (isTurn && roll != null && legal.isEmpty)
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => onAction({'type': 'pass'}), icon: Icon(roll == 6 ? Icons.refresh_rounded : Icons.skip_next_rounded), label: Text(roll == 6 ? 'No move · roll again' : 'No move · pass'))),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => onAction({'type': 'pass'}), icon: Icon(roll == 6 ? Icons.refresh_rounded : Icons.skip_next_rounded), label: VibeText(roll == 6 ? 'No move · roll again' : 'No move · pass'))),
         if (isTurn && roll != null && legal.isNotEmpty)
           Builder(builder: (context) {
             final viewerColor = colors[viewerSeat.clamp(0, 3).toInt()];
-            return Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10), decoration: BoxDecoration(color: viewerColor.withOpacity(.1), borderRadius: BorderRadius.circular(14), border: Border.all(color: viewerColor.withOpacity(.35))), child: Row(children: [Icon(Icons.touch_app_rounded, size: 17, color: viewerColor), const SizedBox(width: 8), Text('Rolled $roll · tap a glowing token', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800))]));
+            return Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10), decoration: BoxDecoration(color: viewerColor.withOpacity(.1), borderRadius: BorderRadius.circular(14), border: Border.all(color: viewerColor.withOpacity(.35))), child: Row(children: [Icon(Icons.touch_app_rounded, size: 17, color: viewerColor), const SizedBox(width: 8), VibeText('Rolled $roll · tap a glowing token', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800))]));
           }),
-        if (!isTurn) Text('Waiting for the active player…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        if (!isTurn) VibeText('Waiting for the active player…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [for (var side = 0; side < positions.length && side < 4; side += 1) _PlayerChip(color: colors[side], label: _playerName(side), finished: positions[side].where((position) => position == 57).length, active: state['turnPlayerId'] == _idFor(side))]),
       ],
@@ -163,7 +164,7 @@ class LudoGameBoard extends StatelessWidget {
             border: Border.all(color: selectable ? Colors.white : Colors.black26, width: selectable ? 3 : 1),
             boxShadow: [if (selectable) BoxShadow(color: colors[side].withOpacity(.7), blurRadius: 12, spreadRadius: 1) else const BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(1, 2))],
           ),
-          child: Center(child: Text('${token + 1}', style: TextStyle(fontSize: cell * (finished ? .16 : .24), color: Colors.white, fontWeight: FontWeight.w900, shadows: const [Shadow(color: Colors.black45, blurRadius: 2)]))),
+          child: Center(child: VibeText('${token + 1}', style: TextStyle(fontSize: cell * (finished ? .16 : .24), color: Colors.white, fontWeight: FontWeight.w900, shadows: const [Shadow(color: Colors.black45, blurRadius: 2)]))),
         ),
       ),
     );
@@ -185,7 +186,7 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = finished ? AppTheme.gold : active ? AppTheme.coral : Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
+    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: VibeText(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
   }
 }
 
@@ -242,9 +243,9 @@ class _PlayerChip extends StatelessWidget {
           children: [
             Container(width: 11, height: 11, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 5)])),
             const SizedBox(width: 7),
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            VibeText(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
             const SizedBox(width: 6),
-            Text('$finished/4', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: active ? color : Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText('$finished/4', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: active ? color : Theme.of(context).colorScheme.onSurfaceVariant)),
           ],
         ),
       );

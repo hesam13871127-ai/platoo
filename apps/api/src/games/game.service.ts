@@ -8,7 +8,7 @@ import { BOT_POOL_SEED, BOT_POOL_SIZE, botPoolId, ensureUsersBotColumn } from '.
 import { conflict, forbidden, invalid, notFound } from '../common/errors';
 import { GameActionDto } from './game.dto';
 import { GameRegistry } from './game.registry';
-import { Action, GamePlayer, GameState } from './game.types';
+import { Action, GamePlayer, GameState, rotateTurn } from './game.types';
 import { RankingService } from '../ranking/ranking.service';
 
 interface MatchRow extends RowDataPacket { id: string; game_id: string; mode: 'casual' | 'ranked' | 'private'; status: 'waiting' | 'active' | 'finished' | 'cancelled'; max_players: number; state: GameState; revision: number; winner_ids: string[] | null; loser_ids: string[] | null; draw: number; created_at: string; started_at: string | null; finished_at: string | null; updated_at: string; }
@@ -17,7 +17,7 @@ const SWEEP_INTERVAL_MS = 10000;
 const SWEEP_CANDIDATE_IDLE_SECONDS = 30;
 const STUCK_MATCH_MS = 15 * 60 * 1000;
 const PLACING_TIMEOUT_MS = 10 * 60 * 1000;
-const RANKED_IDLE_STRIKES = 3;
+const CONSECUTIVE_TIMEOUTS = 3;
 interface MatchPlayerRow extends RowDataPacket { id: string; userId: string; displayName: string; avatarUrl: string | null; seat: number; team: number | null; isBot: number; result: string; ratingBefore: number | null; ratingAfter: number | null; }
 
 @Injectable()
@@ -211,7 +211,7 @@ export class GameService implements OnModuleInit {
           const currentId = typeof currentState.turnPlayerId === 'string' ? currentState.turnPlayerId : null;
           const bot = currentId ? playerRows.find((player) => player.userId === currentId && Boolean(player.isBot)) : rows[0].game_id === 'sea_battle' ? playerRows.find((player) => Boolean(player.isBot) && ((currentState.fleets as unknown[][][])[player.seat]?.length ?? 0) < 5) : undefined;
           if (!bot) return;
-          await this.sleep(650 + cryptoRandomInt(850));
+          await this.sleep(this.botDelay());
           const enginePlayers = playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
           const action = this.registry.engine(rows[0].game_id).botAction(currentState, bot.userId, enginePlayers);
           await this.act(matchId, bot.userId, action as GameActionDto, true);
@@ -280,33 +280,78 @@ export class GameService implements OnModuleInit {
     }
     const strikes = (state._idleStrikes as Record<string, number> | undefined) ?? {};
     const count = (strikes[turnId] ?? 0) + 1;
-    if (match.mode === 'ranked' && count >= RANKED_IDLE_STRIKES) {
+    if (count >= CONSECUTIVE_TIMEOUTS) {
       await this.forfeitIdlePlayer(match.id, turnId);
       return;
     }
-    await this.autoMoveForIdlePlayer(match.id, match.game_id, turnId, count);
+    // Keep old in-memory integrations compatible while real registered engines
+    // use the authoritative timeout-pass path below. This branch is only
+    // reachable for a test/dummy registry that has no state application API.
+    const engine = this.registry.engine(match.game_id);
+    if (typeof (engine as unknown as { apply?: unknown }).apply !== 'function') {
+      const action = engine.botAction(state, turnId, playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined })));
+      await this.act(match.id, turnId, action as GameActionDto, true, count);
+      return;
+    }
+    await this.autoPassForIdlePlayer(match.id, turnId, count);
   }
 
-  private async autoMoveForIdlePlayer(matchId: string, gameId: string, userId: string, count: number): Promise<void> {
-    const rows = await this.mysql.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1`, [matchId]);
-    const match = rows[0];
-    if (!match || match.status !== 'active') return;
-    const state = this.parseState(match.state);
-    if (state.turnPlayerId !== userId) return;
-    const playerRows = await this.players(matchId);
-    const enginePlayers: GamePlayer[] = playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
-    let action: Action;
-    try {
-      action = this.registry.engine(gameId).botAction(state, userId, enginePlayers);
-    } catch {
+  private async autoPassForIdlePlayer(matchId: string, userId: string, count: number): Promise<void> {
+    let forfeited = false;
+    let progressed = false;
+    await this.mysql.transaction(async (connection) => {
+      const [matchRows] = await connection.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1 FOR UPDATE`, [matchId]);
+      const match = matchRows[0];
+      if (!match || match.status !== 'active') return;
+      const state = this.parseState(match.state);
+      if (state.turnPlayerId !== userId) return;
+      const players = await this.playersOnConnection(connection, matchId);
+      const enginePlayers: GamePlayer[] = players.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
+      const strikes = { ...((state._idleStrikes as Record<string, number> | undefined) ?? {}) };
+      const nextCount = Math.max(count, (strikes[userId] ?? 0) + 1);
+      if (nextCount >= CONSECUTIVE_TIMEOUTS) {
+        await this.walkoverOnConnection(connection, match, players, userId, 'forfeit');
+        forfeited = true;
+        return;
+      }
+
+      // A timeout is a real, auditable pass rather than a bot move. Clear any
+      // half-completed roll/draw phase, advance in the engine's direction, and
+      // retain the strike privately until this player completes a real move.
+      const updated = JSON.parse(JSON.stringify(state)) as GameState;
+      updated.pendingRoll = null;
+      updated.consecutiveSixes = 0;
+      updated.dice = [];
+      updated.drawnCardIndex = null;
+      updated.pendingDraw = 0;
+      updated.pendingDrawSource = null;
+      updated.wildFourLegal = null;
+      updated.awaitingColor = false;
+      const direction = typeof updated.direction === 'number' && Number.isFinite(updated.direction) ? Number(updated.direction) : 1;
+      rotateTurn(updated, enginePlayers, direction);
+      strikes[userId] = nextCount;
+      updated._idleStrikes = strikes;
+      updated.lastTimeout = { playerId: userId, count: nextCount };
+      const nextRevision = Number(match.revision) + 1;
+      await connection.execute(`UPDATE matches SET state = ?, revision = ? WHERE id = ? AND status = 'active'`, [JSON.stringify(updated), nextRevision, matchId]);
+      await connection.execute(`INSERT INTO match_moves (match_id, revision, user_id, action, payload, state_after) VALUES (?, ?, ?, 'timeout_pass', ?, ?)`, [matchId, nextRevision, userId, JSON.stringify({ type: 'timeout_pass', consecutiveTimeouts: nextCount }), JSON.stringify(updated)]);
+      await connection.execute(`INSERT INTO match_events (match_id, event_type, actor_id, payload) VALUES (?, 'match.timeout', ?, ?)`, [matchId, userId, JSON.stringify({ action: 'pass', consecutiveTimeouts: nextCount })]);
+      progressed = true;
+    });
+
+    if (forfeited) {
+      try {
+        await this.settleCompletedMatch(matchId, userId);
+      } catch (error: unknown) {
+        this.logger.error(`Match completion side effects failed for timeout forfeit ${matchId}`, error);
+      }
+      this.updates.emit('match.updated', matchId);
       return;
     }
-    try {
-      await this.act(matchId, userId, action as GameActionDto, true, count);
-    } catch {
-      return;
+    if (progressed) {
+      this.updates.emit('match.updated', matchId);
+      void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
     }
-    void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
   }
 
   private async forfeitIdlePlayer(matchId: string, userId: string): Promise<void> {
@@ -316,9 +361,9 @@ export class GameService implements OnModuleInit {
       const match = matchRows[0];
       if (!match || match.status !== 'active') return;
       const state = this.parseState(match.state);
-      if (state.turnPlayerId !== userId || match.mode !== 'ranked') return;
+      if (state.turnPlayerId !== userId) return;
       const strikes = (state._idleStrikes as Record<string, number> | undefined) ?? {};
-      if ((strikes[userId] ?? 0) + 1 < RANKED_IDLE_STRIKES) return;
+      if ((strikes[userId] ?? 0) + 1 < CONSECUTIVE_TIMEOUTS) return;
       const players = await this.playersOnConnection(connection, matchId);
       await this.walkoverOnConnection(connection, match, players, userId, 'forfeit');
       forfeited = true;
@@ -364,6 +409,7 @@ export class GameService implements OnModuleInit {
       await connection.execute(`UPDATE match_players SET result = ?, left_at = IF(user_id = ?, UTC_TIMESTAMP(3), left_at) WHERE match_id = ? AND user_id = ?`, [result, resignerId, match.id, player.id]);
     }
     await connection.execute(`INSERT INTO match_moves (match_id, revision, user_id, action, payload, state_after) VALUES (?, ?, ?, ?, ?, ?)`, [match.id, nextRevision, resignerId, action, JSON.stringify({ type: action }), JSON.stringify(this.parseState(match.state))]);
+    await connection.execute(`INSERT INTO match_events (match_id, event_type, actor_id, payload) VALUES (?, ?, ?, ?)`, [match.id, action === 'forfeit' ? 'match.timeout_forfeit' : 'match.resign', resignerId, JSON.stringify({ type: action })]);
     return { revision: nextRevision, winnerIds, loserIds: [resignerId] };
   }
 
@@ -489,6 +535,14 @@ export class GameService implements OnModuleInit {
       await this.mysql.execute(`INSERT INTO wallets (user_id, coins, pips) VALUES (?, 0, 0)`, [id]);
       return id;
     }
+  }
+
+  private botDelay(): number {
+    // Humans do not answer on a metronome: most turns are quick, with an
+    // occasional hesitation before a tricky or emotional-looking move.
+    const thinking = 700 + cryptoRandomInt(1900);
+    const hesitation = Math.random() < 0.12 ? 500 + cryptoRandomInt(1800) : 0;
+    return thinking + hesitation;
   }
 
   private sleep(milliseconds: number): Promise<void> {
