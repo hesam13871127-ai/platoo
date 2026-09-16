@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/vibe_components.dart';
 import '../../models/models.dart';
@@ -51,7 +52,7 @@ class _CarromGameBoardState extends State<CarromGameBoard> {
         Row(children: [
           Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.goldGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(AppTheme.gold, strength: .35)), child: const Icon(Icons.radio_button_checked_rounded, color: Colors.white, size: 20)),
           const SizedBox(width: 10),
-          Text('Carrom', style: Theme.of(context).textTheme.titleLarge),
+          VibeText('Carrom', style: Theme.of(context).textTheme.titleLarge),
           const Spacer(),
           _CarromPill(label: viewerGroup == null ? 'Group open' : viewerGroup),
         ]),
@@ -81,14 +82,14 @@ class _CarromGameBoardState extends State<CarromGameBoard> {
             child: Column(
               children: [
                 Row(children: [
-                  const Text('Power', style: TextStyle(fontWeight: FontWeight.w800)),
+                  const VibeText('Power', style: TextStyle(fontWeight: FontWeight.w800)),
                   Expanded(
                     child: SliderTheme(
                       data: SliderTheme.of(context).copyWith(trackHeight: 8, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 11), overlayShape: const RoundSliderOverlayShape(overlayRadius: 20), activeTrackColor: AppTheme.gold, inactiveTrackColor: AppTheme.gold.withOpacity(.18), thumbColor: Colors.white),
                       child: Slider(value: power, min: 1, max: 100, divisions: 99, label: power.round().toString(), onChanged: (value) => setState(() => power = value)),
                     ),
                   ),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: Text('${power.round()}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: VibeText('${power.round()}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
                 ]),
                 if (queenRemaining) ...[
                   const SizedBox(height: 2),
@@ -98,9 +99,9 @@ class _CarromGameBoardState extends State<CarromGameBoard> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Row(children: [
-                        Container(width: 30, height: 30, alignment: Alignment.center, decoration: BoxDecoration(color: queen ? AppTheme.coral : AppTheme.coral.withOpacity(.18), shape: BoxShape.circle), child: Text('Q', style: TextStyle(color: queen ? Colors.white : AppTheme.coral, fontWeight: FontWeight.w900, fontSize: 14))),
+                        Container(width: 30, height: 30, alignment: Alignment.center, decoration: BoxDecoration(color: queen ? AppTheme.coral : AppTheme.coral.withOpacity(.18), shape: BoxShape.circle), child: VibeText('Q', style: TextStyle(color: queen ? Colors.white : AppTheme.coral, fontWeight: FontWeight.w900, fontSize: 14))),
                         const SizedBox(width: 10),
-                        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Call the queen', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text('Pocket her with one of your coins to cover', style: TextStyle(fontSize: 11))])),
+                        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [VibeText('Call the queen', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), VibeText('Pocket her with one of your coins to cover', style: TextStyle(fontSize: 11))])),
                         AnimatedContainer(duration: const Duration(milliseconds: 180), width: 40, height: 22, alignment: queen ? Alignment.centerRight : Alignment.centerLeft, padding: const EdgeInsets.all(3), decoration: BoxDecoration(color: queen ? AppTheme.coral : Theme.of(context).colorScheme.surfaceVariant, borderRadius: BorderRadius.circular(99)), child: Container(width: 16, height: 16, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
                       ]),
                     ),
@@ -113,12 +114,12 @@ class _CarromGameBoardState extends State<CarromGameBoard> {
           VibePrimaryButton(onPressed: canStrike ? _submit : null, icon: Icons.sports_hockey_rounded, label: queenCall ? 'Pocket the queen' : pendingCover ? 'Cover the queen' : selectedCoins.isEmpty ? 'Strike' : 'Strike · ${selectedCoins.length}/3 coins'),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: _miss, icon: const Icon(Icons.close_rounded, size: 17), label: const Text('Miss'))),
+            Expanded(child: OutlinedButton.icon(onPressed: _miss, icon: const Icon(Icons.close_rounded, size: 17), label: const VibeText('Miss'))),
             const SizedBox(width: 8),
-            Expanded(child: TextButton.icon(onPressed: _foul, icon: const Icon(Icons.flag_outlined, size: 17), label: const Text('Declare foul'))),
+            Expanded(child: TextButton.icon(onPressed: _foul, icon: const Icon(Icons.flag_outlined, size: 17), label: const VibeText('Declare foul'))),
           ]),
         ] else if (!finished)
-          Text(pendingCover ? 'Cover the queen on your next turn.' : 'Waiting for the active player…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          VibeText(pendingCover ? 'Cover the queen on your next turn.' : 'Waiting for the active player…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: 12),
         _ScoreStrip(match: widget.match, scores: scores, groups: groups, turnPlayerId: widget.state['turnPlayerId']?.toString(), queenCoveredBy: (widget.state['queenCoveredBy'] as num?)?.toInt(), queenPendingFor: (widget.state['queenPendingFor'] as num?)?.toInt()),
       ],
@@ -166,7 +167,7 @@ class _CarromGameBoardState extends State<CarromGameBoard> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
         decoration: BoxDecoration(color: (bad ? AppTheme.coral : AppTheme.gold).withOpacity(.1), borderRadius: BorderRadius.circular(14), border: Border.all(color: (bad ? AppTheme.coral : AppTheme.gold).withOpacity(.3))),
-        child: Row(children: [Icon(bad ? Icons.flag_rounded : Icons.check_circle_rounded, size: 17, color: bad ? AppTheme.coral : AppTheme.gold), const SizedBox(width: 8), Expanded(child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))]),
+        child: Row(children: [Icon(bad ? Icons.flag_rounded : Icons.check_circle_rounded, size: 17, color: bad ? AppTheme.coral : AppTheme.gold), const SizedBox(width: 8), Expanded(child: VibeText(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))]),
       ),
     );
   }
@@ -203,7 +204,7 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = finished ? AppTheme.gold : active ? AppTheme.gold : Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
+    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: VibeText(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
   }
 }
 
@@ -227,10 +228,10 @@ class _CarromBoard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: dark ? const Color(0xFFE3B981) : const Color(0xFFF2D0A4), borderRadius: BorderRadius.circular(17), border: Border.all(color: const Color(0xFF9D6842), width: 2)),
         child: Column(children: [
-          const Row(children: [SizedBox(width: 30, height: 30, child: _PocketNet()), Spacer(), Text('SELECT COINS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Color(0xFF6B422D))), Spacer(), SizedBox(width: 30, height: 30, child: _PocketNet())]),
+          const Row(children: [SizedBox(width: 30, height: 30, child: _PocketNet()), Spacer(), VibeText('SELECT COINS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Color(0xFF6B422D))), Spacer(), SizedBox(width: 30, height: 30, child: _PocketNet())]),
           const SizedBox(height: 10),
           if (remaining.isEmpty && !queenAvailable)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('Board clear', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF6B422D))))
+            const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: VibeText('Board clear', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF6B422D))))
           else
             Wrap(
               alignment: WrapAlignment.center,
@@ -284,7 +285,7 @@ class _Coin extends StatelessWidget {
           border: Border.all(color: selected ? AppTheme.gold : white ? const Color(0xFF9D6842) : const Color(0xFF1D1515), width: selected ? 3 : 1.5),
           boxShadow: [if (selected) ...AppTheme.glow(AppTheme.gold, strength: .5) else const BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(1, 2))],
         ),
-        child: Opacity(opacity: dimmed ? .4 : 1, child: Text('$coin', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: white ? const Color(0xFF583B2C) : Colors.white))),
+        child: Opacity(opacity: dimmed ? .4 : 1, child: VibeText('$coin', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: white ? const Color(0xFF583B2C) : Colors.white))),
       ),
     );
   }
@@ -304,7 +305,7 @@ class _Queen extends StatelessWidget {
           border: Border.all(color: pending ? Colors.white : AppTheme.gold, width: pending ? 3 : 2),
           boxShadow: pending ? AppTheme.glow(Colors.white, strength: .5) : const [BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(0, 2))],
         ),
-        child: const Text('Q', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15, shadows: [Shadow(color: Colors.black45, blurRadius: 2)])),
+        child: const VibeText('Q', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15, shadows: [Shadow(color: Colors.black45, blurRadius: 2)])),
       );
 }
 
@@ -333,8 +334,8 @@ class _ScoreStrip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (group != null) Container(width: 10, height: 10, margin: const EdgeInsets.only(right: 6), decoration: BoxDecoration(color: group == 'white' ? const Color(0xFFF0D9AE) : const Color(0xFF3C2B2A), shape: BoxShape.circle, border: Border.all(color: Colors.black26))),
-                Text('${player['displayName'] ?? 'Player'}  $score', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
-                if (queenCoveredBy == seat) ...[const SizedBox(width: 5), const Text('♛', style: TextStyle(fontSize: 13, color: AppTheme.gold))],
+                VibeText('${player['displayName'] ?? 'Player'}  $score', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                if (queenCoveredBy == seat) ...[const SizedBox(width: 5), const VibeText('♛', style: TextStyle(fontSize: 13, color: AppTheme.gold))],
                 if (queenPendingFor == seat) ...[const SizedBox(width: 5), const Icon(Icons.hourglass_bottom_rounded, size: 13, color: AppTheme.coral)],
               ],
             ),
@@ -347,5 +348,5 @@ class _CarromPill extends StatelessWidget {
   const _CarromPill({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.14), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppTheme.gold.withOpacity(.35))), child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.14), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppTheme.gold.withOpacity(.35))), child: VibeText(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)));
 }

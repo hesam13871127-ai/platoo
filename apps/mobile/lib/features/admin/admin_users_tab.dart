@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -65,7 +66,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
               _FilterChip(label: 'All statuses', selected: status == null, onTap: () { ref.read(adminUserStatusProvider.notifier).state = null; _resetPage(); }),
               for (final s in const ['active', 'suspended', 'deleted'])
                 _FilterChip(label: s, selected: status == s, onTap: () { ref.read(adminUserStatusProvider.notifier).state = s; _resetPage(); }),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Text('·')),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: VibeText('·')),
               _FilterChip(label: 'All roles', selected: role == null, onTap: () { ref.read(adminUserRoleProvider.notifier).state = null; _resetPage(); }),
               for (final r in const ['player', 'moderator', 'admin'])
                 _FilterChip(label: r, selected: role == r, onTap: () { ref.read(adminUserRoleProvider.notifier).state = r; _resetPage(); }),
@@ -76,9 +77,9 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
         Expanded(
           child: users.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(child: Text(error.toString())),
+            error: (error, _) => Center(child: VibeText(error.toString())),
             data: (page) => page.items.isEmpty
-                ? const Center(child: Text('No users match these filters.'))
+                ? const Center(child: VibeText('No users match these filters.'))
                 : RefreshIndicator(
                     onRefresh: () async => ref.invalidate(adminUsersProvider),
                     child: ListView.separated(
@@ -101,13 +102,13 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                           child: ListTile(
                             leading: CircleAvatar(
                               backgroundColor: AppTheme.violet.withOpacity(.15),
-                              child: Text(
+                              child: VibeText(
                                 name.isEmpty ? '?' : name[0].toUpperCase(),
                                 style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900),
                               ),
                             ),
-                            title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                            subtitle: Text('@${strOf(user['username'])} · Lv ${intOf(user['level'], 1)} · ${intOf(user['coins'])} coins'),
+                            title: VibeText(name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                            subtitle: VibeText('@${strOf(user['username'])} · Lv ${intOf(user['level'], 1)} · ${intOf(user['coins'])} coins'),
                             trailing: _UserStatusBadge(status: strOf(user['status']), role: strOf(user['role'])),
                             onTap: () => showModalBottomSheet<void>(
                               context: context,
@@ -136,7 +137,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(right: 8),
-        child: ChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onTap()),
+        child: ChoiceChip(label: VibeText(label), selected: selected, onSelected: (_) => onTap()),
       );
 }
 
@@ -157,7 +158,7 @@ class _Pager extends StatelessWidget {
             IconButton.filledTonal(onPressed: onPrev, icon: const Icon(Icons.chevron_left_rounded)),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('Page ${page + 1} of ${totalPages == 0 ? 1 : totalPages} · $total total', style: const TextStyle(fontSize: 12)),
+              child: VibeText('Page ${page + 1} of ${totalPages == 0 ? 1 : totalPages} · $total total', style: const TextStyle(fontSize: 12)),
             ),
             IconButton.filledTonal(onPressed: onNext, icon: const Icon(Icons.chevron_right_rounded)),
           ],
@@ -184,10 +185,10 @@ class _UserStatusBadge extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(color: color.withOpacity(.12), borderRadius: BorderRadius.circular(8)),
-          child: Text(status, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12)),
+          child: VibeText(status, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12)),
         ),
         const SizedBox(height: 2),
-        Text(role, style: const TextStyle(fontSize: 11)),
+        VibeText(role, style: const TextStyle(fontSize: 11)),
       ],
     );
   }
@@ -207,7 +208,7 @@ class _UserDetailSheet extends ConsumerWidget {
         padding: EdgeInsets.fromLTRB(20, 6, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
         child: detail.when(
           loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
-          error: (error, _) => Padding(padding: const EdgeInsets.all(24), child: Text(error.toString())),
+          error: (error, _) => Padding(padding: const EdgeInsets.all(24), child: VibeText(error.toString())),
           data: (data) {
             final user = Map<String, dynamic>.from(data['user'] as Map);
             final stats = Map<String, dynamic>.from(data['stats'] as Map? ?? const {});
@@ -224,7 +225,7 @@ class _UserDetailSheet extends ConsumerWidget {
                       CircleAvatar(
                         radius: 26,
                         backgroundColor: AppTheme.violet.withOpacity(.15),
-                        child: Text(
+                        child: VibeText(
                           strOf(user['displayName'], '?').isEmpty ? '?' : strOf(user['displayName'], '?')[0].toUpperCase(),
                           style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 22),
                         ),
@@ -234,8 +235,8 @@ class _UserDetailSheet extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(strOf(user['displayName'], 'Player'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-                            Text('@${strOf(user['username'])} · ${strOf(user['role'])} · Lv ${intOf(user['level'], 1)}',
+                            VibeText(strOf(user['displayName'], 'Player'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                            VibeText('@${strOf(user['username'])} · ${strOf(user['role'])} · Lv ${intOf(user['level'], 1)}',
                                 style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           ],
                         ),
@@ -256,31 +257,31 @@ class _UserDetailSheet extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text('Joined ${dateLabel(user['createdAt'])} · last seen ${dateLabel(user['lastSeenAt'])}',
+                  VibeText('Joined ${dateLabel(user['createdAt'])} · last seen ${dateLabel(user['lastSeenAt'])}',
                       style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   if (strOf(user['phone']).isNotEmpty || strOf(user['email']).isNotEmpty)
-                    Text('${strOf(user['phone'])} ${strOf(user['email'])}'.trim(),
+                    VibeText('${strOf(user['phone'])} ${strOf(user['email'])}'.trim(),
                         style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 12),
-                  const Text('Recent matches', style: TextStyle(fontWeight: FontWeight.w900)),
+                  const VibeText('Recent matches', style: TextStyle(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 6),
                   if (recentMatches.isEmpty)
-                    const Text('No matches played yet.')
+                    const VibeText('No matches played yet.')
                   else
                     for (final match in recentMatches.take(5))
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: Row(
                           children: [
-                            Expanded(child: Text(strOf(match['gameName'], strOf(match['gameId'])))),
-                            Text('${strOf(match['result'], '—')} · ${dateLabel(match['createdAt'])}',
+                            Expanded(child: VibeText(strOf(match['gameName'], strOf(match['gameId'])))),
+                            VibeText('${strOf(match['result'], '—')} · ${dateLabel(match['createdAt'])}',
                                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           ],
                         ),
                       ),
                   const SizedBox(height: 16),
                   if (!admin)
-                    const Text('User moderation actions require an admin account.')
+                    const VibeText('User moderation actions require an admin account.')
                   else
                     Wrap(
                       spacing: 8,
@@ -290,24 +291,24 @@ class _UserDetailSheet extends ConsumerWidget {
                           FilledButton.icon(
                             onPressed: () => _unban(context, ref),
                             icon: const Icon(Icons.check_circle_rounded),
-                            label: const Text('Unban'),
+                            label: const VibeText('Unban'),
                           )
                         else
                           FilledButton.icon(
                             style: FilledButton.styleFrom(backgroundColor: AppTheme.coral),
                             onPressed: () => _ban(context, ref),
                             icon: const Icon(Icons.gavel_rounded),
-                            label: const Text('Ban'),
+                            label: const VibeText('Ban'),
                           ),
                         OutlinedButton.icon(
                           onPressed: () => _changeRole(context, ref, strOf(user['role'])),
                           icon: const Icon(Icons.admin_panel_settings_outlined),
-                          label: const Text('Role'),
+                          label: const VibeText('Role'),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => _adjustWallet(context, ref),
                           icon: const Icon(Icons.account_balance_wallet_outlined),
-                          label: const Text('Wallet'),
+                          label: const VibeText('Wallet'),
                         ),
                       ],
                     ),
@@ -325,15 +326,15 @@ class _UserDetailSheet extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Ban user'),
+        title: const VibeText('Ban user'),
         content: TextField(
           controller: reason,
           maxLines: 3,
           decoration: const InputDecoration(labelText: 'Reason (shown to the user)', hintText: 'Violation of community rules'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ban')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const VibeText('Ban')),
         ],
       ),
     );
@@ -365,21 +366,21 @@ class _UserDetailSheet extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (_, setDialogState) => AlertDialog(
-          title: const Text('Change role'),
+          title: const VibeText('Change role'),
           content: DropdownButtonFormField<String>(
             value: selected,
             items: const [
-              DropdownMenuItem(value: 'player', child: Text('player')),
-              DropdownMenuItem(value: 'moderator', child: Text('moderator')),
-              DropdownMenuItem(value: 'admin', child: Text('admin')),
+              DropdownMenuItem(value: 'player', child: VibeText('player')),
+              DropdownMenuItem(value: 'moderator', child: VibeText('moderator')),
+              DropdownMenuItem(value: 'admin', child: VibeText('admin')),
             ],
             onChanged: (value) {
               if (value != null) setDialogState(() => selected = value);
             },
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const VibeText('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const VibeText('Save')),
           ],
         ),
       ),
@@ -400,7 +401,7 @@ class _UserDetailSheet extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Adjust wallet'),
+        title: const VibeText('Adjust wallet'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -416,8 +417,8 @@ class _UserDetailSheet extends ConsumerWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Apply')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const VibeText('Apply')),
         ],
       ),
     );
@@ -450,7 +451,7 @@ class _InfoChip extends StatelessWidget {
           children: [
             Icon(icon, size: 14, color: color),
             const SizedBox(width: 5),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            VibeText(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
           ],
         ),
       );

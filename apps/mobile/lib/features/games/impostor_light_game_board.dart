@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -54,7 +55,7 @@ class _ImpostorLightGameBoardState extends State<ImpostorLightGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: _impostorRed.withOpacity(.15), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.visibility_off_rounded, color: _impostorRed)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Impostor Light', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Impostor Light', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _ImpostorBadge(label: finished ? 'Revealed' : phase == 'clues' ? 'Clues $clueCount/${widget.match.players.length}' : 'Vote $voteCount/${widget.match.players.length}'),
           ]),
           const SizedBox(height: 12),
@@ -73,10 +74,10 @@ class _ImpostorLightGameBoardState extends State<ImpostorLightGameBoard> {
                 FilledButton(onPressed: isTurn ? () => _sendClue(true) : null, child: const Icon(Icons.send_rounded)),
               ]),
             ] else ...[
-              Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: Text('Your clue is in: “$myClue”', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
+              Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: VibeText('Your clue is in: “$myClue”', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
             ],
           ] else if (!finished) ...[
-            Text(myVote != null ? 'Vote locked. Watching the table…' : isTurn ? 'Who is faking it? Study the clues, then strike.' : 'Waiting for the vote to reach you…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+            VibeText(myVote != null ? 'Vote locked. Watching the table…' : isTurn ? 'Who is faking it? Study the clues, then strike.' : 'Waiting for the vote to reach you…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             for (var index = 0; index < widget.match.players.length; index += 1)
               if (index != widget.match.viewerSeat) ...[
@@ -84,7 +85,7 @@ class _ImpostorLightGameBoardState extends State<ImpostorLightGameBoard> {
                 const SizedBox(height: 7),
               ],
             const SizedBox(height: 4),
-            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: isTurn && myVote == null && suspect != null ? () => widget.onAction({'type': 'vote', 'target': suspect}) : null, icon: const Icon(Icons.how_to_vote_rounded), label: Text(myVote != null ? 'Vote locked on ${_seatName(myVote)}' : 'Lock in vote'))),
+            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: isTurn && myVote == null && suspect != null ? () => widget.onAction({'type': 'vote', 'target': suspect}) : null, icon: const Icon(Icons.how_to_vote_rounded), label: VibeText(myVote != null ? 'Vote locked on ${_seatName(myVote)}' : 'Lock in vote'))),
           ] else ...[
             for (var index = 0; index < widget.match.players.length; index += 1) ...[
               _ClueRow(name: _seatName(index), clue: index < clues.length ? clues[index]?.toString() : null, isViewer: index == widget.match.viewerSeat, isImpostor: impostorSeat == index),
@@ -150,9 +151,9 @@ class _RoleCard extends StatelessWidget {
         Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(.16), shape: BoxShape.circle), child: Icon(icon, color: color)),
         const SizedBox(width: 11),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+          VibeText(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
           const SizedBox(height: 3),
-          Text(subtitle, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+          VibeText(subtitle, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
         ])),
       ]),
     );
@@ -170,11 +171,11 @@ class _ClueRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(color: isImpostor ? _impostorRed.withOpacity(.1) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: isImpostor ? _impostorRed.withOpacity(.5) : Theme.of(context).dividerColor)),
         child: Row(children: [
-          CircleAvatar(radius: 14, backgroundColor: isImpostor ? _impostorRed : _impostorRed.withOpacity(.14), child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: isImpostor ? Colors.white : _impostorRed))),
+          CircleAvatar(radius: 14, backgroundColor: isImpostor ? _impostorRed : _impostorRed.withOpacity(.14), child: VibeText(name.isEmpty ? '?' : name[0].toUpperCase(), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: isImpostor ? Colors.white : _impostorRed))),
           const SizedBox(width: 9),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${name}${isViewer ? ' (you)' : ''}${isImpostor ? ' 😈' : ''}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-            Text(clue == null || clue!.isEmpty ? 'thinking…' : '“$clue”', style: TextStyle(color: clue == null || clue!.isEmpty ? Theme.of(context).disabledColor : Theme.of(context).colorScheme.onSurface, fontStyle: clue == null || clue!.isEmpty ? FontStyle.italic : FontStyle.normal, fontSize: 12)),
+            VibeText('${name}${isViewer ? ' (you)' : ''}${isImpostor ? ' 😈' : ''}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+            VibeText(clue == null || clue!.isEmpty ? 'thinking…' : '“$clue”', style: TextStyle(color: clue == null || clue!.isEmpty ? Theme.of(context).disabledColor : Theme.of(context).colorScheme.onSurface, fontStyle: clue == null || clue!.isEmpty ? FontStyle.italic : FontStyle.normal, fontSize: 12)),
           ])),
         ]),
       );
@@ -199,8 +200,8 @@ class _SuspectRow extends StatelessWidget {
           decoration: BoxDecoration(color: selected || voted ? _impostorRed.withOpacity(.14) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: selected || voted ? _impostorRed : Theme.of(context).dividerColor, width: selected || voted ? 2 : 1)),
           child: Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-              if (clue != null && clue!.isNotEmpty) Text('“$clue”', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11)),
+              VibeText(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              if (clue != null && clue!.isNotEmpty) VibeText('“$clue”', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11)),
             ])),
             if (voted) const Icon(Icons.check_circle_rounded, color: _impostorRed),
             if (!voted && locked) Icon(Icons.lock_rounded, size: 16, color: Theme.of(context).disabledColor),
@@ -214,5 +215,5 @@ class _ImpostorBadge extends StatelessWidget {
   const _ImpostorBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _impostorRed.withOpacity(.14), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: _impostorRed, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _impostorRed.withOpacity(.14), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: _impostorRed, fontWeight: FontWeight.w900, fontSize: 12)));
 }

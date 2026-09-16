@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -51,11 +52,11 @@ class _QuickChallengesGameBoardState extends State<QuickChallengesGameBoard> wit
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: _quickYellow.withOpacity(.2), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.bolt_rounded, color: _quickYellow)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Quick Challenges', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Quick Challenges', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _QuickBadge(label: finished ? 'Final' : 'Round $round / $rounds'),
           ]),
           const SizedBox(height: 6),
-          Text(finished ? 'All seven rounds are done.' : 'A fresh mini-challenge every turn — most points wins.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+          VibeText(finished ? 'All seven rounds are done.' : 'A fresh mini-challenge every turn — most points wins.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
           if (!finished) ...[
             const SizedBox(height: 12),
             if (kind == 'stop') _StopChallenge(challenge: challenge, marker: marker, isTurn: isTurn, turnName: _turnName(), onStop: (value) => widget.onAction({'type': 'play', 'value': value})),
@@ -64,7 +65,7 @@ class _QuickChallengesGameBoardState extends State<QuickChallengesGameBoard> wit
           ],
           if (lastResult != null) ...[
             const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: Text('${_name(lastResult['playerId']?.toString())}: ${lastResult['detail'] ?? ''} (+${lastResult['points'] ?? 0})', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
+            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: VibeText('${_name(lastResult['playerId']?.toString())}: ${lastResult['detail'] ?? ''} (+${lastResult['points'] ?? 0})', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
           ],
           const SizedBox(height: 14),
           _QuickScores(match: widget.match, scores: scores, viewerSeat: widget.match.viewerSeat, leader: finished ? -1 : leader),
@@ -72,7 +73,7 @@ class _QuickChallengesGameBoardState extends State<QuickChallengesGameBoard> wit
             const SizedBox(height: 10),
             for (final entry in history)
               if (entry is Map)
-                Padding(padding: const EdgeInsets.only(bottom: 3), child: Text('Round ${entry['round'] ?? '–'} · ${_name(entry['playerId']?.toString())} · ${_kindLabel(entry['kind']?.toString())} · +${entry['points'] ?? 0}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w700))),
+                Padding(padding: const EdgeInsets.only(bottom: 3), child: VibeText('Round ${entry['round'] ?? '–'} · ${_name(entry['playerId']?.toString())} · ${_kindLabel(entry['kind']?.toString())} · +${entry['points'] ?? 0}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w700))),
           ],
         ]),
       ),
@@ -125,9 +126,9 @@ class _StopChallenge extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: _quickYellow.withOpacity(.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: _quickYellow.withOpacity(.35))),
       child: Column(children: [
-        const Text('🎯 BULLSEYE STOP', style: TextStyle(color: _quickYellow, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
+        const VibeText('🎯 BULLSEYE STOP', style: TextStyle(color: _quickYellow, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
         const SizedBox(height: 4),
-        Text(isTurn ? 'Stop the marker inside the zone!' : 'Waiting for $turnName…', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+        VibeText(isTurn ? 'Stop the marker inside the zone!' : 'Waiting for $turnName…', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
         const SizedBox(height: 12),
         AnimatedBuilder(
           animation: marker,
@@ -146,12 +147,12 @@ class _StopChallenge extends StatelessWidget {
                 }),
               ),
               const SizedBox(height: 6),
-              Text('Marker: ${(position * 100).round()}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w800)),
+              VibeText('Marker: ${(position * 100).round()}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w800)),
             ]);
           },
         ),
         const SizedBox(height: 10),
-        SizedBox(width: double.infinity, child: FilledButton(onPressed: isTurn ? () => onStop((marker.value * 100).round()) : null, child: Text(isTurn ? 'STOP!' : 'Waiting…'))),
+        SizedBox(width: double.infinity, child: FilledButton(onPressed: isTurn ? () => onStop((marker.value * 100).round()) : null, child: VibeText(isTurn ? 'STOP!' : 'Waiting…'))),
       ]),
     );
   }
@@ -176,24 +177,24 @@ class _HighLowChallenge extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: _quickYellow.withOpacity(.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: _quickYellow.withOpacity(.35))),
       child: Column(children: [
-        const Text('🃏 HIGH OR LOW', style: TextStyle(color: _quickYellow, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
+        const VibeText('🃏 HIGH OR LOW', style: TextStyle(color: _quickYellow, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
         const SizedBox(height: 10),
         Container(
           width: 84,
           height: 116,
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).dividerColor), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 6, offset: const Offset(0, 2))]),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(_rank(card), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 30, color: red ? const Color(0xFFE04F5F) : const Color(0xFF1F2937))),
-            Text(suit, style: TextStyle(fontSize: 22, color: red ? const Color(0xFFE04F5F) : const Color(0xFF1F2937))),
+            VibeText(_rank(card), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 30, color: red ? const Color(0xFFE04F5F) : const Color(0xFF1F2937))),
+            VibeText(suit, style: TextStyle(fontSize: 22, color: red ? const Color(0xFFE04F5F) : const Color(0xFF1F2937))),
           ]),
         ),
         const SizedBox(height: 4),
-        Text(isTurn ? 'Will the next card be higher or lower?' : 'Waiting for $turnName…', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+        VibeText(isTurn ? 'Will the next card be higher or lower?' : 'Waiting for $turnName…', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: FilledButton.icon(onPressed: isTurn ? () => onGuess('high') : null, icon: const Icon(Icons.arrow_upward_rounded), label: const Text('Higher'))),
+          Expanded(child: FilledButton.icon(onPressed: isTurn ? () => onGuess('high') : null, icon: const Icon(Icons.arrow_upward_rounded), label: const VibeText('Higher'))),
           const SizedBox(width: 8),
-          Expanded(child: FilledButton.tonalIcon(onPressed: isTurn ? () => onGuess('low') : null, icon: const Icon(Icons.arrow_downward_rounded), label: const Text('Lower'))),
+          Expanded(child: FilledButton.tonalIcon(onPressed: isTurn ? () => onGuess('low') : null, icon: const Icon(Icons.arrow_downward_rounded), label: const VibeText('Lower'))),
         ]),
       ]),
     );
@@ -211,9 +212,9 @@ class _CupsChallenge extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: _quickYellow.withOpacity(.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: _quickYellow.withOpacity(.35))),
         child: Column(children: [
-          const Text('🥤 LUCKY CUPS', style: TextStyle(color: _quickYellow, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
+          const VibeText('🥤 LUCKY CUPS', style: TextStyle(color: _quickYellow, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
           const SizedBox(height: 4),
-          Text(isTurn ? 'One cup hides 100 points — pick!' : 'Waiting for $turnName…', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+          VibeText(isTurn ? 'One cup hides 100 points — pick!' : 'Waiting for $turnName…', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
           const SizedBox(height: 12),
           Row(children: [
             for (var cup = 0; cup < 4; cup += 1) ...[
@@ -224,7 +225,7 @@ class _CupsChallenge extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(color: isTurn ? _quickYellow.withOpacity(.16) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: isTurn ? _quickYellow : Theme.of(context).dividerColor, width: isTurn ? 2 : 1)),
-                    child: Column(children: [const Text('🥤', style: TextStyle(fontSize: 30)), const SizedBox(height: 2), Text('${cup + 1}', style: const TextStyle(fontWeight: FontWeight.w900))]),
+                    child: Column(children: [const VibeText('🥤', style: TextStyle(fontSize: 30)), const SizedBox(height: 2), VibeText('${cup + 1}', style: const TextStyle(fontWeight: FontWeight.w900))]),
                   ),
                 ),
               ),
@@ -239,7 +240,7 @@ class _QuickBadge extends StatelessWidget {
   const _QuickBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _quickYellow.withOpacity(.2), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: Color(0xFF92690E), fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _quickYellow.withOpacity(.2), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: Color(0xFF92690E), fontWeight: FontWeight.w900, fontSize: 12)));
 }
 
 class _QuickScores extends StatelessWidget {
@@ -249,5 +250,5 @@ class _QuickScores extends StatelessWidget {
   final int viewerSeat;
   final int leader;
   @override
-  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (var index = 0; index < match.players.length; index += 1) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: index == viewerSeat ? _quickYellow.withOpacity(.2) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: index == leader ? _quickYellow : index == viewerSeat ? _quickYellow.withOpacity(.5) : Theme.of(context).dividerColor, width: index == leader ? 2 : 1)), child: Text('${match.players[index]['displayName']?.toString() ?? 'Player'} · ${scores.length > index ? scores[index] : 0}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)))]);
+  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (var index = 0; index < match.players.length; index += 1) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: index == viewerSeat ? _quickYellow.withOpacity(.2) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: index == leader ? _quickYellow : index == viewerSeat ? _quickYellow.withOpacity(.5) : Theme.of(context).dividerColor, width: index == leader ? 2 : 1)), child: VibeText('${match.players[index]['displayName']?.toString() ?? 'Player'} · ${scores.length > index ? scores[index] : 0}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)))]);
 }

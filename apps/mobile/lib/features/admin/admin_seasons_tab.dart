@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -18,14 +19,14 @@ class AdminSeasonsTab extends ConsumerWidget {
           ? FloatingActionButton.extended(
               onPressed: () => _createSeason(context, ref),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('New season'),
+              label: const VibeText('New season'),
             )
           : null,
       body: seasons.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(error.toString())),
+        error: (error, _) => Center(child: VibeText(error.toString())),
         data: (items) => items.isEmpty
-            ? const Center(child: Text('No seasons yet.'))
+            ? const Center(child: VibeText('No seasons yet.'))
             : RefreshIndicator(
                 onRefresh: () async => ref.invalidate(adminSeasonsProvider),
                 child: ListView.separated(
@@ -44,14 +45,13 @@ class AdminSeasonsTab extends ConsumerWidget {
                           decoration: BoxDecoration(color: _color(status).withOpacity(.14), borderRadius: BorderRadius.circular(14)),
                           child: Icon(_icon(status), color: _color(status)),
                         ),
-                        title: Text(strOf(season['name']), style: const TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: Text(
-                          '${dateLabel(season['startsAt'])} → ${dateLabel(season['endsAt'])} · ${intOf(season['rewardsCount'])} rewards · ${intOf(season['participantCount'])} players',
+                        title: VibeText(strOf(season['name']), style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: VibeText('${dateLabel(season['startsAt'])} → ${dateLabel(season['endsAt'])} · ${intOf(season['rewardsCount'])} rewards · ${intOf(season['participantCount'])} players',
                         ),
                         trailing: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(color: _color(status).withOpacity(.12), borderRadius: BorderRadius.circular(8)),
-                          child: Text(status, style: TextStyle(color: _color(status), fontWeight: FontWeight.w800, fontSize: 12)),
+                          child: VibeText(status, style: TextStyle(color: _color(status), fontWeight: FontWeight.w800, fontSize: 12)),
                         ),
                         onTap: () => showModalBottomSheet<void>(
                           context: context,
@@ -87,7 +87,7 @@ class AdminSeasonsTab extends ConsumerWidget {
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('New season'),
+        title: const VibeText('New season'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -99,8 +99,8 @@ class AdminSeasonsTab extends ConsumerWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Create')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const VibeText('Create')),
         ],
       ),
     );
@@ -141,7 +141,7 @@ class _SeasonDetailSheet extends ConsumerWidget {
         padding: EdgeInsets.fromLTRB(20, 6, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
         child: detail.when(
           loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
-          error: (error, _) => Padding(padding: const EdgeInsets.all(24), child: Text(error.toString())),
+          error: (error, _) => Padding(padding: const EdgeInsets.all(24), child: VibeText(error.toString())),
           data: (season) {
             final status = strOf(season['status']);
             final rewards = asItemList(season['rewards']);
@@ -151,35 +151,34 @@ class _SeasonDetailSheet extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(strOf(season['name']), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                  VibeText(strOf(season['name']), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
                   const SizedBox(height: 4),
-                  Text('${dateLabel(season['startsAt'])} → ${dateLabel(season['endsAt'])} · $status · ${intOf(season['participantCount'])} players',
+                  VibeText('${dateLabel(season['startsAt'])} → ${dateLabel(season['endsAt'])} · $status · ${intOf(season['participantCount'])} players',
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Text('Rewards', style: TextStyle(fontWeight: FontWeight.w900)),
+                      const VibeText('Rewards', style: TextStyle(fontWeight: FontWeight.w900)),
                       const Spacer(),
                       if (admin && status != 'finished')
                         TextButton.icon(
                           onPressed: () => _addReward(context, ref),
                           icon: const Icon(Icons.add_rounded),
-                          label: const Text('Add'),
+                          label: const VibeText('Add'),
                         ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   if (rewards.isEmpty)
-                    const Text('No rewards configured yet.')
+                    const VibeText('No rewards configured yet.')
                   else
                     for (final reward in rewards)
                       Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           dense: true,
-                          title: Text('Ranks ${intOf(reward['minRank'])}–${intOf(reward['maxRank'])}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                          subtitle: Text(
-                            '${intOf(reward['coins'])} coins · ${intOf(reward['pips'])} pips${strOf(reward['shopItemName']).isEmpty ? '' : ' · ${strOf(reward['shopItemName'])}'}',
+                          title: VibeText('Ranks ${intOf(reward['minRank'])}–${intOf(reward['maxRank'])}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: VibeText('${intOf(reward['coins'])} coins · ${intOf(reward['pips'])} pips${strOf(reward['shopItemName']).isEmpty ? '' : ' · ${strOf(reward['shopItemName'])}'}',
                           ),
                           trailing: admin && status != 'finished'
                               ? IconButton(
@@ -192,17 +191,17 @@ class _SeasonDetailSheet extends ConsumerWidget {
                       ),
                   if (top.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    const Text('Top players', style: TextStyle(fontWeight: FontWeight.w900)),
+                    const VibeText('Top players', style: TextStyle(fontWeight: FontWeight.w900)),
                     const SizedBox(height: 6),
                     for (var i = 0; i < top.length; i++)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: Row(
                           children: [
-                            Text('#${i + 1}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.gold)),
+                            VibeText('#${i + 1}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.gold)),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(strOf(top[i]['displayName']))),
-                            Text('${intOf(top[i]['rating'])} rating', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                            Expanded(child: VibeText(strOf(top[i]['displayName']))),
+                            VibeText('${intOf(top[i]['rating'])} rating', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           ],
                         ),
                       ),
@@ -217,27 +216,27 @@ class _SeasonDetailSheet extends ConsumerWidget {
                           FilledButton.icon(
                             onPressed: () => _activate(context, ref),
                             icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('Activate'),
+                            label: const VibeText('Activate'),
                           ),
                         if (status == 'active')
                           FilledButton.icon(
                             style: FilledButton.styleFrom(backgroundColor: AppTheme.gold),
                             onPressed: () => _finish(context, ref),
                             icon: const Icon(Icons.emoji_events_rounded),
-                            label: const Text('Finish & pay rewards'),
+                            label: const VibeText('Finish & pay rewards'),
                           ),
                         if (status != 'finished')
                           OutlinedButton.icon(
                             onPressed: () => _edit(context, ref, season),
                             icon: const Icon(Icons.edit_outlined),
-                            label: const Text('Edit'),
+                            label: const VibeText('Edit'),
                           ),
                         if (status == 'scheduled')
                           OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
                             onPressed: () => _delete(context, ref),
                             icon: const Icon(Icons.delete_outline_rounded),
-                            label: const Text('Delete'),
+                            label: const VibeText('Delete'),
                           ),
                       ],
                     ),
@@ -255,8 +254,8 @@ class _SeasonDetailSheet extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => const AlertDialog(
-        title: Text('Activate season?'),
-        content: Text('The currently active season (if any) will be finished first.'),
+        title: VibeText('Activate season?'),
+        content: VibeText('The currently active season (if any) will be finished first.'),
         actions: [
           _CancelButton(),
           _ConfirmButton(label: 'Activate'),
@@ -276,8 +275,8 @@ class _SeasonDetailSheet extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => const AlertDialog(
-        title: Text('Finish season?'),
-        content: Text('Rank rewards will be paid out to winners. This cannot be undone.'),
+        title: VibeText('Finish season?'),
+        content: VibeText('Rank rewards will be paid out to winners. This cannot be undone.'),
         actions: [
           _CancelButton(),
           _ConfirmButton(label: 'Finish'),
@@ -297,8 +296,8 @@ class _SeasonDetailSheet extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => const AlertDialog(
-        title: Text('Delete season?'),
-        content: Text('Only scheduled seasons can be deleted.'),
+        title: VibeText('Delete season?'),
+        content: VibeText('Only scheduled seasons can be deleted.'),
         actions: [
           _CancelButton(),
           _ConfirmButton(label: 'Delete'),
@@ -319,7 +318,7 @@ class _SeasonDetailSheet extends ConsumerWidget {
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Edit season'),
+        title: const VibeText('Edit season'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -352,7 +351,7 @@ class _SeasonDetailSheet extends ConsumerWidget {
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Add reward'),
+        title: const VibeText('Add reward'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -404,7 +403,7 @@ class _SeasonDetailSheet extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => const AlertDialog(
-        title: Text('Delete reward?'),
+        title: VibeText('Delete reward?'),
         actions: [_CancelButton(), _ConfirmButton(label: 'Delete')],
       ),
     );
@@ -427,7 +426,7 @@ class _CancelButton extends StatelessWidget {
   const _CancelButton();
 
   @override
-  Widget build(BuildContext context) => TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'));
+  Widget build(BuildContext context) => TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel'));
 }
 
 class _ConfirmButton extends StatelessWidget {
@@ -435,5 +434,5 @@ class _ConfirmButton extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(label));
+  Widget build(BuildContext context) => FilledButton(onPressed: () => Navigator.pop(context, true), child: VibeText(label));
 }

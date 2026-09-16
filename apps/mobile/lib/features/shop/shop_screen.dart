@@ -106,7 +106,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                         const VibeLogo(compact: true),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
+                          child: VibeText(
                             strings.shop,
                             style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
                             maxLines: 1,
@@ -435,15 +435,15 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       final proceedToStore = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text(strings.isPersian ? 'موجودی ناکافی' : 'Insufficient balance'),
-          content: Text(
+          title: VibeText(strings.isPersian ? 'موجودی ناکافی' : 'Insufficient balance'),
+          content: VibeText(
             strings.isPersian
                 ? 'برای خرید ${item.name} به $needMore $currency دیگر نیاز دارید.'
                 : 'You need $needMore more $currency to purchase ${item.name}. Would you like to get more coins now?',
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(strings.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(strings.getCoins)),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: VibeText(strings.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: VibeText(strings.getCoins)),
           ],
         ),
       );
@@ -672,7 +672,7 @@ class _TabButton extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: selected ? AppTheme.violet : scheme.onSurfaceVariant),
             const SizedBox(width: 7),
-            Text(
+            VibeText(
               label,
               style: TextStyle(
                 fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
@@ -688,7 +688,7 @@ class _TabButton extends StatelessWidget {
                   color: selected ? AppTheme.violet.withOpacity(.15) : scheme.surfaceVariant,
                   borderRadius: BorderRadius.circular(99),
                 ),
-                child: Text(
+                child: VibeText(
                   badge!,
                   style: TextStyle(
                     color: selected ? AppTheme.violet : scheme.onSurfaceVariant,
@@ -790,7 +790,7 @@ class _CategoryChip extends StatelessWidget {
           children: [
             Icon(icon, size: 16, color: selected ? color : scheme.onSurfaceVariant),
             const SizedBox(width: 6),
-            Text(
+            VibeText(
               label,
               style: TextStyle(
                 color: selected ? (dark ? Colors.white : color) : scheme.onSurfaceVariant,
@@ -1069,7 +1069,7 @@ class _ShopHero extends StatelessWidget {
                           color: Colors.white.withOpacity(.2),
                           borderRadius: BorderRadius.circular(99),
                         ),
-                        child: Text(
+                        child: VibeText(
                           strings.isPersian ? '✨ فروشگاه ویژه' : '✨ FEATURED COLLECTION',
                           style: const TextStyle(
                             color: Colors.white,
@@ -1080,7 +1080,7 @@ class _ShopHero extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Text(
+                      VibeText(
                         strings.isPersian ? 'حال و هوای میزت را بساز' : 'Make the table yours',
                         style: const TextStyle(
                           color: Colors.white,
@@ -1090,7 +1090,7 @@ class _ShopHero extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
+                      VibeText(
                         strings.isPersian
                             ? 'آواتارهای درخشان، فریم‌ها، تاس‌های سه‌بعدی و میزهای اختصاصی.'
                             : 'Glow avatars, frames, 3D dice and custom table themes for game nights.',
@@ -1117,7 +1117,7 @@ class _ShopHero extends StatelessWidget {
                             children: [
                               const Icon(Icons.add_circle_rounded, color: AppTheme.violet, size: 18),
                               const SizedBox(width: 6),
-                              Text(
+                              VibeText(
                                 strings.getCoins,
                                 style: const TextStyle(
                                   color: AppTheme.violet,
@@ -1191,13 +1191,12 @@ class _EquippedCosmeticsStrip extends StatelessWidget {
                 child: const Icon(Icons.check_circle_rounded, color: AppTheme.mint, size: 16),
               ),
               const SizedBox(width: 8),
-              Text(
+              VibeText(
                 strings.currentlyEquipped,
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
               ),
               const Spacer(),
-              Text(
-                '${equippedItems.length} active',
+              VibeText('${equippedItems.length} active',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -1208,7 +1207,7 @@ class _EquippedCosmeticsStrip extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (equippedItems.isEmpty)
-            Text(
+            VibeText(
               strings.isPersian ? 'هیچ آیتمی هنوز فعال نشده است. روی وسایل خود دکمه «فعال کردن» را بزنید.' : 'No cosmetics equipped yet. Tap "Equip" on any item below to show it off.',
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             )
@@ -1239,11 +1238,11 @@ class _EquippedCosmeticsStrip extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
+                                  VibeText(
                                     item.name,
                                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                                   ),
-                                  Text(
+                                  VibeText(
                                     item.category.toUpperCase(),
                                     style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: AppTheme.mint),
                                   ),
@@ -1356,7 +1355,7 @@ class _ProductCard extends StatelessWidget {
                             color: Colors.white,
                           ),
                           const SizedBox(width: 3),
-                          Text(
+                          VibeText(
                             isSoldOut
                                 ? strings.soldOut
                                 : (stock != null ? '$stock ${strings.leftInStock}' : strings.limitedEdition),
@@ -1389,7 +1388,7 @@ class _ProductCard extends StatelessWidget {
                         children: [
                           const Icon(Icons.check_rounded, size: 11, color: Colors.white),
                           const SizedBox(width: 3),
-                          Text(
+                          VibeText(
                             strings.equipped,
                             style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w900),
                           ),
@@ -1407,7 +1406,7 @@ class _ProductCard extends StatelessWidget {
                         color: scheme.surfaceVariant,
                         borderRadius: BorderRadius.circular(99),
                       ),
-                      child: Text(
+                      child: VibeText(
                         owned!.quantity > 1 ? '${strings.owned} x${owned!.quantity}' : strings.owned,
                         style: TextStyle(
                           fontSize: 9.5,
@@ -1421,14 +1420,14 @@ class _ProductCard extends StatelessWidget {
             ),
 
             const SizedBox(height: 6),
-            Text(
+            VibeText(
               item.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: -.2),
             ),
             const SizedBox(height: 2),
-            Text(
+            VibeText(
               item.description,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -1456,8 +1455,7 @@ class _ProductCard extends StatelessWidget {
                         color: item.pricePips > 0 ? AppTheme.violet : AppTheme.gold,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        '${item.pricePips > 0 ? item.pricePips : item.priceCoins}',
+                      VibeText('${item.pricePips > 0 ? item.pricePips : item.priceCoins}',
                         style: TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 12.5,
@@ -1494,7 +1492,7 @@ class _ProductCard extends StatelessWidget {
                     ),
                     child: isBusy
                         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(
+                        : VibeText(
                             isEquipped ? strings.equipped : strings.equip,
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
                           ),
@@ -1508,7 +1506,7 @@ class _ProductCard extends StatelessWidget {
                     ),
                     child: isBusy
                         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text(
+                        : VibeText(
                             isSoldOut ? strings.soldOut : strings.buy,
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                           ),
@@ -1587,8 +1585,7 @@ class _InventoryCard extends StatelessWidget {
                       color: scheme.surfaceVariant,
                       borderRadius: BorderRadius.circular(99),
                     ),
-                    child: Text(
-                      'x${item.quantity}',
+                    child: VibeText('x${item.quantity}',
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: scheme.onSurfaceVariant),
                     ),
                   ),
@@ -1609,7 +1606,7 @@ class _InventoryCard extends StatelessWidget {
                         children: [
                           const Icon(Icons.check_rounded, size: 11, color: Colors.white),
                           const SizedBox(width: 3),
-                          Text(
+                          VibeText(
                             strings.equipped,
                             style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w900),
                           ),
@@ -1620,14 +1617,14 @@ class _InventoryCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
+            VibeText(
               item.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: -.2),
             ),
             const SizedBox(height: 2),
-            Text(
+            VibeText(
               item.description.isNotEmpty ? item.description : item.category.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1658,7 +1655,7 @@ class _InventoryCard extends StatelessWidget {
                   ),
                   child: isBusy
                       ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(
+                      : VibeText(
                           isEquipped ? strings.unequip : strings.equip,
                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
                         ),
@@ -1732,7 +1729,7 @@ class _ItemDetailSheet extends StatelessWidget {
                     color: AppTheme.violet.withOpacity(.14),
                     borderRadius: BorderRadius.circular(99),
                   ),
-                  child: Text(
+                  child: VibeText(
                     category.toUpperCase(),
                     style: const TextStyle(
                       color: AppTheme.violet,
@@ -1755,7 +1752,7 @@ class _ItemDetailSheet extends StatelessWidget {
                       children: [
                         const Icon(Icons.local_fire_department_rounded, size: 12, color: Colors.white),
                         const SizedBox(width: 4),
-                        Text(
+                        VibeText(
                           strings.limitedEdition,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11),
                         ),
@@ -1776,7 +1773,7 @@ class _ItemDetailSheet extends StatelessWidget {
                       children: [
                         const Icon(Icons.check_rounded, size: 12, color: Colors.white),
                         const SizedBox(width: 4),
-                        Text(
+                        VibeText(
                           strings.equipped,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11),
                         ),
@@ -1788,13 +1785,13 @@ class _ItemDetailSheet extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            Text(
+            VibeText(
               name,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
-            Text(
+            VibeText(
               description,
               style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant, height: 1.4),
               textAlign: TextAlign.center,
@@ -1817,8 +1814,7 @@ class _ItemDetailSheet extends StatelessWidget {
                       color: pricePips > 0 ? AppTheme.violet : AppTheme.gold,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '${pricePips > 0 ? pricePips : priceCoins} ${pricePips > 0 ? strings.pips : strings.coins}',
+                    VibeText('${pricePips > 0 ? pricePips : priceCoins} ${pricePips > 0 ? strings.pips : strings.coins}',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 16,
@@ -1840,7 +1836,7 @@ class _ItemDetailSheet extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: onGift,
                       icon: const Icon(Icons.card_giftcard_rounded, color: AppTheme.pink),
-                      label: Text(strings.gift, style: const TextStyle(color: AppTheme.pink)),
+                      label: VibeText(strings.gift, style: const TextStyle(color: AppTheme.pink)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1854,7 +1850,7 @@ class _ItemDetailSheet extends StatelessWidget {
                         onEquipToggle!();
                       },
                       icon: Icon(isEquipped ? Icons.remove_circle_outline_rounded : Icons.check_circle_outline_rounded),
-                      label: Text(isEquipped ? strings.unequip : strings.equip),
+                      label: VibeText(isEquipped ? strings.unequip : strings.equip),
                     ),
                   ),
                 ] else if (item != null && onBuy != null) ...[
@@ -1866,7 +1862,7 @@ class _ItemDetailSheet extends StatelessWidget {
                         onBuy!();
                       },
                       icon: const Icon(Icons.shopping_bag_outlined),
-                      label: Text(strings.buy),
+                      label: VibeText(strings.buy),
                     ),
                   ),
                 ],
@@ -1910,12 +1906,12 @@ class _PurchaseCelebrationSheet extends StatelessWidget {
               child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 26),
             ),
             const SizedBox(height: 14),
-            Text(
+            VibeText(
               strings.unlocked,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 4),
-            Text(
+            VibeText(
               strings.isPersian ? '${item.name} به وسایل شما اضافه شد!' : '${item.name} was added to your inventory!',
               style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
               textAlign: TextAlign.center,
@@ -1928,7 +1924,7 @@ class _PurchaseCelebrationSheet extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    child: Text(strings.isPersian ? 'بستن' : 'Done'),
+                    child: VibeText(strings.isPersian ? 'بستن' : 'Done'),
                   ),
                 ),
                 if (item.category == 'avatar' || item.category == 'frame' || item.category == 'table') ...[
@@ -1936,7 +1932,7 @@ class _PurchaseCelebrationSheet extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       onPressed: onEquipNow,
-                      child: Text(strings.equipNow),
+                      child: VibeText(strings.equipNow),
                     ),
                   ),
                 ],
@@ -2051,11 +2047,11 @@ class _GiftSheetState extends ConsumerState<_GiftSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        VibeText(
                           strings.isPersian ? 'ارسال $itemName به عنوان هدیه' : 'Gift $itemName',
                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                         ),
-                        Text(
+                        VibeText(
                           ownedQty > 0
                               ? (strings.isPersian ? 'شما $ownedQty عدد در وسایل دارید (رایگان)' : 'You own $ownedQty in your inventory (Free)')
                               : (strings.isPersian ? 'خرید مستقیم و ارسال برای دوست' : 'Direct purchase for your friend'),
@@ -2073,7 +2069,7 @@ class _GiftSheetState extends ConsumerState<_GiftSheet> {
               const Divider(height: 24),
 
               // Step 1: Select Recipient
-              Text(
+              VibeText(
                 strings.selectFriend,
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
               ),
@@ -2117,8 +2113,8 @@ class _GiftSheetState extends ConsumerState<_GiftSheet> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(friend.displayName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
-                                    Text('@${friend.username}', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                                    VibeText(friend.displayName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+                                    VibeText('@${friend.username}', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
                                   ],
                                 ),
                               ),
@@ -2191,7 +2187,7 @@ class _GiftHistorySheet extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              VibeText(
                 strings.giftHistory,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
@@ -2258,19 +2254,18 @@ class _GiftHistorySheet extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    VibeText(
                       entry.itemName,
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    VibeText(
                       isReceived ? 'From: ${entry.otherUserName}' : 'To: ${entry.otherUserName}',
                       style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                     ),
                     if (entry.note != null && entry.note!.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        '“${entry.note}”',
+                      VibeText('“${entry.note}”',
                         style: TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: scheme.primary),
                       ),
                     ],

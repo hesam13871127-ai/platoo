@@ -64,7 +64,7 @@ class _SocialScreenState extends ConsumerState<SocialScreen> {
                 sliver: SliverToBoxAdapter(
                   child: Entrance(
                     child: Row(children: [
-                      Text(strings.social, style: Theme.of(context).textTheme.headlineSmall),
+                      VibeText(strings.social, style: Theme.of(context).textTheme.headlineSmall),
                       const SizedBox(width: 10),
                       if (onlineCount > 0)
                         Container(
@@ -73,7 +73,7 @@ class _SocialScreenState extends ConsumerState<SocialScreen> {
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppTheme.mint, shape: BoxShape.circle)),
                             const SizedBox(width: 6),
-                            Text('$onlineCount online', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12)),
+                            VibeText('$onlineCount online', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12)),
                           ]),
                         ),
                       const Spacer(),
@@ -81,7 +81,7 @@ class _SocialScreenState extends ConsumerState<SocialScreen> {
                         clipBehavior: Clip.none,
                         children: [
                           Container(decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.1), shape: BoxShape.circle), child: IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatListScreen())), icon: const Icon(Icons.forum_rounded, color: AppTheme.violet))),
-                          if (unread > 0) Positioned(right: -2, top: -2, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(gradient: AppTheme.coralGradient, borderRadius: BorderRadius.circular(99)), child: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11)))),
+                          if (unread > 0) Positioned(right: -2, top: -2, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(gradient: AppTheme.coralGradient, borderRadius: BorderRadius.circular(99)), child: VibeText(unread > 99 ? '99+' : '$unread', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11)))),
                         ],
                       ),
                     ]),
@@ -247,13 +247,13 @@ class _SocialScreenState extends ConsumerState<SocialScreen> {
               const SizedBox(height: 14),
               VibeInitial(name: friend.displayName, radius: 30),
               const SizedBox(height: 8),
-              Text(friend.displayName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-              Text('@${friend.username}', style: TextStyle(color: Theme.of(sheet).colorScheme.onSurfaceVariant)),
+              VibeText(friend.displayName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+              VibeText('@${friend.username}', style: TextStyle(color: Theme.of(sheet).colorScheme.onSurfaceVariant)),
               const SizedBox(height: 14),
-              ListTile(leading: const Icon(Icons.chat_bubble_rounded, color: AppTheme.violet), title: const Text('Chat'), onTap: () => Navigator.of(sheet).pop('chat')),
-              ListTile(leading: const Icon(Icons.sports_esports_rounded, color: AppTheme.violet), title: const Text('Invite to game'), onTap: () => Navigator.of(sheet).pop('play')),
-              ListTile(leading: const Icon(Icons.person_remove_rounded, color: AppTheme.coral), title: const Text('Unfriend'), onTap: () => Navigator.of(sheet).pop('unfriend')),
-              ListTile(leading: const Icon(Icons.block_rounded, color: AppTheme.coral), title: const Text('Block'), onTap: () => Navigator.of(sheet).pop('block')),
+              ListTile(leading: const Icon(Icons.chat_bubble_rounded, color: AppTheme.violet), title: const VibeText('Chat'), onTap: () => Navigator.of(sheet).pop('chat')),
+              ListTile(leading: const Icon(Icons.sports_esports_rounded, color: AppTheme.violet), title: const VibeText('Invite to game'), onTap: () => Navigator.of(sheet).pop('play')),
+              ListTile(leading: const Icon(Icons.person_remove_rounded, color: AppTheme.coral), title: const VibeText('Unfriend'), onTap: () => Navigator.of(sheet).pop('unfriend')),
+              ListTile(leading: const Icon(Icons.block_rounded, color: AppTheme.coral), title: const VibeText('Block'), onTap: () => Navigator.of(sheet).pop('block')),
             ],
           ),
         ),
@@ -265,7 +265,7 @@ class _SocialScreenState extends ConsumerState<SocialScreen> {
     } else if (action == 'play') {
       _inviteToGame(friend);
     } else if (action == 'unfriend' || action == 'block') {
-      final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: Text(action == 'block' ? 'Block ${friend.displayName}?' : 'Unfriend ${friend.displayName}?'), content: Text(action == 'block' ? 'They will disappear from your friends and cannot contact you.' : 'You can send a new request later.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(action == 'block' ? 'Block' : 'Unfriend'))]));
+      final confirmed = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: VibeText(action == 'block' ? 'Block ${friend.displayName}?' : 'Unfriend ${friend.displayName}?'), content: VibeText(action == 'block' ? 'They will disappear from your friends and cannot contact you.' : 'You can send a new request later.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: VibeText(action == 'block' ? 'Block' : 'Unfriend'))]));
       if (confirmed == true && mounted) _handleRequest(friend, action == 'block' ? 'block' : 'reject');
     }
   }
@@ -298,8 +298,8 @@ class _SearchResults extends StatelessWidget {
                     if (user['isOnline'] == true) Positioned(right: -1, bottom: -1, child: Container(width: 13, height: 13, decoration: BoxDecoration(color: AppTheme.mint, shape: BoxShape.circle, border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2.5)))),
                   ],
                 ),
-                title: Text(user['displayName']?.toString() ?? 'Player', style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text(user['isOnline'] == true ? 'Online now' : '@${user['username']}', style: TextStyle(color: user['isOnline'] == true ? AppTheme.mint : null)),
+                title: VibeText(user['displayName']?.toString() ?? 'Player', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: VibeText(user['isOnline'] == true ? 'Online now' : '@${user['username']}', style: TextStyle(color: user['isOnline'] == true ? AppTheme.mint : null)),
                 trailing: Container(decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), shape: BoxShape.circle), child: IconButton(onPressed: () => onAdd(user), icon: const Icon(Icons.person_add_alt_1_rounded, color: AppTheme.violet, size: 20))),
               ),
           ],
@@ -322,13 +322,13 @@ class _RequestTile extends StatelessWidget {
         children: [
           VibeInitial(name: friend.displayName, radius: 24),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(friend.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const SizedBox(height: 2), Text(incoming ? 'Wants to be your friend' : 'Request sent · waiting', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurfaceVariant))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [VibeText(friend.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const SizedBox(height: 2), VibeText(incoming ? 'Wants to be your friend' : 'Request sent · waiting', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurfaceVariant))])),
           if (incoming) ...[
-            FilledButton(onPressed: onAccept, style: FilledButton.styleFrom(minimumSize: const Size(64, 40), padding: const EdgeInsets.symmetric(horizontal: 16)), child: const Text('Accept')),
+            FilledButton(onPressed: onAccept, style: FilledButton.styleFrom(minimumSize: const Size(64, 40), padding: const EdgeInsets.symmetric(horizontal: 16)), child: const VibeText('Accept')),
             const SizedBox(width: 8),
-            OutlinedButton(onPressed: onDecline, style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40), padding: const EdgeInsets.symmetric(horizontal: 14)), child: const Text('Decline')),
+            OutlinedButton(onPressed: onDecline, style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40), padding: const EdgeInsets.symmetric(horizontal: 14)), child: const VibeText('Decline')),
           ] else
-            TextButton(onPressed: onDecline, child: const Text('Cancel')),
+            TextButton(onPressed: onDecline, child: const VibeText('Cancel')),
         ],
       ),
     );
@@ -359,9 +359,9 @@ class _FriendTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(friend.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  VibeText(friend.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                   const SizedBox(height: 2),
-                  Text(friend.isOnline ? 'Online now' : '@${friend.username}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: friend.isOnline ? AppTheme.mint : Theme.of(context).colorScheme.onSurfaceVariant)),
+                  VibeText(friend.isOnline ? 'Online now' : '@${friend.username}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: friend.isOnline ? AppTheme.mint : Theme.of(context).colorScheme.onSurfaceVariant)),
                 ],
               ),
             ),

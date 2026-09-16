@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../localization/app_strings.dart';
 import '../theme/app_theme.dart';
 import 'vibe_components.dart';
 
@@ -17,6 +18,7 @@ class StatePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = iconColor ?? AppTheme.violet;
     final theme = Theme.of(context);
+    final strings = AppStrings(Localizations.localeOf(context));
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -36,12 +38,12 @@ class StatePanel extends StatelessWidget {
                 child: Icon(icon, color: Colors.white, size: 34),
               ),
               const SizedBox(height: 16),
-              Text(title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
+              VibeText(strings.translateText(title), style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
               const SizedBox(height: 7),
-              Text(message, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+              VibeText(strings.translateText(message), style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: 16),
-                FilledButton.tonal(onPressed: onAction, child: Text(actionLabel!)),
+                FilledButton.tonal(onPressed: onAction, child: VibeText(strings.translateText(actionLabel!))),
               ],
             ],
           ),

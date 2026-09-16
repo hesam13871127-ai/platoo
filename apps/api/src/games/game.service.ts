@@ -17,7 +17,7 @@ const SWEEP_INTERVAL_MS = 10000;
 const SWEEP_CANDIDATE_IDLE_SECONDS = 30;
 const STUCK_MATCH_MS = 15 * 60 * 1000;
 const PLACING_TIMEOUT_MS = 10 * 60 * 1000;
-const RANKED_IDLE_STRIKES = 3;
+const CONSECUTIVE_TIMEOUTS = 3;
 interface MatchPlayerRow extends RowDataPacket { id: string; userId: string; displayName: string; avatarUrl: string | null; seat: number; team: number | null; isBot: number; result: string; ratingBefore: number | null; ratingAfter: number | null; }
 
 @Injectable()
@@ -211,7 +211,7 @@ export class GameService implements OnModuleInit {
           const currentId = typeof currentState.turnPlayerId === 'string' ? currentState.turnPlayerId : null;
           const bot = currentId ? playerRows.find((player) => player.userId === currentId && Boolean(player.isBot)) : rows[0].game_id === 'sea_battle' ? playerRows.find((player) => Boolean(player.isBot) && ((currentState.fleets as unknown[][][])[player.seat]?.length ?? 0) < 5) : undefined;
           if (!bot) return;
-          await this.sleep(650 + cryptoRandomInt(850));
+          await this.sleep(this.botDelay());
           const enginePlayers = playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
           const action = this.registry.engine(rows[0].game_id).botAction(currentState, bot.userId, enginePlayers);
           await this.act(matchId, bot.userId, action as GameActionDto, true);
@@ -280,33 +280,91 @@ export class GameService implements OnModuleInit {
     }
     const strikes = (state._idleStrikes as Record<string, number> | undefined) ?? {};
     const count = (strikes[turnId] ?? 0) + 1;
-    if (match.mode === 'ranked' && count >= RANKED_IDLE_STRIKES) {
+    if (count >= CONSECUTIVE_TIMEOUTS) {
       await this.forfeitIdlePlayer(match.id, turnId);
       return;
     }
-    await this.autoMoveForIdlePlayer(match.id, match.game_id, turnId, count);
+    // Keep old in-memory integrations compatible while real registered engines
+    // use the authoritative timeout-pass path below. This branch is only
+    // reachable for a test/dummy registry that has no state application API.
+    const engine = this.registry.engine(match.game_id);
+    if (typeof (engine as unknown as { apply?: unknown }).apply !== 'function') {
+      const action = engine.botAction(state, turnId, playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined })));
+      await this.act(match.id, turnId, action as GameActionDto, true, count);
+      return;
+    }
+    await this.autoPassForIdlePlayer(match.id, turnId, count);
   }
 
-  private async autoMoveForIdlePlayer(matchId: string, gameId: string, userId: string, count: number): Promise<void> {
-    const rows = await this.mysql.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1`, [matchId]);
-    const match = rows[0];
-    if (!match || match.status !== 'active') return;
-    const state = this.parseState(match.state);
-    if (state.turnPlayerId !== userId) return;
-    const playerRows = await this.players(matchId);
-    const enginePlayers: GamePlayer[] = playerRows.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
-    let action: Action;
-    try {
-      action = this.registry.engine(gameId).botAction(state, userId, enginePlayers);
-    } catch {
+  private async autoPassForIdlePlayer(matchId: string, userId: string, count: number): Promise<void> {
+    let forfeited = false;
+    let progressed = false;
+    let completed = false;
+    await this.mysql.transaction(async (connection) => {
+      const [matchRows] = await connection.query<MatchRow[]>(`SELECT * FROM matches WHERE id = ? LIMIT 1 FOR UPDATE`, [matchId]);
+      const match = matchRows[0];
+      if (!match || match.status !== 'active') return;
+      const state = this.parseState(match.state);
+      if (state.turnPlayerId !== userId) return;
+      const players = await this.playersOnConnection(connection, matchId);
+      const enginePlayers: GamePlayer[] = players.map((player) => ({ id: player.userId, isBot: Boolean(player.isBot), seat: player.seat, team: player.team ?? undefined }));
+      const strikes = { ...((state._idleStrikes as Record<string, number> | undefined) ?? {}) };
+      const nextCount = Math.max(count, (strikes[userId] ?? 0) + 1);
+      if (nextCount >= CONSECUTIVE_TIMEOUTS) {
+        await this.walkoverOnConnection(connection, match, players, userId, 'forfeit');
+        forfeited = true;
+        return;
+      }
+
+      const engine = this.registry.engine(match.game_id);
+      // A timeout must still travel through the authoritative engine. Its bot
+      // policy is deliberately used as the legal fallback for a human who
+      // missed the deadline: this handles rolls, card draws, hidden-role
+      // phases, multi-step moves, and special opening phases without a
+      // generic state mutation silently breaking a game. If a registered
+      // engine cannot produce a legal action here, the transaction fails
+      // instead of persisting a state that bypasses that game's rules.
+      const timeoutAction: Action = engine.botAction(state, userId, enginePlayers);
+      const updated: GameState = engine.apply(state, userId, timeoutAction, enginePlayers);
+      strikes[userId] = nextCount;
+      updated._idleStrikes = strikes;
+      updated.lastTimeout = { playerId: userId, count: nextCount };
+      const outcome = engine.outcome(updated, enginePlayers);
+      const nextRevision = Number(match.revision) + 1;
+      const status = outcome.finished ? 'finished' : 'active';
+      await connection.execute(`UPDATE matches SET state = ?, revision = ?, status = ?, winner_ids = ?, loser_ids = ?, draw = ?, finished_at = IF(? = 'finished', UTC_TIMESTAMP(3), NULL) WHERE id = ? AND status = 'active'`, [JSON.stringify(updated), nextRevision, status, JSON.stringify(outcome.winnerIds), JSON.stringify(outcome.loserIds), outcome.draw, status, matchId]);
+      await connection.execute(`INSERT INTO match_moves (match_id, revision, user_id, action, payload, state_after) VALUES (?, ?, ?, ?, ?, ?)`, [matchId, nextRevision, userId, timeoutAction.type, JSON.stringify({ ...timeoutAction, timeout: true, consecutiveTimeouts: nextCount }), JSON.stringify(updated)]);
+      await connection.execute(`INSERT INTO match_events (match_id, event_type, actor_id, payload) VALUES (?, 'match.timeout', ?, ?)`, [matchId, userId, JSON.stringify({ action: timeoutAction.type, consecutiveTimeouts: nextCount })]);
+      if (outcome.finished) {
+        completed = true;
+        for (const player of enginePlayers) {
+          const result = outcome.draw ? 'draw' : outcome.winnerIds.includes(player.id) ? 'win' : 'loss';
+          await connection.execute(`UPDATE match_players SET result = ? WHERE match_id = ? AND user_id = ?`, [result, matchId, player.id]);
+        }
+      }
+      progressed = true;
+    });
+
+    if (forfeited) {
+      try {
+        await this.settleCompletedMatch(matchId, userId);
+      } catch (error: unknown) {
+        this.logger.error(`Match completion side effects failed for timeout forfeit ${matchId}`, error);
+      }
+      this.updates.emit('match.updated', matchId);
       return;
     }
-    try {
-      await this.act(matchId, userId, action as GameActionDto, true, count);
-    } catch {
-      return;
+    if (progressed) {
+      if (completed) {
+        try {
+          await this.settleCompletedMatch(matchId, userId);
+        } catch (error: unknown) {
+          this.logger.error(`Match completion side effects failed for timeout action ${matchId}`, error);
+        }
+      }
+      this.updates.emit('match.updated', matchId);
+      if (!completed) void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
     }
-    void this.runBotTurns(matchId).catch((error: unknown) => this.logger.error(`Bot turn failed for ${matchId}`, error));
   }
 
   private async forfeitIdlePlayer(matchId: string, userId: string): Promise<void> {
@@ -316,9 +374,9 @@ export class GameService implements OnModuleInit {
       const match = matchRows[0];
       if (!match || match.status !== 'active') return;
       const state = this.parseState(match.state);
-      if (state.turnPlayerId !== userId || match.mode !== 'ranked') return;
+      if (state.turnPlayerId !== userId) return;
       const strikes = (state._idleStrikes as Record<string, number> | undefined) ?? {};
-      if ((strikes[userId] ?? 0) + 1 < RANKED_IDLE_STRIKES) return;
+      if ((strikes[userId] ?? 0) + 1 < CONSECUTIVE_TIMEOUTS) return;
       const players = await this.playersOnConnection(connection, matchId);
       await this.walkoverOnConnection(connection, match, players, userId, 'forfeit');
       forfeited = true;
@@ -364,6 +422,7 @@ export class GameService implements OnModuleInit {
       await connection.execute(`UPDATE match_players SET result = ?, left_at = IF(user_id = ?, UTC_TIMESTAMP(3), left_at) WHERE match_id = ? AND user_id = ?`, [result, resignerId, match.id, player.id]);
     }
     await connection.execute(`INSERT INTO match_moves (match_id, revision, user_id, action, payload, state_after) VALUES (?, ?, ?, ?, ?, ?)`, [match.id, nextRevision, resignerId, action, JSON.stringify({ type: action }), JSON.stringify(this.parseState(match.state))]);
+    await connection.execute(`INSERT INTO match_events (match_id, event_type, actor_id, payload) VALUES (?, ?, ?, ?)`, [match.id, action === 'forfeit' ? 'match.timeout_forfeit' : 'match.resign', resignerId, JSON.stringify({ type: action })]);
     return { revision: nextRevision, winnerIds, loserIds: [resignerId] };
   }
 
@@ -391,8 +450,17 @@ export class GameService implements OnModuleInit {
     const state = JSON.parse(JSON.stringify(original)) as GameState;
     delete state._idleStrikes;
     if ((gameId === 'hearts' || gameId === 'spades') && Array.isArray(state.hands)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat || status === 'finished' ? hand : []); }
-    if (gameId === 'ocho' && Array.isArray(state.hands)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat || status === 'finished' ? hand : []); delete state.wildFourLegal; }
-    if (gameId === 'sea_battle' && Array.isArray(state.boards)) { const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0; state.boards = (state.boards as unknown[]).map((board, index) => index === viewerSeat || status === 'finished' ? board : (board as number[][]).map((row) => row.map((cell) => cell < 0 ? -1 : 0))); }
+    if (gameId === 'ocho' && Array.isArray(state.hands)) {
+      const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
+      state.hands = (state.hands as unknown[]).map((hand, index) => index === viewerSeat || status === 'finished' ? hand : []);
+      if (status !== 'finished' && Array.isArray(state.draw)) state.draw = (state.draw as unknown[]).map(() => null);
+      delete state.wildFourLegal;
+    }
+    if (gameId === 'sea_battle' && Array.isArray(state.boards)) {
+      const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
+      state.boards = (state.boards as unknown[]).map((board, index) => index === viewerSeat || status === 'finished' ? board : (board as number[][]).map((row) => row.map((cell) => cell < 0 ? -1 : 0)));
+      if (status !== 'finished' && Array.isArray(state.fleets)) state.fleets = (state.fleets as unknown[]).map((fleet, index) => index === viewerSeat ? fleet : Array.isArray(fleet) ? fleet.map((ship) => Array.isArray(ship) ? Array(ship.length).fill(null) : null) : []);
+    }
     if (gameId === 'bingo' && Array.isArray(state.cards)) {
       const viewerSeat = players.find((player) => player.userId === viewerId)?.seat ?? 0;
       if (status !== 'finished') {
@@ -489,6 +557,14 @@ export class GameService implements OnModuleInit {
       await this.mysql.execute(`INSERT INTO wallets (user_id, coins, pips) VALUES (?, 0, 0)`, [id]);
       return id;
     }
+  }
+
+  private botDelay(): number {
+    // Humans do not answer on a metronome: most turns are quick, with an
+    // occasional hesitation before a tricky or emotional-looking move.
+    const thinking = 700 + cryptoRandomInt(1900);
+    const hesitation = Math.random() < 0.12 ? 500 + cryptoRandomInt(1800) : 0;
+    return thinking + hesitation;
   }
 
   private sleep(milliseconds: number): Promise<void> {

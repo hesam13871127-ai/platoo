@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -40,6 +41,7 @@ class _DartsGameBoardState extends State<DartsGameBoard> {
     final myScore = widget.match.viewerSeat < scores.length ? scores[widget.match.viewerSeat] : target;
     final value = special ?? segment * ring;
     final bust = myScore - value < 0 || myScore - value == 1;
+    final invalidCheckout = myScore == value && value > 0 && ((special == 25) || (special == null && ring != 2));
     final leader = _leader(scores, finished);
 
     return Card(
@@ -49,27 +51,27 @@ class _DartsGameBoardState extends State<DartsGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: _dartsBronze.withOpacity(.17), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.adjust_rounded, color: _dartsBronze)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Darts 301', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Darts 301', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _DartsBadge(label: finished ? 'Final' : 'Dart ${3 - dartsLeft + 1} of 3'),
           ]),
           const SizedBox(height: 6),
-          Text(finished ? 'Checkout complete.' : 'Count down from $target to exactly zero · 3 darts per visit.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+          VibeText(finished ? 'Checkout complete.' : 'Count down from $target to exactly zero · 3 darts per visit.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
           ..._scoreRows(scores, leader, finished),
           if (visitDarts.isNotEmpty && !finished) ...[
             const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: _dartsBronze.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: Text('Current visit: ${visitDarts.join(' · ')}  (total ${visitDarts.fold<int>(0, (sum, dart) => sum + dart)})', style: const TextStyle(color: _dartsBronze, fontWeight: FontWeight.w800, fontSize: 12))),
+            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: _dartsBronze.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: VibeText('Current visit: ${visitDarts.join(' · ')}  (total ${visitDarts.fold<int>(0, (sum, dart) => sum + dart)})', style: const TextStyle(color: _dartsBronze, fontWeight: FontWeight.w800, fontSize: 12))),
           ],
           if (!finished && myScore <= 60 && myScore >= 1) ...[
             const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: Text('🎯 Checkout: throw $myScore to win!', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
+            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: VibeText('🎯 Checkout: throw $myScore to win!', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
           ],
           if (isTurn) ...[
             const SizedBox(height: 14),
-            const Text('Aim your dart', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+            const VibeText('Aim your dart', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
             const SizedBox(height: 8),
             SegmentedButton<int>(
-              segments: const [ButtonSegment(value: 1, label: Text('Single')), ButtonSegment(value: 2, label: Text('Double')), ButtonSegment(value: 3, label: Text('Triple'))],
+              segments: const [ButtonSegment(value: 1, label: VibeText('Single')), ButtonSegment(value: 2, label: VibeText('Double')), ButtonSegment(value: 3, label: VibeText('Triple'))],
               selected: {ring},
               onSelectionChanged: (selection) => setState(() {
                 ring = selection.first;
@@ -85,36 +87,36 @@ class _DartsGameBoardState extends State<DartsGameBoard> {
                     special = null;
                   }),
                   borderRadius: BorderRadius.circular(10),
-                  child: Container(width: 40, height: 36, alignment: Alignment.center, decoration: BoxDecoration(color: special == null && segment == number ? _dartsBronze : _dartsBronze.withOpacity(.1), borderRadius: BorderRadius.circular(10)), child: Text('$number', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: special == null && segment == number ? Colors.white : _dartsBronze))),
+                  child: Container(width: 40, height: 36, alignment: Alignment.center, decoration: BoxDecoration(color: special == null && segment == number ? _dartsBronze : _dartsBronze.withOpacity(.1), borderRadius: BorderRadius.circular(10)), child: VibeText('$number', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: special == null && segment == number ? Colors.white : _dartsBronze))),
                 ),
             ]),
             const SizedBox(height: 10),
             Row(children: [
-              Expanded(child: OutlinedButton(onPressed: () => setState(() => special = 0), style: OutlinedButton.styleFrom(foregroundColor: special == 0 ? Colors.white : null, backgroundColor: special == 0 ? _dartsBronze : null), child: const Text('Miss'))),
+              Expanded(child: OutlinedButton(onPressed: () => setState(() => special = 0), style: OutlinedButton.styleFrom(foregroundColor: special == 0 ? Colors.white : null, backgroundColor: special == 0 ? _dartsBronze : null), child: const VibeText('Miss'))),
               const SizedBox(width: 8),
-              Expanded(child: OutlinedButton(onPressed: () => setState(() => special = 25), style: OutlinedButton.styleFrom(foregroundColor: special == 25 ? Colors.white : null, backgroundColor: special == 25 ? _dartsBronze : null), child: const Text('Outer 25'))),
+              Expanded(child: OutlinedButton(onPressed: () => setState(() => special = 25), style: OutlinedButton.styleFrom(foregroundColor: special == 25 ? Colors.white : null, backgroundColor: special == 25 ? _dartsBronze : null), child: const VibeText('Outer 25'))),
               const SizedBox(width: 8),
-              Expanded(child: OutlinedButton(onPressed: () => setState(() => special = 50), style: OutlinedButton.styleFrom(foregroundColor: special == 50 ? Colors.white : null, backgroundColor: special == 50 ? _dartsBronze : null), child: const Text('Bull 50'))),
+              Expanded(child: OutlinedButton(onPressed: () => setState(() => special = 50), style: OutlinedButton.styleFrom(foregroundColor: special == 50 ? Colors.white : null, backgroundColor: special == 50 ? _dartsBronze : null), child: const VibeText('Bull 50'))),
             ]),
             const SizedBox(height: 10),
-            if (bust) ...[
-              Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.12), borderRadius: BorderRadius.circular(12)), child: Text('⚠️ $value busts from $myScore — pick a smaller dart.', style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800, fontSize: 12))),
+            if (bust || invalidCheckout) ...[
+              Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.12), borderRadius: BorderRadius.circular(12)), child: VibeText(bust ? '⚠️ $value busts from $myScore — pick a smaller dart.' : '🎯 A checkout must finish on a double or bull.', style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800, fontSize: 12))),
               const SizedBox(height: 10),
             ],
-            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: bust ? null : () => widget.onAction({'type': 'throw', 'value': value}), icon: const Icon(Icons.sports_rounded), label: Text('Throw for $value'))),
+            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: bust || invalidCheckout ? null : () => widget.onAction(_throwAction(value)), icon: const Icon(Icons.sports_rounded), label: VibeText('Throw for $value'))),
           ] else if (!finished) ...[
             const SizedBox(height: 12),
-            Text('Waiting for ${_turnName()} to throw…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+            VibeText('Waiting for ${_turnName()} to throw…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
           ],
           if (lastVisit != null && !finished) ...[
             const SizedBox(height: 12),
-            Text('Last visit · ${_name(lastVisit['playerId']?.toString())}: ${(lastVisit['darts'] as List? ?? const []).join(', ')} (total ${lastVisit['total'] ?? 0})', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w700)),
+            VibeText('Last visit · ${_name(lastVisit['playerId']?.toString())}: ${(lastVisit['darts'] as List? ?? const []).join(', ')} (total ${lastVisit['total'] ?? 0})', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w700)),
           ],
           if (history.length > 1) ...[
             const SizedBox(height: 4),
             for (final entry in history.skip(1))
               if (entry is Map)
-                Padding(padding: const EdgeInsets.only(top: 3), child: Text('${_name(entry['playerId']?.toString())}: ${(entry['darts'] as List? ?? const []).join(', ')}', style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 11))),
+                Padding(padding: const EdgeInsets.only(top: 3), child: VibeText('${_name(entry['playerId']?.toString())}: ${(entry['darts'] as List? ?? const []).join(', ')}', style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 11))),
           ],
         ]),
       ),
@@ -132,13 +134,20 @@ class _DartsGameBoardState extends State<DartsGameBoard> {
               padding: const EdgeInsets.only(bottom: 6),
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9), decoration: BoxDecoration(color: highlight ? _dartsBronze.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: highlight ? _dartsBronze.withOpacity(.5) : Theme.of(context).dividerColor)), child: Row(children: [
                 if (isTurn) const Padding(padding: EdgeInsets.only(right: 7), child: Icon(Icons.adjust_rounded, size: 15, color: _dartsBronze)),
-                Expanded(child: Text(_playerName(index), overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
+                Expanded(child: VibeText(_playerName(index), overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
                 if (won) const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.emoji_events_rounded, size: 16, color: _dartsBronze)),
-                Text('$score', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                VibeText('$score', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               ])),
             );
           }),
       ];
+
+  Map<String, dynamic> _throwAction(int value) {
+    if (special == 0) return {'type': 'throw', 'value': 0, 'dartType': 'miss'};
+    if (special == 25) return {'type': 'throw', 'value': 25, 'dartType': 'outer_bull'};
+    if (special == 50) return {'type': 'throw', 'value': 50, 'dartType': 'bull'};
+    return {'type': 'throw', 'value': value, 'segment': segment, 'multiplier': ring};
+  }
 
   Map<String, dynamic>? _viewer() {
     final viewers = widget.match.players.where((player) => player['seat'] == widget.match.viewerSeat).toList();
@@ -174,5 +183,5 @@ class _DartsBadge extends StatelessWidget {
   const _DartsBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _dartsBronze.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: _dartsBronze, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _dartsBronze.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: _dartsBronze, fontWeight: FontWeight.w900, fontSize: 12)));
 }

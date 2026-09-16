@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/vibe_components.dart';
 import '../../models/models.dart';
@@ -53,17 +54,17 @@ class OchoGameBoard extends StatelessWidget {
           _PenaltyPanel(pendingDraw: pendingDraw, isTurn: isTurn, onDraw: () => onAction({'type': 'draw'}), onChallenge: () => onAction({'type': 'challenge'})),
         ] else ...[
           Row(children: [
-            Text('Your hand', style: Theme.of(context).textTheme.titleMedium),
+            VibeText('Your hand', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(width: 8),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: Text('${hand.length}', style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 12))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(99)), child: VibeText('${hand.length}', style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 12))),
             const Spacer(),
-            if (drawnIndex != null) TextButton(onPressed: isTurn ? () => onAction({'type': 'pass'}) : null, child: const Text('Pass')),
+            if (drawnIndex != null) TextButton(onPressed: isTurn ? () => onAction({'type': 'pass'}) : null, child: const VibeText('Pass')),
           ]),
           const SizedBox(height: 8),
           SizedBox(
             height: 118,
             child: hand.isEmpty
-                ? Center(child: Text('No cards', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)))
+                ? Center(child: VibeText('No cards', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)))
                 : ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: hand.length,
@@ -82,7 +83,7 @@ class OchoGameBoard extends StatelessWidget {
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(onPressed: canDraw ? () => onAction({'type': 'draw'}) : null, icon: const Icon(Icons.add_rounded), label: Text(drawnIndex == null ? 'Draw card' : 'Card drawn — play it or pass')),
+            child: OutlinedButton.icon(onPressed: canDraw ? () => onAction({'type': 'draw'}) : null, icon: const Icon(Icons.add_rounded), label: VibeText(drawnIndex == null ? 'Draw card' : 'Card drawn — play it or pass')),
           ),
         ],
       ],
@@ -104,11 +105,11 @@ class OchoGameBoard extends StatelessWidget {
       final decision = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Call Ocho?'),
-          content: const Text('You will have one card after this play. Call Ocho to avoid the two-card penalty.'),
+          title: const VibeText('Call Ocho?'),
+          content: const VibeText('You will have one card after this play. Call Ocho to avoid the two-card penalty.'),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Play without calling')),
-            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Call Ocho')),
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const VibeText('Play without calling')),
+            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const VibeText('Call Ocho')),
           ],
         ),
       );
@@ -134,7 +135,7 @@ class OchoGameBoard extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(opening ? 'Choose the opening color' : 'Choose a color', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+              VibeText(opening ? 'Choose the opening color' : 'Choose a color', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
               const SizedBox(height: 14),
               GridView.count(
                 crossAxisCount: 2,
@@ -192,12 +193,12 @@ class _OpponentStrip extends StatelessWidget {
                 children: [
                   VibeInitial(name: name, radius: 14),
                   const SizedBox(width: 7),
-                  Text(name.length > 10 ? '${name.substring(0, 10)}…' : name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  VibeText(name.length > 10 ? '${name.substring(0, 10)}…' : name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
                   const SizedBox(width: 7),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: count == 1 ? AppTheme.coral : AppTheme.violet.withOpacity(.15), borderRadius: BorderRadius.circular(99)),
-                    child: Text(count == 1 ? 'OCHO!' : '$count', style: TextStyle(color: count == 1 ? Colors.white : AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 11)),
+                    child: VibeText(count == 1 ? 'OCHO!' : '$count', style: TextStyle(color: count == 1 ? Colors.white : AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 11)),
                   ),
                 ],
               ),
@@ -253,7 +254,7 @@ class _TableArea extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text('$deckCount left', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                VibeText('$deckCount left', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ],
             ),
           ),
@@ -264,7 +265,7 @@ class _TableArea extends StatelessWidget {
                   duration: const Duration(milliseconds: 260),
                   transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: FadeTransition(opacity: animation, child: child)),
                   child: top == null
-                      ? Container(key: const ValueKey('empty'), width: 78, height: 108, alignment: Alignment.center, decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(.4), style: BorderStyle.solid)), child: const Text('—'))
+                      ? Container(key: const ValueKey('empty'), width: 78, height: 108, alignment: Alignment.center, decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(.4), style: BorderStyle.solid)), child: const VibeText('—'))
                       : _OchoCardTile(key: ValueKey('$discardCount-${top!['color']}-${top!['value']}'), card: top!, width: 78, height: 108, onTap: () {}),
                 ),
                 const SizedBox(height: 7),
@@ -273,7 +274,7 @@ class _TableArea extends StatelessWidget {
                   children: [
                     Icon(direction == -1 ? Icons.rotate_left_rounded : Icons.rotate_right_rounded, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
                     const SizedBox(width: 4),
-                    Text(direction == -1 ? 'Reversed' : 'Clockwise', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    VibeText(direction == -1 ? 'Reversed' : 'Clockwise', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   ],
                 ),
               ],
@@ -288,10 +289,10 @@ class _TableArea extends StatelessWidget {
                 decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.lerp(color, Colors.white, .15)!, color]), boxShadow: AppTheme.glow(color, strength: .45), border: Border.all(color: Colors.white.withOpacity(.35), width: 2)),
               ),
               const SizedBox(height: 7),
-              Text(currentColor.isEmpty ? 'Any color' : currentColor, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+              VibeText(currentColor.isEmpty ? 'Any color' : currentColor, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
               if (pendingDraw > 0) ...[
                 const SizedBox(height: 6),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(gradient: AppTheme.coralGradient, borderRadius: BorderRadius.circular(99)), child: Text('+$pendingDraw', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(gradient: AppTheme.coralGradient, borderRadius: BorderRadius.circular(99)), child: VibeText('+$pendingDraw', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12))),
               ],
             ],
           ),
@@ -331,7 +332,7 @@ class _StatusLine extends StatelessWidget {
     return Row(children: [
       Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])),
       const SizedBox(width: 9),
-      Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: isTurn && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant))),
+      Expanded(child: VibeText(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: isTurn && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant))),
     ]);
   }
 }
@@ -351,16 +352,16 @@ class _PenaltyPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              Container(width: 40, height: 40, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.coralGradient, shape: BoxShape.circle, boxShadow: AppTheme.glow(AppTheme.coral, strength: .4)), child: Text('+$pendingDraw', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13))),
+              Container(width: 40, height: 40, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.coralGradient, shape: BoxShape.circle, boxShadow: AppTheme.glow(AppTheme.coral, strength: .4)), child: VibeText('+$pendingDraw', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13))),
               const SizedBox(width: 12),
-              Expanded(child: Text(pendingDraw == 4 ? 'Draw four cards or challenge the Wild Draw Four.' : 'Draw $pendingDraw cards.', style: const TextStyle(fontWeight: FontWeight.w800))),
+              Expanded(child: VibeText(pendingDraw == 4 ? 'Draw four cards or challenge the Wild Draw Four.' : 'Draw $pendingDraw cards.', style: const TextStyle(fontWeight: FontWeight.w800))),
             ]),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: FilledButton.icon(onPressed: isTurn ? onDraw : null, icon: const Icon(Icons.download_rounded), label: Text('Draw $pendingDraw'))),
+              Expanded(child: FilledButton.icon(onPressed: isTurn ? onDraw : null, icon: const Icon(Icons.download_rounded), label: VibeText('Draw $pendingDraw'))),
               if (pendingDraw == 4) ...[
                 const SizedBox(width: 10),
-                Expanded(child: OutlinedButton.icon(onPressed: isTurn ? onChallenge : null, icon: const Icon(Icons.gavel_rounded), label: const Text('Challenge'))),
+                Expanded(child: OutlinedButton.icon(onPressed: isTurn ? onChallenge : null, icon: const Icon(Icons.gavel_rounded), label: const VibeText('Challenge'))),
               ],
             ]),
           ],
@@ -381,7 +382,7 @@ class _ColorTile extends StatelessWidget {
       child: Container(
         alignment: Alignment.center,
         decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.lerp(base, Colors.white, .12)!, base, Color.lerp(base, Colors.black, .18)!]), borderRadius: BorderRadius.circular(18), boxShadow: AppTheme.glow(base, strength: .35)),
-        child: Text(color.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+        child: VibeText(color.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
       ),
     );
   }
@@ -420,7 +421,7 @@ class _OchoCardTile extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              Positioned(top: 7, left: 9, child: Text(label, style: TextStyle(color: Colors.white.withOpacity(.9), fontSize: 10, fontWeight: FontWeight.w900))),
+              Positioned(top: 7, left: 9, child: VibeText(label, style: TextStyle(color: Colors.white.withOpacity(.9), fontSize: 10, fontWeight: FontWeight.w900))),
               Center(
                 child: isWild
                     ? Column(
@@ -430,7 +431,7 @@ class _OchoCardTile extends StatelessWidget {
                           const SizedBox(height: 3),
                           Row(mainAxisSize: MainAxisSize.min, children: [_pip(AppTheme.mint), const SizedBox(width: 3), _pip(AppTheme.violet)]),
                           const SizedBox(height: 6),
-                          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+                          VibeText(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
                         ],
                       )
                     : Container(
@@ -438,7 +439,7 @@ class _OchoCardTile extends StatelessWidget {
                         height: height * .42,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(color: Colors.white.withOpacity(.22), borderRadius: BorderRadius.circular(12)),
-                        child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: label.length <= 2 ? 21 : 11, fontWeight: FontWeight.w900)),
+                        child: VibeText(label, textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: label.length <= 2 ? 21 : 11, fontWeight: FontWeight.w900)),
                       ),
               ),
             ],

@@ -1,4 +1,5 @@
 import { BackgammonEngine } from '../src/games/engines/tabletop.engine';
+import { FourInARowEngine } from '../src/games/engines/board.engine';
 import { ArcheryEngine, BowlingEngine, DartsEngine } from '../src/games/engines/sport.engine';
 import { HeartsEngine, SpadesEngine } from '../src/games/engines/cards.engine';
 import { WordChainEngine } from '../src/games/engines/party.engine';
@@ -73,7 +74,7 @@ describe('match integrity: engine repairs', () => {
       }
     }
     const one = { ...(engine.create(roster) as any), scores: [1, 301] };
-    expect(engine.botAction(one, 'player-0', roster)).toEqual({ type: 'throw', value: 1 });
+    expect(engine.botAction(one, 'player-0', roster)).toEqual({ type: 'throw', value: 0, dartType: 'miss' });
   });
 
   it('lets backgammon re-enter from the bar on both sides and pass when blocked', () => {
@@ -209,6 +210,38 @@ describe('match integrity: resign, timers, and sweeper', () => {
     expect(act).toHaveBeenCalledWith('match-1', 'user-1', { type: 'drop', column: 0 }, true, 1);
   });
 
+  it('applies a legal engine action for a timed-out turn and preserves the timeout audit', async () => {
+    const engine = new FourInARowEngine();
+    const roster = [
+      { id: 'user-1', seat: 0, isBot: false },
+      { id: 'bot-1', seat: 1, isBot: true },
+    ];
+    const row = matchRow({ game_id: 'four_in_a_row', state: engine.create(roster), updated_at: isoAgo(61_000) });
+    const executed: Array<{ sql: string; params: unknown[] }> = [];
+    const connection = connectionWith(
+      (sql) => sql.includes('FROM matches') ? [[row]] : [[human('user-1', 0), bot('bot-1', 1)]],
+      (sql, params) => executed.push({ sql, params }),
+    );
+    const mysql = {
+      transaction: jest.fn(async (callback: (connection: unknown) => Promise<unknown>) => callback(connection)),
+      query: jest.fn(async (sql: string) => sql.includes('match_players') ? [human('user-1', 0), bot('bot-1', 1)] : [row]),
+    };
+    const service = new GameService(mysql as any, { engine: jest.fn().mockReturnValue(engine), turnSeconds: jest.fn().mockReturnValue(30) } as any, {} as any);
+    (service as any).runBotTurns = jest.fn().mockResolvedValue(undefined);
+
+    await service.sweepStaleMatches();
+
+    const update = executed.find(({ sql }) => sql.startsWith('UPDATE matches SET state'));
+    const updated = JSON.parse(update?.params[0] as string);
+    expect(updated.board.flat().filter((cell: number) => cell !== 0)).toHaveLength(1);
+    expect(updated.turnPlayerId).toBe('bot-1');
+    expect(updated._idleStrikes).toEqual({ 'user-1': 1 });
+    expect(updated.lastTimeout).toEqual({ playerId: 'user-1', count: 1 });
+    const move = executed.find(({ sql }) => sql.includes('INSERT INTO match_moves'));
+    expect(move?.params[3]).toBe('drop');
+    expect((service as any).runBotTurns).toHaveBeenCalledWith('match-1');
+  });
+
   it('forfeits a ranked player on the third consecutive idle strike', async () => {
     const row = matchRow({ mode: 'ranked', state: { turnPlayerId: 'user-1', _idleStrikes: { 'user-1': 2 } } });
     const executed: Array<{ sql: string; params: unknown[] }> = [];
@@ -233,6 +266,29 @@ describe('match integrity: resign, timers, and sweeper', () => {
     expect(ranking.recordMatch).not.toHaveBeenCalled();
     expect((service as any).settleCompletedMatch).toHaveBeenCalledWith('match-1', 'user-1');
     expect(emitted).toEqual(['match-1']);
+  });
+
+  it('forfeits the third consecutive idle turn in casual and private matches too', async () => {
+    for (const mode of ['casual', 'private']) {
+      const row = matchRow({ mode, state: { turnPlayerId: 'user-1', _idleStrikes: { 'user-1': 2 } } });
+      const executed: Array<{ sql: string; params: unknown[] }> = [];
+      const connection = connectionWith(
+        (sql) => sql.includes('FROM matches') ? [[row]] : [[human('user-1', 0), bot('bot-1', 1)]],
+        (sql, params) => executed.push({ sql, params }),
+      );
+      const mysql = {
+        transaction: jest.fn(async (callback: (connection: unknown) => Promise<unknown>) => callback(connection)),
+        query: jest.fn(async (sql: string) => sql.includes('match_players') ? [human('user-1', 0), bot('bot-1', 1)] : [row]),
+      };
+      const service = new GameService(mysql as any, { engine: jest.fn(), turnSeconds: jest.fn().mockReturnValue(30) } as any, { recordMatch: jest.fn().mockResolvedValue(undefined) } as any);
+      (service as any).settleCompletedMatch = jest.fn().mockResolvedValue({});
+
+      await service.sweepStaleMatches();
+
+      expect(executed.some(({ sql, params }) => sql.includes('match_moves') && params[3] === 'forfeit')).toBe(true);
+      const update = executed.find(({ sql }) => sql.includes('UPDATE matches SET'));
+      expect(JSON.parse(update?.params[1] as string)).toEqual(['bot-1']);
+    }
   });
 
   it('cancels stuck matches and abandoned sea battle placement', async () => {

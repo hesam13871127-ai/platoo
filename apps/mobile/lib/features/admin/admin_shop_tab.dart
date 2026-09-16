@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -20,14 +21,14 @@ class AdminShopTab extends ConsumerWidget {
           ? FloatingActionButton.extended(
               onPressed: () => _editItem(context, ref, null),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('New item'),
+              label: const VibeText('New item'),
             )
           : null,
       body: shop.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(error.toString())),
+        error: (error, _) => Center(child: VibeText(error.toString())),
         data: (items) => items.isEmpty
-            ? const Center(child: Text('No shop items yet.'))
+            ? const Center(child: VibeText('No shop items yet.'))
             : RefreshIndicator(
                 onRefresh: () async => ref.invalidate(adminShopProvider),
                 child: ListView.separated(
@@ -45,9 +46,8 @@ class AdminShopTab extends ConsumerWidget {
                           decoration: BoxDecoration(color: _color(strOf(item['category'])).withOpacity(.14), borderRadius: BorderRadius.circular(14)),
                           child: Icon(_icon(strOf(item['category'])), color: _color(strOf(item['category']))),
                         ),
-                        title: Text(strOf(item['name']), style: TextStyle(fontWeight: FontWeight.w800, color: active ? null : Theme.of(context).disabledColor)),
-                        subtitle: Text(
-                          '${strOf(item['sku'])} · ${strOf(item['category'])} · ${_price(item)}${item['stock'] == null ? '' : ' · stock ${item['stock']}'}',
+                        title: VibeText(strOf(item['name']), style: TextStyle(fontWeight: FontWeight.w800, color: active ? null : Theme.of(context).disabledColor)),
+                        subtitle: VibeText('${strOf(item['sku'])} · ${strOf(item['category'])} · ${_price(item)}${item['stock'] == null ? '' : ' · stock ${item['stock']}'}',
                         ),
                         trailing: admin
                             ? Row(
@@ -63,8 +63,8 @@ class AdminShopTab extends ConsumerWidget {
                                       if (value == 'delete') _delete(context, ref, item);
                                     },
                                     itemBuilder: (_) => const [
-                                      PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                      PopupMenuItem(value: 'delete', child: Text('Delete…')),
+                                      PopupMenuItem(value: 'edit', child: VibeText('Edit')),
+                                      PopupMenuItem(value: 'delete', child: VibeText('Delete…')),
                                     ],
                                   ),
                                 ],
@@ -120,15 +120,14 @@ class AdminShopTab extends ConsumerWidget {
     final choice = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Delete “${strOf(item['name'])}”?'),
-        content: const Text(
-          'Deactivate removes it from the shop but keeps player inventories intact (recommended). '
+        title: VibeText('Delete “${strOf(item['name'])}”?'),
+        content: const VibeText('Deactivate removes it from the shop but keeps player inventories intact (recommended). '
           'Delete forever only works if nobody owns it.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, 'soft'), child: const Text('Deactivate')),
-          FilledButton(onPressed: () => Navigator.pop(context, 'hard'), child: const Text('Delete forever')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const VibeText('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, 'soft'), child: const VibeText('Deactivate')),
+          FilledButton(onPressed: () => Navigator.pop(context, 'hard'), child: const VibeText('Delete forever')),
         ],
       ),
     );
@@ -160,7 +159,7 @@ class AdminShopTab extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (_, setDialogState) => AlertDialog(
-          title: Text(existing == null ? 'New shop item' : 'Edit item'),
+          title: VibeText(existing == null ? 'New shop item' : 'Edit item'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -174,7 +173,7 @@ class AdminShopTab extends ConsumerWidget {
                 DropdownButtonFormField<String>(
                   value: category,
                   decoration: const InputDecoration(labelText: 'Category'),
-                  items: [for (final c in _categories) DropdownMenuItem(value: c, child: Text(c))],
+                  items: [for (final c in _categories) DropdownMenuItem(value: c, child: VibeText(c))],
                   onChanged: (value) {
                     if (value != null) setDialogState(() => category = value);
                   },
@@ -191,15 +190,15 @@ class AdminShopTab extends ConsumerWidget {
                 TextField(controller: assetKey, decoration: const InputDecoration(labelText: 'Asset key')),
                 const SizedBox(height: 8),
                 TextField(controller: stock, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Stock (empty = unlimited)')),
-                CheckboxListTile(value: giftable, title: const Text('Giftable'), contentPadding: EdgeInsets.zero, onChanged: (v) => setDialogState(() => giftable = v ?? true)),
-                CheckboxListTile(value: limited, title: const Text('Limited'), contentPadding: EdgeInsets.zero, onChanged: (v) => setDialogState(() => limited = v ?? false)),
-                CheckboxListTile(value: active, title: const Text('Active in shop'), contentPadding: EdgeInsets.zero, onChanged: (v) => setDialogState(() => active = v ?? true)),
+                CheckboxListTile(value: giftable, title: const VibeText('Giftable'), contentPadding: EdgeInsets.zero, onChanged: (v) => setDialogState(() => giftable = v ?? true)),
+                CheckboxListTile(value: limited, title: const VibeText('Limited'), contentPadding: EdgeInsets.zero, onChanged: (v) => setDialogState(() => limited = v ?? false)),
+                CheckboxListTile(value: active, title: const VibeText('Active in shop'), contentPadding: EdgeInsets.zero, onChanged: (v) => setDialogState(() => active = v ?? true)),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const VibeText('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const VibeText('Save')),
           ],
         ),
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -15,7 +16,7 @@ class AdminGamesTab extends ConsumerWidget {
     final admin = isAdminRole(role);
     return games.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text(error.toString())),
+      error: (error, _) => Center(child: VibeText(error.toString())),
       data: (items) => RefreshIndicator(
         onRefresh: () async => ref.invalidate(adminGamesProvider),
         child: ListView.separated(
@@ -33,12 +34,12 @@ class AdminGamesTab extends ConsumerWidget {
                   height: 46,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(color: _accent(strOf(game['accentColor'])).withOpacity(.15), borderRadius: BorderRadius.circular(14)),
-                  child: Text(
+                  child: VibeText(
                     strOf(game['displayName'], '?').isEmpty ? '?' : strOf(game['displayName'], '?')[0],
                     style: TextStyle(color: _accent(strOf(game['accentColor'])), fontWeight: FontWeight.w900, fontSize: 20),
                   ),
                 ),
-                title: Text(
+                title: VibeText(
                   strOf(game['displayName']),
                   style: TextStyle(fontWeight: FontWeight.w800, color: active ? null : Theme.of(context).disabledColor),
                 ),
@@ -46,11 +47,11 @@ class AdminGamesTab extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('${strOf(game['id'])} · ${strOf(game['category'])} · ${intOf(game['minPlayers'], 2)}–${intOf(game['maxPlayers'], 2)} players'),
+                    VibeText('${strOf(game['id'])} · ${strOf(game['category'])} · ${intOf(game['minPlayers'], 2)}–${intOf(game['maxPlayers'], 2)} players'),
                     if (!hasBoard)
                       const Padding(
                         padding: EdgeInsets.only(top: 3),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phonelink_erase_rounded, size: 13, color: AppTheme.coral), SizedBox(width: 4), Text('No mobile board UI — disable until shipped', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.coral))]),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phonelink_erase_rounded, size: 13, color: AppTheme.coral), SizedBox(width: 4), VibeText('No mobile board UI — disable until shipped', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.coral))]),
                       ),
                   ],
                 ),
@@ -58,7 +59,7 @@ class AdminGamesTab extends ConsumerWidget {
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!active) const Text('Off  ', style: TextStyle(fontSize: 12)),
+                          if (!active) const VibeText('Off  ', style: TextStyle(fontSize: 12)),
                           Switch(value: active, onChanged: (_) => _toggle(context, ref, game)),
                           IconButton(
                             tooltip: 'Edit',
@@ -92,11 +93,11 @@ class AdminGamesTab extends ConsumerWidget {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
-          title: Text('Disable ${strOf(game['displayName'])}?'),
-          content: const Text('Players will no longer see this game or be able to start new matches.'),
+          title: VibeText('Disable ${strOf(game['displayName'])}?'),
+          content: const VibeText('Players will no longer see this game or be able to start new matches.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Disable')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const VibeText('Disable')),
           ],
         ),
       );
@@ -121,7 +122,7 @@ class AdminGamesTab extends ConsumerWidget {
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Edit ${strOf(game['id'])}'),
+        title: VibeText('Edit ${strOf(game['id'])}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -143,8 +144,8 @@ class AdminGamesTab extends ConsumerWidget {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const VibeText('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const VibeText('Save')),
         ],
       ),
     );

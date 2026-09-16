@@ -67,16 +67,88 @@ export class MancalaEngine implements GameEngine {
 
 export class CheckersEngine implements GameEngine {
   readonly id: GameId = 'checkers';
-  create(players: GamePlayer[]): GameState { const board: (string | null)[][] = Array.from({ length: 8 }, () => Array(8).fill(null)); for (let r = 0; r < 3; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'b'; for (let r = 5; r < 8; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'r'; return { board, turnIndex: 0, turnPlayerId: players[0].id, forcedFrom: null, winnerId: null, finished: false }; }
+  create(players: GamePlayer[]): GameState {
+    if (players.length !== 2) throw new IllegalMoveError('Checkers requires exactly two players.');
+    const board: (string | null)[][] = Array.from({ length: 8 }, () => Array(8).fill(null));
+    for (let r = 0; r < 3; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'b';
+    for (let r = 5; r < 8; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'r';
+    return { board, turnIndex: 0, turnPlayerId: players[0].id, forcedFrom: null, winnerId: null, finished: false, draw: false, halfmoveClock: 0, positionCounts: { [this.positionKey(board)]: 1 } };
+  }
   validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { turnCheck(state, actorId); if (action.type !== 'move') throw new IllegalMoveError('Use the move action.'); const from = this.square(action.fromRow, action.fromCol); const to = this.square(action.toRow, action.toCol); const board = state.board as (string | null)[][]; const piece = board[from.r][from.c]; const color = players.findIndex((p) => p.id === actorId) === 0 ? 'r' : 'b'; if (!piece || piece.toLowerCase() !== color) throw new IllegalMoveError('That is not your piece.'); if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).r !== from.r) throw new IllegalMoveError('You must continue the capture.'); if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).c !== from.c) throw new IllegalMoveError('You must continue the capture.'); if (board[to.r][to.c]) throw new IllegalMoveError('The destination is occupied.'); const moves = this.movesFor(board, from.r, from.c, piece, this.hasAnyCapture(board, color)); if (!moves.some((m) => m.r === to.r && m.c === to.c)) throw new IllegalMoveError('That move is not legal.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const board = next.board as (string | null)[][]; const fr = action.fromRow as number; const fc = action.fromCol as number; const tr = action.toRow as number; const tc = action.toCol as number; let piece = board[fr][fc] as string; board[fr][fc] = null; const isCapture = Math.abs(tr - fr) === 2; if (isCapture) board[(fr + tr) / 2][(fc + tc) / 2] = null; if (piece === 'r' && tr === 0) piece = 'R'; if (piece === 'b' && tr === 7) piece = 'B'; board[tr][tc] = piece; const color = players.findIndex((p) => p.id === actorId) === 0 ? 'r' : 'b'; const moreCapture = isCapture && this.movesFor(board, tr, tc, piece, true).some((m) => m.r !== tr || m.c !== tc); if (moreCapture) { next.forcedFrom = { r: tr, c: tc }; } else { next.forcedFrom = null; rotateTurn(next, players); } const nextColor = players.findIndex((p) => p.id === next.turnPlayerId) === 0 ? 'r' : 'b'; if (!this.hasPieces(board, nextColor) || !this.hasAnyLegalMove(board, nextColor)) { next.finished = true; next.winnerId = actorId; } void color; return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const board = state.board as (string | null)[][]; const color = players.findIndex((p) => p.id === botId) === 0 ? 'r' : 'b'; const moves: Action[] = []; for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) { const piece = board[r][c]; if (piece?.toLowerCase() === color) for (const move of this.movesFor(board, r, c, piece, this.hasAnyCapture(board, color))) moves.push({ type: 'move', fromRow: r, fromCol: c, toRow: move.r, toCol: move.c }); } return moves[randomInt(moves.length)] ?? { type: 'move', fromRow: 0, fromCol: 0, toRow: 0, toCol: 0 }; }
+  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state);
+    const board = next.board as (string | null)[][];
+    const fr = action.fromRow as number;
+    const fc = action.fromCol as number;
+    const tr = action.toRow as number;
+    const tc = action.toCol as number;
+    let piece = board[fr][fc] as string;
+    const wasKing = piece === piece.toUpperCase();
+    board[fr][fc] = null;
+    const isCapture = Math.abs(tr - fr) === 2;
+    if (isCapture) board[(fr + tr) / 2][(fc + tc) / 2] = null;
+    if (piece === 'r' && tr === 0) piece = 'R';
+    if (piece === 'b' && tr === 7) piece = 'B';
+    board[tr][tc] = piece;
+    const promoted = !wasKing && piece === piece.toUpperCase();
+    // In American checkers a man that reaches the king row is crowned and
+    // the capture sequence ends immediately; it does not continue as a king.
+    const moreCapture = !promoted && isCapture && this.movesFor(board, tr, tc, piece, true).length > 0;
+    if (moreCapture) {
+      next.forcedFrom = { r: tr, c: tc };
+    } else {
+      next.forcedFrom = null;
+      rotateTurn(next, players);
+    }
+    const nextColor = players.findIndex((player) => player.id === next.turnPlayerId) === 0 ? 'r' : 'b';
+    if (!this.hasPieces(board, nextColor) || !this.hasAnyLegalMove(board, nextColor)) {
+      next.finished = true;
+      next.winnerId = actorId;
+    }
+    const halfmoveClock = isCapture || promoted ? 0 : Number(next.halfmoveClock ?? 0) + 1;
+    next.halfmoveClock = halfmoveClock;
+    const positionCounts = { ...((next.positionCounts as Record<string, number> | undefined) ?? {}) };
+    const key = this.positionKey(board, Number(next.turnIndex));
+    positionCounts[key] = (positionCounts[key] ?? 0) + 1;
+    next.positionCounts = positionCounts;
+    if (!next.finished && (halfmoveClock >= 80 || positionCounts[key] >= 3)) {
+      next.finished = true;
+      next.draw = true;
+      next.drawReason = halfmoveClock >= 80 ? 'forty_move_rule' : 'threefold_repetition';
+    }
+    return next;
+  }
+  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
+  botAction(state: GameState, botId: string, players: GamePlayer[]): Action {
+    const board = state.board as (string | null)[][];
+    const color = players.findIndex((player) => player.id === botId) === 0 ? 'r' : 'b';
+    const forced = state.forcedFrom as { r: number; c: number } | null;
+    const mustCapture = this.hasAnyCapture(board, color);
+    const moves: Action[] = [];
+    for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) {
+      if (forced && (forced.r !== r || forced.c !== c)) continue;
+      const piece = board[r][c];
+      if (piece?.toLowerCase() !== color) continue;
+      for (const move of this.movesFor(board, r, c, piece, mustCapture)) moves.push({ type: 'move', fromRow: r, fromCol: c, toRow: move.r, toCol: move.c });
+    }
+    // Prefer captures and promotions, but retain a little variety rather than
+    // making every bot follow the same deterministic line.
+    moves.sort((a, b) => {
+      const aCapture = Math.abs((a.toRow as number) - (a.fromRow as number)) === 2 ? 1 : 0;
+      const bCapture = Math.abs((b.toRow as number) - (b.fromRow as number)) === 2 ? 1 : 0;
+      const aPromotion = (a.toRow as number) === (color === 'r' ? 0 : 7) ? 1 : 0;
+      const bPromotion = (b.toRow as number) === (color === 'r' ? 0 : 7) ? 1 : 0;
+      return (bCapture * 4 + bPromotion * 2) - (aCapture * 4 + aPromotion * 2) || Math.random() - 0.5;
+    });
+    return moves[0] ?? { type: 'move', fromRow: 0, fromCol: 0, toRow: 0, toCol: 0 };
+  }
   private square(r: unknown, c: unknown): { r: number; c: number } { return { r: asInt(r, 'row', 0, 7), c: asInt(c, 'column', 0, 7) }; }
   private movesFor(board: (string | null)[][], r: number, c: number, piece: string, captureOnly: boolean): Array<{ r: number; c: number }> { const directions = piece.toUpperCase() === piece ? [[1, 1], [1, -1], [-1, 1], [-1, -1]] : piece === 'r' ? [[-1, 1], [-1, -1]] : [[1, 1], [1, -1]]; const moves: Array<{ r: number; c: number }> = []; for (const [dr, dc] of directions) { const nr = r + dr; const nc = c + dc; const jr = r + dr * 2; const jc = c + dc * 2; if (!captureOnly && this.inside(nr, nc) && !board[nr][nc]) moves.push({ r: nr, c: nc }); if (this.inside(jr, jc) && board[nr]?.[nc] && board[nr][nc]?.toLowerCase() !== piece.toLowerCase() && !board[jr][jc]) moves.push({ r: jr, c: jc }); } return moves; }
   private hasAnyCapture(board: (string | null)[][], color: string): boolean { for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) { const piece = board[r][c]; if (piece?.toLowerCase() === color && this.movesFor(board, r, c, piece, true).some((m) => Math.abs(m.r - r) === 2)) return true; } return false; }
   private hasAnyLegalMove(board: (string | null)[][], color: string): boolean { const capture = this.hasAnyCapture(board, color); for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) { const piece = board[r][c]; if (piece?.toLowerCase() === color && this.movesFor(board, r, c, piece, capture).length) return true; } return false; }
   private hasPieces(board: (string | null)[][], color: string): boolean { return board.some((row) => row.some((piece) => piece?.toLowerCase() === color)); }
+  private positionKey(board: (string | null)[][], turn = 0): string { return `${board.map((row) => row.map((piece) => piece ?? '.').join('')).join('/')}|${turn}`; }
   private inside(r: number, c: number): boolean { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 }
 

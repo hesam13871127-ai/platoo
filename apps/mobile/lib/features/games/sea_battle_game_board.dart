@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -47,19 +48,32 @@ class _SeaBattleGameBoardState extends State<SeaBattleGameBoard> {
     return (fleets[seat] as List).length;
   }
 
-  bool _validShip(Set<int> cells, int size) {
+  bool _validShip(Set<int> cells, int size, List<List<int>> board) {
     if (cells.length != size) return false;
     final rows = cells.map((i) => i ~/ 10).toSet();
     final cols = cells.map((i) => i % 10).toSet();
     if (rows.length == 1) {
       final sorted = cols.toList()..sort();
-      return sorted.last - sorted.first == size - 1;
-    }
-    if (cols.length == 1) {
+      if (sorted.last - sorted.first != size - 1) return false;
+    } else if (cols.length == 1) {
       final sorted = rows.toList()..sort();
-      return sorted.last - sorted.first == size - 1;
+      if (sorted.last - sorted.first != size - 1) return false;
+    } else {
+      return false;
     }
-    return false;
+    for (final cell in cells) {
+      final row = cell ~/ 10;
+      final column = cell % 10;
+      if (board[row][column] != 0) return false;
+      for (var dr = -1; dr <= 1; dr += 1) {
+        for (var dc = -1; dc <= 1; dc += 1) {
+          final rr = row + dr;
+          final cc = column + dc;
+          if (rr >= 0 && rr < 10 && cc >= 0 && cc < 10 && board[rr][cc] != 0 && !cells.contains(rr * 10 + cc)) return false;
+        }
+      }
+    }
+    return true;
   }
 
   void _autoPlace(List<List<int>> board, int size) {
@@ -79,11 +93,12 @@ class _SeaBattleGameBoardState extends State<SeaBattleGameBoard> {
         }
         cells.add(rr * 10 + cc);
       }
-      if (fits) {
+      final candidate = cells.toSet();
+      if (fits && _validShip(candidate, size, board)) {
         setState(() {
           picked
             ..clear()
-            ..addAll(cells);
+            ..addAll(candidate);
         });
         return;
       }
@@ -102,7 +117,7 @@ class _SeaBattleGameBoardState extends State<SeaBattleGameBoard> {
     final active = widget.match.status == 'active';
     final done = _placed >= _shipSizes.length;
     final size = done ? 0 : _shipSizes[_placed];
-    final valid = !done && _validShip(picked, size);
+    final valid = !done && _validShip(picked, size, board);
 
     return Card(
       child: Padding(
@@ -111,14 +126,14 @@ class _SeaBattleGameBoardState extends State<SeaBattleGameBoard> {
           Row(children: [
             const Icon(Icons.directions_boat_rounded, color: AppTheme.violet),
             const SizedBox(width: 8),
-            const Text('Sea Battle', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            const VibeText('Sea Battle', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             const Spacer(),
-            Text('Fleet ${_placed.clamp(0, 5)}/5', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
+            VibeText('Fleet ${_placed.clamp(0, 5)}/5', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
           ]),
           const SizedBox(height: 7),
           Align(
             alignment: Alignment.centerLeft,
-            child: Text(
+            child: VibeText(
               done ? 'Fleet ready — waiting for the enemy…' : 'Place ship ${_placed + 1} of 5 · $size cells in a straight line.',
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700),
             ),
@@ -162,9 +177,9 @@ class _SeaBattleGameBoardState extends State<SeaBattleGameBoard> {
           const SizedBox(height: 12),
           if (!done) ...[
             Row(children: [
-              Expanded(child: OutlinedButton.icon(onPressed: !active ? null : () => _autoPlace(board, size), icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Auto'))),
+              Expanded(child: OutlinedButton.icon(onPressed: !active ? null : () => _autoPlace(board, size), icon: const Icon(Icons.auto_awesome_rounded), label: const VibeText('Auto'))),
               const SizedBox(width: 8),
-              Expanded(child: OutlinedButton.icon(onPressed: !active || picked.isEmpty ? null : () => setState(picked.clear), icon: const Icon(Icons.clear_rounded), label: const Text('Clear'))),
+              Expanded(child: OutlinedButton.icon(onPressed: !active || picked.isEmpty ? null : () => setState(picked.clear), icon: const Icon(Icons.clear_rounded), label: const VibeText('Clear'))),
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
@@ -175,12 +190,12 @@ class _SeaBattleGameBoardState extends State<SeaBattleGameBoard> {
                             'cells': picked.map((i) => [i ~/ 10, i % 10]).toList(),
                           }),
                   icon: const Icon(Icons.anchor_rounded),
-                  label: const Text('Place'),
+                  label: const VibeText('Place'),
                 ),
               ),
             ]),
           ] else
-            Text('Enemy fleet: $foeShips/5 ships placed.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText('Enemy fleet: $foeShips/5 ships placed.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ]),
       ),
     );
@@ -210,14 +225,14 @@ class _SeaBattleGameBoardState extends State<SeaBattleGameBoard> {
           Row(children: [
             const Icon(Icons.directions_boat_rounded, color: AppTheme.violet),
             const SizedBox(width: 8),
-            const Text('Sea Battle', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            const VibeText('Sea Battle', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             const Spacer(),
-            Text('🔥 $hits · ○ $misses', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
+            VibeText('🔥 $hits · ○ $misses', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
           ]),
           const SizedBox(height: 7),
           Align(
             alignment: Alignment.centerLeft,
-            child: Text(
+            child: VibeText(
               finished ? 'Battle over' : _isTurn ? 'Your turn — tap enemy waters to fire.' : 'Waiting for ${foeName.isEmpty ? 'the enemy' : foeName.first}…',
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700),
             ),
@@ -257,9 +272,9 @@ class _SeaBattleGameBoardState extends State<SeaBattleGameBoard> {
           ),
           const SizedBox(height: 12),
           Row(children: [
-            const Text('Your fleet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+            const VibeText('Your fleet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
             const Spacer(),
-            Text('grey = ship · red = hit', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText('grey = ship · red = hit', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ]),
           const SizedBox(height: 6),
           AspectRatio(

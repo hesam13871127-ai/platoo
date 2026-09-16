@@ -70,7 +70,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> with SingleTickerProv
 
     if (!isStaffRole(role)) {
       return Scaffold(
-        appBar: AppBar(title: Text(strings.adminConsole)),
+        appBar: AppBar(title: VibeText(strings.adminConsole)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(28),
@@ -88,13 +88,11 @@ class _AdminScreenState extends ConsumerState<AdminScreen> with SingleTickerProv
                   child: Icon(Icons.lock_rounded, color: scheme.onErrorContainer, size: 34),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  'Staff access required',
+                const VibeText('Staff access required',
                   style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'This console is only available to authorized moderators and admins.',
+                VibeText('This console is only available to authorized moderators and admins.',
                   style: TextStyle(color: scheme.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
@@ -113,7 +111,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> with SingleTickerProv
       appBar: AppBar(
         title: Row(
           children: [
-            Text(strings.adminConsole, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+            VibeText(strings.adminConsole, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -122,7 +120,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> with SingleTickerProv
                 borderRadius: BorderRadius.circular(99),
                 border: Border.all(color: (isAdmin ? AppTheme.gold : AppTheme.mint).withOpacity(.5)),
               ),
-              child: Text(
+              child: VibeText(
                 isAdmin ? 'ADMIN' : 'STAFF',
                 style: TextStyle(
                   color: isAdmin ? (dark ? AppTheme.gold : const Color(0xFFB45309)) : AppTheme.mint,
@@ -166,7 +164,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> with SingleTickerProv
                 Tab(
                   icon: Badge(
                     isLabelVisible: openReportsCount.toInt() > 0,
-                    label: Text('${openReportsCount.toInt()}'),
+                    label: VibeText('${openReportsCount.toInt()}'),
                     child: const Icon(Icons.flag_rounded, size: 18),
                   ),
                   text: 'Reports',
@@ -242,14 +240,14 @@ class AdminDashboardTab extends ConsumerWidget {
           // Activity Charts Section
           Row(
             children: [
-              const Text('Activity & Trends', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              const VibeText('Activity & Trends', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
               const Spacer(),
               SegmentedButton<int>(
                 style: SegmentedButton.styleFrom(visualDensity: VisualDensity.compact),
                 segments: const [
-                  ButtonSegment(value: 7, label: Text('7d')),
-                  ButtonSegment(value: 30, label: Text('30d')),
-                  ButtonSegment(value: 90, label: Text('90d')),
+                  ButtonSegment(value: 7, label: VibeText('7d')),
+                  ButtonSegment(value: 30, label: VibeText('30d')),
+                  ButtonSegment(value: 90, label: VibeText('90d')),
                 ],
                 selected: {days},
                 onSelectionChanged: (value) {
@@ -262,20 +260,20 @@ class AdminDashboardTab extends ConsumerWidget {
           const SizedBox(height: 12),
           analytics.when(
             loading: () => const VibeCard(child: Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => VibeText(error.toString()),
             data: (data) => _Analytics(data: data),
           ),
 
           const SizedBox(height: 26),
 
           // Recent Matches
-          const Text('Recent live matches', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          const VibeText('Recent live matches', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
           recent.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => VibeText(error.toString()),
             data: (items) => items.isEmpty
-                ? const VibeCard(child: Padding(padding: EdgeInsets.all(18), child: Text('No matches recorded yet.')))
+                ? const VibeCard(child: Padding(padding: EdgeInsets.all(18), child: VibeText('No matches recorded yet.')))
                 : VibeCard(
                     padding: EdgeInsets.zero,
                     child: Column(
@@ -294,8 +292,8 @@ class AdminDashboardTab extends ConsumerWidget {
                               ),
                               child: const Icon(Icons.sports_esports_rounded, color: AppTheme.violet, size: 20),
                             ),
-                            title: Text(strOf(items[i]['gameName'], 'Match'), style: const TextStyle(fontWeight: FontWeight.w800)),
-                            subtitle: Text('${strOf(items[i]['mode'])} · ${intOf(items[i]['playerCount'])} players · ${dateLabel(items[i]['createdAt'])}'),
+                            title: VibeText(strOf(items[i]['gameName'], 'Match'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                            subtitle: VibeText('${strOf(items[i]['mode'])} · ${intOf(items[i]['playerCount'])} players · ${dateLabel(items[i]['createdAt'])}'),
                             trailing: _StatusDot(status: strOf(items[i]['status'])),
                           ),
                         ],
@@ -327,7 +325,7 @@ class _QuickActionHub extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Quick Navigation', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+        const VibeText('Quick Navigation', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
         const SizedBox(height: 10),
         GridView.count(
           shrinkWrap: true,
@@ -443,7 +441,7 @@ class _HubActionTile extends StatelessWidget {
                       gradient: AppTheme.coralGradient,
                       borderRadius: BorderRadius.circular(99),
                     ),
-                    child: Text(
+                    child: VibeText(
                       badge!,
                       style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
                     ),
@@ -454,8 +452,8 @@ class _HubActionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
-                Text(
+                VibeText(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+                VibeText(
                   subtitle,
                   style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
                   maxLines: 1,
@@ -541,8 +539,8 @@ class _Metric extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Icon(icon, color: color, size: 22),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -.3)),
-          Text(label, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+          VibeText(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -.3)),
+          VibeText(label, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -581,21 +579,21 @@ class _Analytics extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Top games by matches', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                const VibeText('Top games by matches', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                 const SizedBox(height: 12),
                 for (final row in asItemList(data['matchesByGame']))
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
                       children: [
-                        Expanded(child: Text(strOf(row['gameName'], strOf(row['gameId'])), style: const TextStyle(fontWeight: FontWeight.w700))),
+                        Expanded(child: VibeText(strOf(row['gameName'], strOf(row['gameId'])), style: const TextStyle(fontWeight: FontWeight.w700))),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: AppTheme.violet.withOpacity(.12),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text('${intOf(row['matches'])} matches', style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w800, fontSize: 11.5)),
+                          child: VibeText('${intOf(row['matches'])} matches', style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w800, fontSize: 11.5)),
                         ),
                       ],
                     ),
@@ -630,7 +628,7 @@ class _ChartCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+              VibeText(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -638,13 +636,13 @@ class _ChartCard extends StatelessWidget {
                   color: color.withOpacity(.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text('$total total', style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11.5)),
+                child: VibeText('$total total', style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11.5)),
               ),
             ],
           ),
           const SizedBox(height: 14),
           if (points.isEmpty)
-            const Text('No telemetry data available for this timeframe.')
+            const VibeText('No telemetry data available for this timeframe.')
           else
             SizedBox(
               height: 110,
@@ -696,7 +694,7 @@ class _StatusDot extends StatelessWidget {
       children: [
         Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+        VibeText(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
       ],
     );
   }

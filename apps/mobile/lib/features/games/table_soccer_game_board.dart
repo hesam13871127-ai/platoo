@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -44,25 +45,25 @@ class _TableSoccerGameBoardState extends State<TableSoccerGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.14), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.sports_soccer_rounded, color: AppTheme.coral)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Table Soccer', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Table Soccer', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _SoccerBadge(label: 'First to $target'),
           ]),
           const SizedBox(height: 12),
-          Text(finished ? 'The final whistle has blown.' : isTurn ? 'Your turn · line up the shot and fire.' : 'Aim for the center of the goal. First to $target goals wins.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+          VibeText(finished ? 'The final whistle has blown.' : isTurn ? 'Your turn · line up the shot and fire.' : 'Aim for the center of the goal. First to $target goals wins.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
           _Scoreboard(match: widget.match, goals: goals, teamGoals: teamGoals, teamMode: teamMode, viewerSeat: widget.match.viewerSeat),
           const SizedBox(height: 12),
           Container(height: 162, decoration: BoxDecoration(color: const Color(0xFF237D5A), borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFF15563F), width: 5)), child: CustomPaint(painter: const _SoccerFieldPainter())),
           if (lastShot != null) ...[
             const SizedBox(height: 9),
-            Row(children: [Icon(lastShot['scored'] == true ? Icons.sports_score_rounded : Icons.shield_outlined, size: 18, color: lastShot['scored'] == true ? AppTheme.mint : AppTheme.gold), const SizedBox(width: 6), Text(lastShot['scored'] == true ? 'Goal!' : 'Saved by the keeper', style: const TextStyle(fontWeight: FontWeight.w900))]),
+            Row(children: [Icon(lastShot['scored'] == true ? Icons.sports_score_rounded : Icons.shield_outlined, size: 18, color: lastShot['scored'] == true ? AppTheme.mint : AppTheme.gold), const SizedBox(width: 6), VibeText(lastShot['scored'] == true ? 'Goal!' : 'Saved by the keeper', style: const TextStyle(fontWeight: FontWeight.w900))]),
           ],
           const SizedBox(height: 10),
           if (isTurn && !finished) ...[
             _SliderLine(label: 'Power', value: power, onChanged: (value) => setState(() => power = value), suffix: '${power.round()}%'),
             _SliderLine(label: 'Aim', value: aim, onChanged: (value) => setState(() => aim = value), suffix: aim < 40 ? 'Left' : aim > 60 ? 'Right' : 'Center'),
-            FilledButton.icon(onPressed: () => widget.onAction({'type': 'shoot', 'power': power.round(), 'aim': aim.round()}), icon: const Icon(Icons.sports_soccer_rounded), label: const Text('Shoot')),
-          ] else if (!finished) Text('Waiting for the active player to shoot…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            FilledButton.icon(onPressed: () => widget.onAction({'type': 'shoot', 'power': power.round(), 'aim': aim.round()}), icon: const Icon(Icons.sports_soccer_rounded), label: const VibeText('Shoot')),
+          ] else if (!finished) VibeText('Waiting for the active player to shoot…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ]),
       ),
     );
@@ -80,7 +81,7 @@ class _SoccerBadge extends StatelessWidget {
   const _SoccerBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.14), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppTheme.coral.withOpacity(.14), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w900, fontSize: 12)));
 }
 
 class _SliderLine extends StatelessWidget {
@@ -90,7 +91,7 @@ class _SliderLine extends StatelessWidget {
   final ValueChanged<double> onChanged;
   final String suffix;
   @override
-  Widget build(BuildContext context) => Row(children: [SizedBox(width: 49, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800))), Expanded(child: Slider(value: value, min: 0, max: 100, divisions: 100, onChanged: onChanged)), SizedBox(width: 46, child: Text(suffix, textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)))]);
+  Widget build(BuildContext context) => Row(children: [SizedBox(width: 49, child: VibeText(label, style: const TextStyle(fontWeight: FontWeight.w800))), Expanded(child: Slider(value: value, min: 0, max: 100, divisions: 100, onChanged: onChanged)), SizedBox(width: 46, child: VibeText(suffix, textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)))]);
 }
 
 class _Scoreboard extends StatelessWidget {
@@ -106,10 +107,10 @@ class _Scoreboard extends StatelessWidget {
     for (var index = 0; index < (teamMode ? 2 : match.players.length); index += 1) ...[
       if (index > 0) const SizedBox(width: 8),
       Expanded(child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), decoration: BoxDecoration(color: index.isEven ? AppTheme.violet.withOpacity(.11) : AppTheme.coral.withOpacity(.11), borderRadius: BorderRadius.circular(13)), child: Column(children: [
-        Text(teamMode ? 'TEAM ${index + 1}' : _name(index), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+        VibeText(teamMode ? 'TEAM ${index + 1}' : _name(index), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
         const SizedBox(height: 2),
-        Text('${teamMode ? (teamGoals.length > index ? teamGoals[index] : 0) : (goals.length > index ? goals[index] : 0)}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-        if (teamMode) Text(index == 0 ? 'Players 1 & 3' : 'Players 2 & 4', style: TextStyle(fontSize: 9, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        VibeText('${teamMode ? (teamGoals.length > index ? teamGoals[index] : 0) : (goals.length > index ? goals[index] : 0)}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+        if (teamMode) VibeText(index == 0 ? 'Players 1 & 3' : 'Players 2 & 4', style: TextStyle(fontSize: 9, color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ]))),
     ],
   ]);

@@ -64,16 +64,16 @@ class ProfileScreen extends ConsumerWidget {
                   Row(children: [
                     Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.brightness_6_outlined, color: AppTheme.violet, size: 20)),
                     const SizedBox(width: 12),
-                    Text(strings.isPersian ? 'پوسته' : 'Appearance', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    VibeText(strings.isPersian ? 'پوسته' : 'Appearance', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                   ]),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: SegmentedButton<ThemeChoice>(
                       segments: [
-                        ButtonSegment(value: ThemeChoice.system, label: Text(strings.isPersian ? 'سیستم' : 'System'), icon: const Icon(Icons.settings_suggest_outlined, size: 18)),
-                        ButtonSegment(value: ThemeChoice.light, label: Text(strings.light), icon: const Icon(Icons.light_mode_outlined, size: 18)),
-                        ButtonSegment(value: ThemeChoice.dark, label: Text(strings.dark), icon: const Icon(Icons.dark_mode_outlined, size: 18)),
+                        ButtonSegment(value: ThemeChoice.system, label: VibeText(strings.isPersian ? 'سیستم' : 'System'), icon: const Icon(Icons.settings_suggest_outlined, size: 18)),
+                        ButtonSegment(value: ThemeChoice.light, label: VibeText(strings.light), icon: const Icon(Icons.light_mode_outlined, size: 18)),
+                        ButtonSegment(value: ThemeChoice.dark, label: VibeText(strings.dark), icon: const Icon(Icons.dark_mode_outlined, size: 18)),
                       ],
                       selected: {settings.theme},
                       onSelectionChanged: (value) {
@@ -89,9 +89,9 @@ class ProfileScreen extends ConsumerWidget {
                   Row(children: [
                     Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.12), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.translate_rounded, color: AppTheme.mint, size: 20)),
                     const SizedBox(width: 12),
-                    Expanded(child: Text(strings.language, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+                    Expanded(child: VibeText(strings.language, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
                     SegmentedButton<AppLocale>(
-                      segments: const [ButtonSegment(value: AppLocale.en, label: Text('EN')), ButtonSegment(value: AppLocale.fa, label: Text('FA'))],
+                      segments: const [ButtonSegment(value: AppLocale.en, label: VibeText('EN')), ButtonSegment(value: AppLocale.fa, label: VibeText('FA'))],
                       selected: {settings.locale},
                       onSelectionChanged: (value) {
                         final locale = value.first;
@@ -141,7 +141,7 @@ class ProfileScreen extends ConsumerWidget {
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
     final shouldLogout = await showDialog<bool>(
         context: context,
-        builder: (dialogContext) => AlertDialog(title: const Text('Sign out?'), content: const Text('You can sign back in whenever you are ready.'), actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Sign out'))]));
+        builder: (dialogContext) => AlertDialog(title: const VibeText('Sign out?'), content: const VibeText('You can sign back in whenever you are ready.'), actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const VibeText('Cancel')), FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const VibeText('Sign out'))]));
     if (shouldLogout == true) await ref.read(authProvider.notifier).logout();
   }
 }
@@ -177,7 +177,7 @@ class _ProfileHeader extends StatelessWidget {
                           Row(
                             children: [
                               Flexible(
-                                child: Text(
+                                child: VibeText(
                                   user.displayName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -193,7 +193,7 @@ class _ProfileHeader extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(99),
                                     border: Border.all(color: Colors.white.withOpacity(.4)),
                                   ),
-                                  child: Text(
+                                  child: VibeText(
                                     isAdmin ? 'ADMIN' : 'STAFF',
                                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: .5),
                                   ),
@@ -202,14 +202,14 @@ class _ProfileHeader extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 3),
-                          Text('@${user.username}', style: TextStyle(color: Colors.white.withOpacity(.75), fontWeight: FontWeight.w600, fontSize: 13)),
+                          VibeText('@${user.username}', style: TextStyle(color: Colors.white.withOpacity(.75), fontWeight: FontWeight.w600, fontSize: 13)),
                         ],
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                       decoration: BoxDecoration(color: Colors.white.withOpacity(.16), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.28))),
-                      child: Text('LV ${user.level}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: .4)),
+                      child: VibeText('LV ${user.level}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: .4)),
                     ),
                   ],
                 ),
@@ -219,7 +219,7 @@ class _ProfileHeader extends StatelessWidget {
                   child: LinearProgressIndicator(value: progress, minHeight: 8, backgroundColor: Colors.white.withOpacity(.2), valueColor: const AlwaysStoppedAnimation<Color>(Colors.white)),
                 ),
                 const SizedBox(height: 7),
-                Align(alignment: AlignmentDirectional.centerStart, child: Text('${user.experience} XP total', style: TextStyle(color: Colors.white.withOpacity(.8), fontWeight: FontWeight.w700, fontSize: 12))),
+                Align(alignment: AlignmentDirectional.centerStart, child: VibeText('${user.experience} XP total', style: TextStyle(color: Colors.white.withOpacity(.8), fontWeight: FontWeight.w700, fontSize: 12))),
               ],
             ),
           ],
@@ -277,7 +277,7 @@ class _AdminHeroCard extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(
+                            child: VibeText(
                               strings.adminStaffHub,
                               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
                               maxLines: 1,
@@ -292,7 +292,7 @@ class _AdminHeroCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(99),
                               border: Border.all(color: (isAdmin ? AppTheme.gold : AppTheme.mint).withOpacity(.6)),
                             ),
-                            child: Text(
+                            child: VibeText(
                               isAdmin ? 'ADMIN' : 'MOD',
                               style: TextStyle(
                                 color: isAdmin ? AppTheme.gold : AppTheme.mint,
@@ -305,7 +305,7 @@ class _AdminHeroCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 3),
-                      Text(
+                      VibeText(
                         strings.adminStaffSubtitle,
                         style: TextStyle(color: Colors.white.withOpacity(.82), fontSize: 12),
                         maxLines: 1,
@@ -387,7 +387,7 @@ class _AdminShortcutChip extends StatelessWidget {
             children: [
               Icon(icon, size: 14, color: Colors.white),
               const SizedBox(width: 5),
-              Text(
+              VibeText(
                 label,
                 style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800),
               ),
@@ -412,9 +412,9 @@ class _StatCard extends StatelessWidget {
           child: Column(children: [
             Icon(icon, color: Colors.white, size: 20),
             const SizedBox(height: 7),
-            Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)),
+            VibeText(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)),
             const SizedBox(height: 2),
-            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(.85), fontSize: 11, fontWeight: FontWeight.w700)),
+            VibeText(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(.85), fontSize: 11, fontWeight: FontWeight.w700)),
           ]),
         ),
       );
@@ -437,7 +437,7 @@ class _MenuTile extends StatelessWidget {
       child: Row(children: [
         Container(width: 42, height: 42, alignment: Alignment.center, decoration: BoxDecoration(color: iconColor.withOpacity(.13), borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: danger ? scheme.error : iconColor, size: 21)),
         const SizedBox(width: 13),
-        Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: danger ? scheme.error : null))),
+        Expanded(child: VibeText(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: danger ? scheme.error : null))),
         Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
       ]),
     );

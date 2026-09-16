@@ -348,7 +348,30 @@ export class OchoEngine implements GameEngine {
 
 type Suit = 'C' | 'D' | 'H' | 'S';
 interface PlayingCard { suit: Suit; rank: number; }
-interface TrickState extends GameState { hands: PlayingCard[][]; trick: Array<{ player: number; card: PlayingCard }>; leadSuit: Suit | null; turnIndex: number; turnPlayerId: string; scores: number[]; round: number; winnerId: string | null; finished: boolean; targetScore: number; }
+interface TrickState extends GameState {
+  hands: PlayingCard[][];
+  trick: Array<{ player: number; card: PlayingCard }>;
+  leadSuit: Suit | null;
+  turnIndex: number;
+  turnPlayerId: string;
+  scores: number[];
+  round: number;
+  winnerId: string | null;
+  winnerIds?: string[];
+  finished: boolean;
+  targetScore: number;
+  draw?: boolean;
+  // Hearts uses these flags for the first-trick/heart-breaking rules.
+  heartsBroken?: boolean;
+  openingLead?: boolean;
+  // Spades bids before each hand and counts tricks separately from score.
+  rulesActive?: boolean;
+  bidPhase?: boolean;
+  bids?: Array<number | null>;
+  tricksWon?: number[];
+  spadesBroken?: boolean;
+  teamScores?: number[];
+}
 
 abstract class TrickTakingEngine implements GameEngine {
   abstract readonly id: GameId;
@@ -356,13 +379,281 @@ abstract class TrickTakingEngine implements GameEngine {
   protected readonly lowScoreWins: boolean = false;
   protected abstract scoreTrick(trick: Array<{ player: number; card: PlayingCard }>): number;
   protected abstract winningPlayer(trick: Array<{ player: number; card: PlayingCard }>, lead: Suit): number;
-  create(players: GamePlayer[]): TrickState { const deck = this.deck(); const hands = players.map(() => [] as PlayingCard[]); deck.forEach((card, i) => hands[i % players.length].push(card)); const even = Math.min(...hands.map((hand) => hand.length)); const trimmed = hands.map((hand) => hand.slice(0, even)); return { hands: trimmed, trick: [], leadSuit: null, turnIndex: 0, turnPlayerId: players[0].id, scores: players.map(() => 0), round: 1, winnerId: null, finished: false, targetScore: this.targetScore }; }
-  validate(state: TrickState, actorId: string, action: Action, players: GamePlayer[]): void { if (state.finished) throw new IllegalMoveError('This game has finished.'); if (state.turnPlayerId !== actorId) throw new IllegalMoveError('It is not your turn.'); if (action.type !== 'play') throw new IllegalMoveError('Use play.'); const side = players.findIndex((p) => p.id === actorId); const index = asInt(action.index, 'index', 0, state.hands[side].length - 1); const card = state.hands[side][index]; if (state.leadSuit && card.suit !== state.leadSuit && state.hands[side].some((candidate) => candidate.suit === state.leadSuit)) throw new IllegalMoveError('You must follow the lead suit.'); }
-  apply(state: TrickState, actorId: string, action: Action, players: GamePlayer[]): TrickState { this.validate(state, actorId, action, players); const next = clone(state) as TrickState; const side = players.findIndex((p) => p.id === actorId); const card = next.hands[side].splice(action.index as number, 1)[0]; if (!next.leadSuit) next.leadSuit = card.suit; next.trick.push({ player: side, card }); if (next.trick.length === players.length) { const winner = this.winningPlayer(next.trick, next.leadSuit as Suit); next.scores[winner] += this.scoreTrick(next.trick); next.trick = []; next.leadSuit = null; next.turnIndex = winner; next.turnPlayerId = players[winner].id; if (next.scores.some((score) => score >= next.targetScore) || next.hands.every((hand) => !hand.length)) { next.finished = true; const best = this.lowScoreWins ? Math.min(...next.scores) : Math.max(...next.scores); const winners = next.scores.map((score, i) => score === best ? players[i].id : null).filter((id): id is string => Boolean(id)); next.winnerId = winners[0] ?? null; next.draw = winners.length > 1; } } else rotateTurn(next, players); return next; }
-  outcome(state: TrickState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
-  botAction(state: TrickState, botId: string, players: GamePlayer[]): Action { const side = players.findIndex((p) => p.id === botId); const hand = state.hands[side]; const legal = hand.map((card, index) => (!state.leadSuit || card.suit === state.leadSuit || !hand.some((candidate) => candidate.suit === state.leadSuit)) ? index : -1).filter((index) => index >= 0); return { type: 'play', index: legal[randomInt(legal.length)] ?? 0 }; }
-  private deck(): PlayingCard[] { const deck: PlayingCard[] = []; for (const suit of ['C','D','H','S'] as Suit[]) for (let rank = 2; rank <= 14; rank += 1) deck.push({ suit, rank }); return deck.sort(() => Math.random() - 0.5); }
+
+  create(players: GamePlayer[]): TrickState {
+    if (players.length < 2 || players.length > 4) throw new IllegalMoveError('This trick-taking game supports two to four players.');
+    const deck = this.dealDeck(players.length);
+    const hands = players.map(() => [] as PlayingCard[]);
+    deck.forEach((card, index) => hands[index % players.length].push(card));
+    const state: TrickState = {
+      hands,
+      trick: [],
+      leadSuit: null,
+      turnIndex: 0,
+      turnPlayerId: players[0].id,
+      scores: players.map(() => 0),
+      round: 1,
+      winnerId: null,
+      winnerIds: [],
+      finished: false,
+      targetScore: this.targetScore,
+      rulesActive: true,
+      heartsBroken: false,
+      openingLead: this.id === 'hearts',
+      bidPhase: this.id === 'spades',
+      bids: this.id === 'spades' ? players.map(() => null) : undefined,
+      tricksWon: this.id === 'spades' ? players.map(() => 0) : undefined,
+      spadesBroken: false,
+      teamScores: this.id === 'spades' && this.usesTeams(players) ? [0, 0] : undefined,
+    };
+    if (this.id === 'hearts') {
+      const starter = hands.findIndex((hand) => hand.some((card) => card.suit === 'C' && card.rank === 2));
+      if (starter >= 0) {
+        state.turnIndex = starter;
+        state.turnPlayerId = players[starter].id;
+      }
+    }
+    return state;
+  }
+
+  validate(state: TrickState, actorId: string, action: Action, players: GamePlayer[]): void {
+    if (state.finished) throw new IllegalMoveError('This game has finished.');
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    if (state.turnPlayerId !== actorId) throw new IllegalMoveError('It is not your turn.');
+    if (this.id === 'spades' && state.bidPhase) {
+      if (action.type !== 'bid') throw new IllegalMoveError('Bid before playing a card.');
+      if (!Array.isArray(state.bids) || state.bids[side] !== null) throw new IllegalMoveError('You already bid this hand.');
+      asInt(action.bid, 'bid', 0, state.hands[side].length);
+      return;
+    }
+    if (action.type !== 'play') throw new IllegalMoveError('Use play.');
+    const index = asInt(action.index, 'index', 0, state.hands[side].length - 1);
+    const card = state.hands[side][index];
+    if (!card) throw new IllegalMoveError('That card is not in your hand.');
+    const lead = state.leadSuit;
+    if (lead && card.suit !== lead && state.hands[side].some((candidate) => candidate.suit === lead)) throw new IllegalMoveError('You must follow the lead suit.');
+    if (this.id === 'hearts') this.validateHeartsLead(state, card, state.hands[side]);
+    if (this.id === 'spades' && !lead && !state.spadesBroken && card.suit === 'S' && state.hands[side].some((candidate) => candidate.suit !== 'S')) throw new IllegalMoveError('Spades have not been broken.');
+  }
+
+  apply(state: TrickState, actorId: string, action: Action, players: GamePlayer[]): TrickState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as TrickState;
+    const side = players.findIndex((player) => player.id === actorId);
+    if (this.id === 'spades' && next.bidPhase) {
+      next.bids![side] = action.bid as number;
+      const nextBidder = next.bids!.findIndex((bid) => bid === null);
+      if (nextBidder >= 0) {
+        next.turnIndex = nextBidder;
+        next.turnPlayerId = players[nextBidder].id;
+      } else {
+        next.bidPhase = false;
+        next.turnIndex = 0;
+        next.turnPlayerId = players[0].id;
+      }
+      return next;
+    }
+
+    const card = next.hands[side].splice(action.index as number, 1)[0];
+    if (!next.leadSuit) next.leadSuit = card.suit;
+    if (this.id === 'hearts') {
+      next.openingLead = false;
+      if (card.suit === 'H' || card.suit === 'S' && card.rank === 12) next.heartsBroken = true;
+    }
+    if (this.id === 'spades' && card.suit === 'S') next.spadesBroken = true;
+    next.trick.push({ player: side, card });
+
+    if (next.trick.length !== players.length) {
+      rotateTurn(next, players);
+      return next;
+    }
+
+    const winner = this.winningPlayer(next.trick, next.leadSuit as Suit);
+    const points = this.scoreTrick(next.trick);
+    if (this.id === 'spades' && next.rulesActive) {
+      next.tricksWon![winner] += 1;
+    } else if (this.id === 'hearts' && points === 26) {
+      // Shooting the moon is a strategic choice: the shooter receives zero,
+      // every other player receives all 26 penalty points.
+      for (let index = 0; index < next.scores.length; index += 1) if (index !== winner) next.scores[index] += 26;
+    } else {
+      next.scores[winner] += points;
+    }
+    next.trick = [];
+    next.leadSuit = null;
+    next.turnIndex = winner;
+    next.turnPlayerId = players[winner].id;
+
+    if (next.hands.every((hand) => hand.length === 0)) {
+      if (this.id === 'spades' && next.rulesActive) this.finishSpadesHand(next, players);
+      else if (this.id === 'hearts' && next.rulesActive) this.finishHeartsHand(next, players);
+      else this.finishLegacyHand(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: TrickState, players: GamePlayer[]): GameOutcome {
+    const winners = Array.isArray(state.winnerIds) && state.winnerIds.length
+      ? state.winnerIds
+      : typeof state.winnerId === 'string' ? [state.winnerId] : [];
+    return { finished: Boolean(state.finished), winnerIds: winners, loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(state: TrickState, botId: string, players: GamePlayer[]): Action {
+    const side = players.findIndex((player) => player.id === botId);
+    if (this.id === 'spades' && state.bidPhase) return { type: 'bid', bid: this.botBid(state.hands[side]) };
+    const hand = state.hands[side];
+    const legal = hand.map((card, index) => {
+      try {
+        this.validate(state, botId, { type: 'play', index }, players);
+        return index;
+      } catch (_) {
+        return -1;
+      }
+    }).filter((index) => index >= 0);
+    if (!legal.length) return { type: 'play', index: 0 };
+    const scored = legal.map((index) => {
+      const card = hand[index];
+      let value = Math.random() * 5;
+      if (this.id === 'hearts') {
+        if (card.suit === 'H') value -= 20;
+        if (card.suit === 'S' && card.rank === 12) value -= 30;
+        if (!state.leadSuit && card.suit !== 'H') value += card.rank / 4;
+      } else {
+        if (card.suit === 'S') value += 8 + card.rank / 4;
+        if (state.leadSuit && card.suit === state.leadSuit) value += card.rank / 10;
+      }
+      return { index, value };
+    }).sort((a, b) => b.value - a.value);
+    return { type: 'play', index: scored[0].index };
+  }
+
+  private validateHeartsLead(state: TrickState, card: PlayingCard, hand: PlayingCard[]): void {
+    if (state.openingLead && state.trick.length === 0 && !(card.suit === 'C' && card.rank === 2)) throw new IllegalMoveError('The 2 of clubs must lead the first trick.');
+    if (state.trick.length === 0 && !state.heartsBroken && card.suit === 'H' && hand.some((candidate) => candidate.suit !== 'H')) throw new IllegalMoveError('Hearts have not been broken.');
+    const mustFollowLead = Boolean(state.leadSuit && hand.some((candidate) => candidate.suit === state.leadSuit));
+    if (state.round === 1 && !mustFollowLead && this.scoreTrick([{ player: 0, card }]) > 0 && hand.some((candidate) => this.scoreTrick([{ player: 0, card: candidate }]) === 0)) throw new IllegalMoveError('Point cards cannot be played on the first trick.');
+  }
+
+  private finishLegacyHand(state: TrickState, players: GamePlayer[]): void {
+    state.finished = true;
+    const best = this.lowScoreWins ? Math.min(...state.scores) : Math.max(...state.scores);
+    state.winnerIds = state.scores.map((score, index) => score === best ? players[index].id : null).filter((id): id is string => id !== null);
+    state.winnerId = state.winnerIds[0] ?? null;
+    state.draw = state.winnerIds.length > 1;
+  }
+
+  private finishHeartsHand(state: TrickState, players: GamePlayer[]): void {
+    if (state.scores.some((score) => score >= state.targetScore)) {
+      this.finishLegacyHand(state, players);
+      return;
+    }
+    state.round = Number(state.round) + 1;
+    this.dealNextHand(state, players, false);
+  }
+
+  private finishSpadesHand(state: TrickState, players: GamePlayer[]): void {
+    const teamMode = this.usesTeams(players);
+    if (teamMode) {
+      const teamBids = [0, 0]; const teamTricks = [0, 0];
+      for (let index = 0; index < players.length; index += 1) {
+        const team = players[index].team as number;
+        teamBids[team] += state.bids![index] ?? 0;
+        teamTricks[team] += state.tricksWon![index] ?? 0;
+      }
+      if (!state.teamScores) state.teamScores = [0, 0];
+      for (let team = 0; team < 2; team += 1) state.teamScores[team] += teamTricks[team] >= teamBids[team] ? teamBids[team] * 10 + (teamTricks[team] - teamBids[team]) : -teamBids[team] * 10;
+      for (let index = 0; index < players.length; index += 1) state.scores[index] = state.teamScores[players[index].team as number];
+      if (state.teamScores.some((score) => score >= state.targetScore)) {
+        const best = Math.max(...state.teamScores);
+        state.winnerIds = players.filter((player) => player.team === state.teamScores!.indexOf(best)).map((player) => player.id);
+        state.winnerId = state.winnerIds[0] ?? null;
+        state.draw = state.teamScores.filter((score) => score === best).length > 1;
+        state.finished = true;
+        return;
+      }
+    } else {
+      for (let index = 0; index < players.length; index += 1) {
+        const bid = state.bids![index] ?? 0; const tricks = state.tricksWon![index] ?? 0;
+        state.scores[index] += tricks >= bid ? bid * 10 + (tricks - bid) : -bid * 10;
+      }
+      if (state.scores.some((score) => score >= state.targetScore)) {
+        this.finishLegacyHand(state, players);
+        return;
+      }
+    }
+    state.round = Number(state.round) + 1;
+    this.dealNextHand(state, players, true);
+  }
+
+  private dealNextHand(state: TrickState, players: GamePlayer[], spades: boolean): void {
+    const deck = this.dealDeck(players.length);
+    state.hands = players.map(() => [] as PlayingCard[]);
+    deck.forEach((card, index) => state.hands[index % players.length].push(card));
+    state.trick = [];
+    state.leadSuit = null;
+    state.heartsBroken = false;
+    state.openingLead = this.id === 'hearts';
+    state.spadesBroken = false;
+    if (spades) {
+      state.bidPhase = true;
+      state.bids = players.map(() => null);
+      state.tricksWon = players.map(() => 0);
+      state.turnIndex = Number(state.round - 1) % players.length;
+    } else {
+      state.turnIndex = state.hands.findIndex((hand) => hand.some((card) => card.suit === 'C' && card.rank === 2));
+      if (state.turnIndex < 0) state.turnIndex = 0;
+    }
+    state.turnPlayerId = players[state.turnIndex].id;
+  }
+
+  private dealDeck(playerCount: number): PlayingCard[] {
+    const deck = this.deck();
+    // Three-player deals use 51 cards so every hand is equal. Remove 2♦
+    // rather than 2♣ so Hearts always has an unambiguous opening lead.
+    while (deck.length % playerCount !== 0) {
+      const index = deck.findIndex((card) => card.suit === 'D' && card.rank === 2);
+      deck.splice(index >= 0 ? index : deck.length - 1, 1);
+    }
+    return deck;
+  }
+
+  private usesTeams(players: GamePlayer[]): boolean {
+    return this.id === 'spades' && players.length === 4 && players.every((player) => player.team !== undefined);
+  }
+
+  private botBid(hand: PlayingCard[]): number {
+    const strong = hand.reduce((score, card) => score + (card.suit === 'S' ? (card.rank >= 13 ? 2 : card.rank >= 11 ? 1 : 0.25) : card.rank === 14 ? 1 : 0), 0);
+    return Math.max(0, Math.min(hand.length, Math.round(strong + (randomInt(5) === 0 ? (randomInt(3) - 1) : 0))));
+  }
+
+  private deck(): PlayingCard[] {
+    const deck: PlayingCard[] = [];
+    for (const suit of ['C', 'D', 'H', 'S'] as Suit[]) for (let rank = 2; rank <= 14; rank += 1) deck.push({ suit, rank });
+    for (let index = deck.length - 1; index > 0; index -= 1) {
+      const swap = randomInt(index + 1);
+      [deck[index], deck[swap]] = [deck[swap], deck[index]];
+    }
+    return deck;
+  }
 }
 
-export class HeartsEngine extends TrickTakingEngine { readonly id: GameId = 'hearts'; protected readonly targetScore = 100; protected readonly lowScoreWins = true; protected scoreTrick(trick: Array<{ player: number; card: PlayingCard }>): number { return trick.reduce((sum, item) => sum + (item.card.suit === 'H' ? 1 : item.card.suit === 'S' && item.card.rank === 12 ? 13 : 0), 0); } protected winningPlayer(trick: Array<{ player: number; card: PlayingCard }>, lead: Suit): number { return trick.filter((item) => item.card.suit === lead).sort((a, b) => b.card.rank - a.card.rank)[0].player; } }
-export class SpadesEngine extends TrickTakingEngine { readonly id: GameId = 'spades'; protected readonly targetScore = 500; protected scoreTrick(trick: Array<{ player: number; card: PlayingCard }>): number { return 1; } protected winningPlayer(trick: Array<{ player: number; card: PlayingCard }>, lead: Suit): number { const spades = trick.filter((item) => item.card.suit === 'S'); const pool = spades.length ? spades : trick.filter((item) => item.card.suit === lead); return pool.sort((a, b) => b.card.rank - a.card.rank)[0].player; } }
+export class HeartsEngine extends TrickTakingEngine {
+  readonly id: GameId = 'hearts';
+  protected readonly targetScore = 100;
+  protected readonly lowScoreWins = true;
+  protected scoreTrick(trick: Array<{ player: number; card: PlayingCard }>): number { return trick.reduce((sum, item) => sum + (item.card.suit === 'H' ? 1 : item.card.suit === 'S' && item.card.rank === 12 ? 13 : 0), 0); }
+  protected winningPlayer(trick: Array<{ player: number; card: PlayingCard }>, lead: Suit): number { return trick.filter((item) => item.card.suit === lead).sort((a, b) => b.card.rank - a.card.rank)[0].player; }
+}
+
+export class SpadesEngine extends TrickTakingEngine {
+  readonly id: GameId = 'spades';
+  protected readonly targetScore = 500;
+  protected scoreTrick(_trick: Array<{ player: number; card: PlayingCard }>): number { return 1; }
+  protected winningPlayer(trick: Array<{ player: number; card: PlayingCard }>, lead: Suit): number {
+    const spades = trick.filter((item) => item.card.suit === 'S');
+    const pool = spades.length ? spades : trick.filter((item) => item.card.suit === lead);
+    return pool.sort((a, b) => b.card.rank - a.card.rank)[0].player;
+  }
+}

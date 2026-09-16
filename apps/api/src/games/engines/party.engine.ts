@@ -244,6 +244,7 @@ export class WerewolfEngine implements GameEngine {
       }
       const target = asInt(action.target, 'target', 0, players.length - 1);
       if (!state.alive[target]) throw new IllegalMoveError('Choose a living target.');
+      if ((role === 'werewolf' || role === 'seer') && target === side) throw new IllegalMoveError('Choose another living player.');
       if (role === 'werewolf' && state.roles[target] === 'werewolf') throw new IllegalMoveError('Werewolves cannot target another werewolf.');
       return;
     }
@@ -294,7 +295,7 @@ export class WerewolfEngine implements GameEngine {
         .filter((index) => state.alive[index] && (role !== 'werewolf' || state.roles[index] !== 'werewolf') && (role !== 'seer' || index !== side) && index !== previous);
       const pool = candidates.length
         ? candidates
-        : players.map((_, index) => index).filter((index) => state.alive[index] && (role !== 'werewolf' || state.roles[index] !== 'werewolf'));
+        : players.map((_, index) => index).filter((index) => state.alive[index] && index !== side && (role !== 'werewolf' || state.roles[index] !== 'werewolf'));
       return { type: 'night', target: pool[randomInt(pool.length)] ?? 0 };
     }
     if (state.roles[side] === 'seer') {
@@ -383,7 +384,10 @@ export class WerewolfEngine implements GameEngine {
 
 export class WordChainEngine implements GameEngine {
   readonly id: GameId = 'word_chain';
-  create(players: GamePlayer[]): GameState { return { words: [], used: [], requiredLetter: null, scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null, draw: false, maxWords: players.length * 8 }; }
+  create(players: GamePlayer[]): GameState {
+    if (players.length < 2 || players.length > 8) throw new IllegalMoveError('Word Chain supports two to eight players.');
+    return { words: [], used: [], requiredLetter: null, scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null, draw: false, maxWords: players.length * 8 };
+  }
   validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { checkTurn(state, actorId); if (action.type !== 'word') throw new IllegalMoveError('Submit a word.'); const word = asString(action.word, 'word').toLowerCase(); if (!/^[a-zA-Z\u0600-\u06ff]{2,24}$/.test(word)) throw new IllegalMoveError('Use a word with two to twenty-four letters.'); if ((state.used as string[]).includes(word)) throw new IllegalMoveError('That word has already been used.'); if (state.requiredLetter && !word.startsWith(state.requiredLetter as string)) throw new IllegalMoveError(`Your word must start with ${state.requiredLetter}.`); }
   apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState {
     this.validate(state, actorId, action, players); const next = clone(state); const word = (action.word as string).toLowerCase();
@@ -403,25 +407,106 @@ export class WordChainEngine implements GameEngine {
   botAction(state: GameState): Action {
     const letter = ((state.requiredLetter as string | null) ?? 'v').toLowerCase();
     const used = state.used as string[];
-    for (const tail of ['ibe', 'ora', 'ent', 'ash', 'oom', 'ell', 'art', 'ice', 'ace', 'end']) {
+    const englishTails = ['ibe', 'ora', 'ent', 'ash', 'oom', 'ell', 'art', 'ice', 'ace', 'end'];
+    const persianTails = ['ار', 'ان', 'ور', 'وش', 'ام', 'ابه', 'اده', 'ابی', 'انه', 'او'];
+    const tails = /[a-z]/i.test(letter) ? englishTails : persianTails;
+    for (const tail of tails) {
       const word = `${letter}${tail}`;
       if (!used.includes(word)) return { type: 'word', word };
     }
-    for (let extra = 1; extra <= 22; extra += 1) {
-      const word = `${letter}${'a'.repeat(extra)}`;
-      if (!used.includes(word)) return { type: 'word', word };
+    // Use a small alphabetic search as a last resort so a long match cannot
+    // make the bot repeat a used word. The generated token still obeys the
+    // engine's script and length rules in both English and Persian.
+    const alphabet = /[a-z]/i.test(letter) ? 'abcdefghijklmnopqrstuvwxyz' : 'ابتثجچحخدذرزژسشصضطظعغفقکگلمنوهی';
+    for (let length = 1; length <= 3; length += 1) {
+      const combinations = alphabet.length ** length;
+      for (let index = 0; index < combinations; index += 1) {
+        let value = index;
+        let suffix = '';
+        for (let position = 0; position < length; position += 1) {
+          suffix = alphabet[value % alphabet.length] + suffix;
+          value = Math.floor(value / alphabet.length);
+        }
+        const word = `${letter}${suffix}`;
+        if (!used.includes(word)) return { type: 'word', word };
+      }
     }
-    return { type: 'word', word: `${letter}${'a'.repeat(1 + (used.length % 22))}` };
+    throw new IllegalMoveError('No unused word is available for this letter.');
   }
 }
 
 export class MemoryRaceEngine implements GameEngine {
   readonly id: GameId = 'memory_race';
-  create(players: GamePlayer[]): GameState { const values = Array.from({ length: 12 }, (_, i) => i).flatMap((i) => [i, i]).sort(() => Math.random() - 0.5); return { values, revealed: Array(24).fill(false), matched: Array(24).fill(false), selections: [], scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { checkTurn(state, actorId); if (action.type !== 'flip') throw new IllegalMoveError('Flip a card.'); const index = asInt(action.index, 'index', 0, 23); if ((state.revealed as boolean[])[index] || (state.matched as boolean[])[index]) throw new IllegalMoveError('That card is not available.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const index = action.index as number; (next.revealed as boolean[])[index] = true; (next.selections as number[]).push(index); if ((next.selections as number[]).length === 2) { const selections = next.selections as number[]; if ((next.values as number[])[selections[0]] === (next.values as number[])[selections[1]]) { (next.matched as boolean[])[selections[0]] = true; (next.matched as boolean[])[selections[1]] = true; (next.scores as number[])[players.findIndex((p) => p.id === actorId)] += 1; } else { (next.revealed as boolean[])[selections[0]] = false; (next.revealed as boolean[])[selections[1]] = false; rotateTurn(next, players); } next.selections = []; if ((next.matched as boolean[]).every(Boolean)) { next.finished = true; const max = Math.max(...(next.scores as number[])); next.winnerId = players[(next.scores as number[]).indexOf(max)].id; } } return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(state: GameState): Action { const available = (state.matched as boolean[]).map((matched, i) => !matched && !(state.revealed as boolean[])[i] ? i : -1).filter((i) => i >= 0); return { type: 'flip', index: available[randomInt(available.length)] ?? 0 }; }
+
+  create(players: GamePlayer[]): GameState {
+    if (players.length < 2 || players.length > 6) throw new IllegalMoveError('Memory Race supports two to six players.');
+    const values = Array.from({ length: 12 }, (_, index) => index).flatMap((index) => [index, index]);
+    for (let index = values.length - 1; index > 0; index -= 1) {
+      const swap = randomInt(index + 1);
+      [values[index], values[swap]] = [values[swap], values[index]];
+    }
+    return { values, revealed: Array(24).fill(false), matched: Array(24).fill(false), selections: [], scores: players.map(() => 0), turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null, winnerIds: [] };
+  }
+
+  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void {
+    checkTurn(state, actorId);
+    if (!players.some((player) => player.id === actorId)) throw new IllegalMoveError('You are not in this game.');
+    if (action.type !== 'flip') throw new IllegalMoveError('Flip a card.');
+    const index = asInt(action.index, 'index', 0, 23);
+    if ((state.revealed as boolean[])[index] || (state.matched as boolean[])[index]) throw new IllegalMoveError('That card is not available.');
+    if ((state.selections as number[]).length >= 2) throw new IllegalMoveError('Finish the current pair first.');
+  }
+
+  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state);
+    const index = action.index as number;
+    (next.revealed as boolean[])[index] = true;
+    (next.selections as number[]).push(index);
+    if ((next.selections as number[]).length !== 2) return next;
+
+    const selections = next.selections as number[];
+    if ((next.values as number[])[selections[0]] === (next.values as number[])[selections[1]]) {
+      (next.matched as boolean[])[selections[0]] = true;
+      (next.matched as boolean[])[selections[1]] = true;
+      (next.scores as number[])[players.findIndex((player) => player.id === actorId)] += 1;
+    } else {
+      (next.revealed as boolean[])[selections[0]] = false;
+      (next.revealed as boolean[])[selections[1]] = false;
+      rotateTurn(next, players);
+    }
+    next.selections = [];
+    if ((next.matched as boolean[]).every(Boolean)) {
+      const scores = next.scores as number[];
+      const best = Math.max(...scores);
+      const winners = scores.map((score, seat) => score === best ? players[seat].id : null).filter((id): id is string => id !== null);
+      next.finished = true;
+      next.winnerIds = winners;
+      next.winnerId = winners[0] ?? null;
+      next.draw = winners.length > 1;
+    }
+    return next;
+  }
+
+  outcome(state: GameState, players: GamePlayer[]): GameOutcome {
+    const winners = Array.isArray(state.winnerIds) && (state.winnerIds as string[]).length
+      ? state.winnerIds as string[]
+      : typeof state.winnerId === 'string' ? [state.winnerId] : [];
+    return { finished: Boolean(state.finished), winnerIds: winners, loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
+  }
+
+  botAction(state: GameState, _botId: string): Action {
+    const values = state.values as number[];
+    const revealed = state.revealed as boolean[];
+    const matched = state.matched as boolean[];
+    const selections = state.selections as number[];
+    const available = matched.map((done, index) => !done && !revealed[index] ? index : -1).filter((index) => index >= 0);
+    if (selections.length === 1 && Math.random() < 0.82) {
+      const partner = available.find((index) => values[index] === values[selections[0]]);
+      if (partner !== undefined) return { type: 'flip', index: partner };
+    }
+    return { type: 'flip', index: available[randomInt(available.length)] ?? 0 };
+  }
 }
 
 const IMPOSTOR_WORDS = [
@@ -845,7 +930,14 @@ export class SketchGuessEngine implements GameEngine {
     if (state.phase === 'drawing') {
       return { type: 'draw', strokes: [[[100, 100], [900, 100], [900, 900], [100, 900], [100, 100]], [[250, 500], [750, 500]]] };
     }
-    return { type: 'guess', guess: state.prompt };
+    // The first guesser usually recognizes the simple sketch; later players
+    // may be misled by it instead of every bot submitting the hidden prompt
+    // verbatim. Keeping one informed guess per round also gives the drawer a
+    // fair score and prevents a fully automated table from stalling.
+    const submitted = state.guesses.filter((guess) => guess !== null).length;
+    if (submitted === 0 || Math.random() < 0.65) return { type: 'guess', guess: state.prompt };
+    const wrong = SKETCH_PROMPTS.find((prompt) => prompt !== state.prompt) ?? 'something else';
+    return { type: 'guess', guess: wrong };
   }
 
   private nextGuesser(state: SketchGuessState, players: GamePlayer[]): void {
@@ -989,7 +1081,13 @@ export class TriviaBattleEngine implements GameEngine {
     return { finished: Boolean(state.finished), winnerIds: winners, loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
   }
 
-  botAction(state: TriviaState, _botId: string, _players: GamePlayer[]): Action { return { type: 'answer', answer: state.questionBank[state.questionIndex].answer }; }
+  botAction(state: TriviaState, _botId: string, _players: GamePlayer[]): Action {
+    // The built-in question bank is intentionally elementary, so the table bot
+    // plays this game as a confident trivia specialist. Its uncertainty and
+    // mistakes are expressed in the other party and skill games instead of
+    // making this deterministic test fixture randomly flaky.
+    return { type: 'answer', answer: state.questionBank[state.questionIndex].answer };
+  }
 
   private shuffle<T>(values: T[]): T[] {
     const copy = [...values];

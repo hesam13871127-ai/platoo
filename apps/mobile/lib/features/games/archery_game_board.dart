@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -48,7 +49,7 @@ class _ArcheryGameBoardState extends State<ArcheryGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: _archeryOrange.withOpacity(.17), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.gps_fixed_rounded, color: _archeryOrange)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Archery', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Archery', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _ArcheryBadge(label: finished ? 'Final' : 'Arrow ${myShots + 1} / $rounds'),
           ]),
           const SizedBox(height: 10),
@@ -61,12 +62,12 @@ class _ArcheryGameBoardState extends State<ArcheryGameBoard> {
             ),
           ),
           const SizedBox(height: 8),
-          Center(child: Text(isTurn ? (aimTap == null ? 'Tap the target to aim, then loose.' : 'Aiming at $accuracy — wind ${wind == 0 ? 'is calm' : 'pushes ${wind > 0 ? 'right' : 'left'} by ${wind.abs()}'}') : finished ? 'All arrows spent.' : 'Waiting for ${_turnName()} to shoot…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700))),
+          Center(child: VibeText(isTurn ? (aimTap == null ? 'Tap the target to aim, then loose.' : 'Aiming at $accuracy — wind ${wind == 0 ? 'is calm' : 'pushes ${wind > 0 ? 'right' : 'left'} by ${wind.abs()}'}') : finished ? 'All arrows spent.' : 'Waiting for ${_turnName()} to shoot…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700))),
           const SizedBox(height: 10),
-          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: isTurn && aimTap != null ? () => widget.onAction({'type': 'shoot', 'accuracy': accuracy}) : null, icon: const Icon(Icons.my_location_rounded), label: Text(isTurn ? 'Loose arrow' : finished ? 'Match complete' : 'Waiting for turn'))),
+          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: isTurn && aimTap != null ? () => widget.onAction({'type': 'shoot', 'accuracy': accuracy}) : null, icon: const Icon(Icons.my_location_rounded), label: VibeText(isTurn ? 'Loose arrow' : finished ? 'Match complete' : 'Waiting for turn'))),
           if (lastShot != null) ...[
             const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: _archeryOrange.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: Text('${_name(lastShot['playerId']?.toString())}: ${lastShot['label'] ?? ''} · ${lastShot['points'] ?? 0} pts${(lastShot['wind'] as num?)?.toInt() != 0 ? ' (wind ${lastShot['wind']})' : ''}', style: const TextStyle(color: _archeryOrange, fontWeight: FontWeight.w800, fontSize: 12))),
+            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: _archeryOrange.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: VibeText('${_name(lastShot['playerId']?.toString())}: ${lastShot['label'] ?? ''} · ${lastShot['points'] ?? 0} pts${(lastShot['wind'] as num?)?.toInt() != 0 ? ' (wind ${lastShot['wind']})' : ''}', style: const TextStyle(color: _archeryOrange, fontWeight: FontWeight.w800, fontSize: 12))),
           ],
           const SizedBox(height: 14),
           ..._scoreRows(scores, shots, rounds, leader, finished),
@@ -74,7 +75,7 @@ class _ArcheryGameBoardState extends State<ArcheryGameBoard> {
             const SizedBox(height: 10),
             for (final entry in history.skip(1))
               if (entry is Map)
-                Padding(padding: const EdgeInsets.only(bottom: 3), child: Text('${_name(entry['playerId']?.toString())} scored ${entry['points'] ?? 0} pts', style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 11))),
+                Padding(padding: const EdgeInsets.only(bottom: 3), child: VibeText('${_name(entry['playerId']?.toString())} scored ${entry['points'] ?? 0} pts', style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 11))),
           ],
         ]),
       ),
@@ -115,11 +116,11 @@ class _ArcheryGameBoardState extends State<ArcheryGameBoard> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9), decoration: BoxDecoration(color: highlight ? _archeryOrange.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: highlight ? _archeryOrange.withOpacity(.5) : Theme.of(context).dividerColor)), child: Row(children: [
-                Expanded(child: Text(_playerName(index), overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
-                Text('$used/$rounds 🏹', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w800)),
+                Expanded(child: VibeText(_playerName(index), overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
+                VibeText('$used/$rounds 🏹', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w800)),
                 const SizedBox(width: 8),
                 if (won) const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.emoji_events_rounded, size: 16, color: _archeryOrange)),
-                Text('$score', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                VibeText('$score', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               ])),
             );
           }),
@@ -210,7 +211,7 @@ class _WindBar extends StatelessWidget {
       child: Row(children: [
         Transform.flip(flipX: !calm && wind < 0, child: Icon(calm ? Icons.air_rounded : Icons.arrow_right_alt_rounded, color: AppTheme.mint, size: 18)),
         const SizedBox(width: 8),
-        Expanded(child: Text(calm ? (finished ? 'The range is quiet.' : 'No wind — aim dead center.') : 'Wind ${wind.abs()} pushing ${wind > 0 ? 'right → aim left' : 'left → aim right'}', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
+        Expanded(child: VibeText(calm ? (finished ? 'The range is quiet.' : 'No wind — aim dead center.') : 'Wind ${wind.abs()} pushing ${wind > 0 ? 'right → aim left' : 'left → aim right'}', style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 12))),
       ]),
     );
   }
@@ -220,5 +221,5 @@ class _ArcheryBadge extends StatelessWidget {
   const _ArcheryBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _archeryOrange.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: _archeryOrange, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _archeryOrange.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: _archeryOrange, fontWeight: FontWeight.w900, fontSize: 12)));
 }

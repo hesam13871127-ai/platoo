@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -42,11 +43,11 @@ class _ChessGameBoardState extends State<ChessGameBoard> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(children: [
-          Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.oceanGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(AppTheme.violet, strength: .35)), child: const Text('♞', style: TextStyle(fontSize: 21, color: Colors.white))),
+          Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.oceanGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(AppTheme.violet, strength: .35)), child: const VibeText('♞', style: TextStyle(fontSize: 21, color: Colors.white))),
           const SizedBox(width: 10),
-          Text('Chess', style: Theme.of(context).textTheme.titleLarge),
+          VibeText('Chess', style: Theme.of(context).textTheme.titleLarge),
           const Spacer(),
-          if (widget.state['fullmoveNumber'] != null) Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.violet.withOpacity(.3))), child: Text('Move ${widget.state['fullmoveNumber']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
+          if (widget.state['fullmoveNumber'] != null) Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.violet.withOpacity(.3))), child: VibeText('Move ${widget.state['fullmoveNumber']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
           const SizedBox(width: 7),
           _TurnPill(whiteToMove: widget.state['turnIndex'] != 1),
         ]),
@@ -92,9 +93,9 @@ class _ChessGameBoardState extends State<ChessGameBoard> {
                         boxShadow: [if (isSelected) const BoxShadow(color: Colors.white54, blurRadius: 10) else if (inCheck) const BoxShadow(color: Color(0xFFE77A62), blurRadius: 12)],
                       ),
                       child: Stack(children: [
-                        if (visualColumn == 0) Positioned(left: 3, top: 2, child: Text('${8 - row}', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: darkSquare ? Colors.white70 : Colors.black45))),
-                        if (visualRow == 7) Positioned(right: 3, bottom: 1, child: Text(String.fromCharCode(97 + column), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: darkSquare ? Colors.white70 : Colors.black45))),
-                        Center(child: AnimatedScale(scale: isSelected ? 1.18 : 1, duration: const Duration(milliseconds: 150), child: Text(_piece(value), style: TextStyle(fontSize: 30, color: _pieceColor(value), shadows: const [Shadow(color: Colors.black45, blurRadius: 3, offset: Offset(1, 2))])))),
+                        if (visualColumn == 0) Positioned(left: 3, top: 2, child: VibeText('${8 - row}', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: darkSquare ? Colors.white70 : Colors.black45))),
+                        if (visualRow == 7) Positioned(right: 3, bottom: 1, child: VibeText(String.fromCharCode(97 + column), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: darkSquare ? Colors.white70 : Colors.black45))),
+                        Center(child: AnimatedScale(scale: isSelected ? 1.18 : 1, duration: const Duration(milliseconds: 150), child: VibeText(_piece(value), style: TextStyle(fontSize: 30, color: _pieceColor(value), shadows: const [Shadow(color: Colors.black45, blurRadius: 3, offset: Offset(1, 2))])))),
                       ]),
                     ),
                   );
@@ -107,9 +108,9 @@ class _ChessGameBoardState extends State<ChessGameBoard> {
         _CapturedRow(name: 'You', glyphs: viewerCaptured, advantage: material > 0 ? material : 0),
         const SizedBox(height: 9),
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.5), borderRadius: BorderRadius.circular(99)), child: Text(perspectiveBlack ? '● Black at bottom' : '○ White at bottom', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.5), borderRadius: BorderRadius.circular(99)), child: VibeText(perspectiveBlack ? '● Black at bottom' : '○ White at bottom', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant))),
           const Spacer(),
-          if (selected != null) TextButton(onPressed: () => setState(() => selected = null), child: const Text('Clear selection')),
+          if (selected != null) TextButton(onPressed: () => setState(() => selected = null), child: const VibeText('Clear selection')),
         ]),
       ],
     );
@@ -209,7 +210,7 @@ class _ChessGameBoardState extends State<ChessGameBoard> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Promote pawn to', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+              const VibeText('Promote pawn to', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -222,7 +223,7 @@ class _ChessGameBoardState extends State<ChessGameBoard> {
                         width: 68,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.1), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppTheme.violet.withOpacity(.35))),
-                        child: Column(children: [Text(option.$3, style: TextStyle(fontSize: 30, color: viewerIsWhite ? const Color(0xFFFFF9E9) : const Color(0xFF231815), shadows: const [Shadow(color: Colors.black45, blurRadius: 3)])), const SizedBox(height: 4), Text(option.$2, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))]),
+                        child: Column(children: [VibeText(option.$3, style: TextStyle(fontSize: 30, color: viewerIsWhite ? const Color(0xFFFFF9E9) : const Color(0xFF231815), shadows: const [Shadow(color: Colors.black45, blurRadius: 3)])), const SizedBox(height: 4), VibeText(option.$2, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))]),
                       ),
                     ),
                 ],
@@ -252,7 +253,7 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = finished ? AppTheme.gold : check ? AppTheme.coral : Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: check && !finished ? AppTheme.coral : Theme.of(context).colorScheme.onSurfaceVariant)))]);
+    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: VibeText(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: check && !finished ? AppTheme.coral : Theme.of(context).colorScheme.onSurfaceVariant)))]);
   }
 }
 
@@ -263,7 +264,7 @@ class _TurnPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
         decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.5), borderRadius: BorderRadius.circular(99), border: Border.all(color: Theme.of(context).dividerColor)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 11, height: 11, decoration: BoxDecoration(color: whiteToMove ? Colors.white : const Color(0xFF231815), shape: BoxShape.circle, border: Border.all(color: Colors.black26))), const SizedBox(width: 6), Text(whiteToMove ? 'White to move' : 'Black to move', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11))]),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 11, height: 11, decoration: BoxDecoration(color: whiteToMove ? Colors.white : const Color(0xFF231815), shape: BoxShape.circle, border: Border.all(color: Colors.black26))), const SizedBox(width: 6), VibeText(whiteToMove ? 'White to move' : 'Black to move', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11))]),
       );
 }
 
@@ -276,9 +277,9 @@ class _CapturedRow extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
         height: 26,
         child: Row(children: [
-          SizedBox(width: 92, child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant))),
-          Expanded(child: glyphs.isEmpty ? Text('—', style: TextStyle(color: Theme.of(context).dividerColor)) : Text(glyphs.map((g) => switch (g) { 'Q' => '♕', 'R' => '♖', 'B' => '♗', 'N' => '♘', 'P' => '♙', 'q' => '♛', 'r' => '♜', 'b' => '♝', 'n' => '♞', 'p' => '♟', _ => '' }).join(' '), style: const TextStyle(fontSize: 16))),
-          if (advantage > 0) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.15), borderRadius: BorderRadius.circular(99)), child: Text('+$advantage', style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900, fontSize: 11))),
+          SizedBox(width: 92, child: VibeText(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+          Expanded(child: glyphs.isEmpty ? VibeText('—', style: TextStyle(color: Theme.of(context).dividerColor)) : VibeText(glyphs.map((g) => switch (g) { 'Q' => '♕', 'R' => '♖', 'B' => '♗', 'N' => '♘', 'P' => '♙', 'q' => '♛', 'r' => '♜', 'b' => '♝', 'n' => '♞', 'p' => '♟', _ => '' }).join(' '), style: const TextStyle(fontSize: 16))),
+          if (advantage > 0) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.15), borderRadius: BorderRadius.circular(99)), child: VibeText('+$advantage', style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900, fontSize: 11))),
         ]),
       );
 }
