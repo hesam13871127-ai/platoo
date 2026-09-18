@@ -69,6 +69,21 @@ Notes:
 - Android blocks plain-HTTP to non-localhost IPs: after `flutter create`, set `android:usesCleartextTraffic="true"` on the `<application>` tag in `android/app/src/main/AndroidManifest.xml` for local testing (never ship that to production — serve the API over HTTPS).
 - Sign in with any E.164 phone number (e.g. `+14155552671`); with `DEV_OTP_ENABLED=true` the API response contains the `devCode` to enter.
 
+### Development Admin / staff access
+
+The Admin/staff button on the login screen is a development-only shortcut; it is not a client-side role bypass. To use it locally:
+
+1. Copy `.env.example` to `apps/api/.env` and leave `NODE_ENV` out of production.
+2. Ensure the API configuration contains `DEV_ADMIN_ENABLED=true`, `DEV_ADMIN_USERNAME=admin`, and `DEV_ADMIN_PASSWORD=vibetable-admin` (or set your own values), then restart the API.
+3. Run the mobile app with an `API_URL` that includes the API prefix, for example `http://10.0.2.2:3000/api/v1` for an Android emulator.
+4. On the login screen tap **Admin / staff entry**, enter the configured username and password, and tap **Enter admin panel**.
+
+With the defaults, the exact development credentials are username `admin` and password `vibetable-admin`. The API endpoint is `POST /api/v1/auth/dev-admin`; it creates an active `admin` account on the first valid login when that username does not already exist. An existing account must already be active and have role `admin` or `moderator`; a normal player is never silently promoted. The issued session is a normal JWT session and every Admin request still passes the server-side `JwtAuthGuard` and `RolesGuard`.
+
+The shortcut is disabled in production, where the route does not provide an authentication bypass. Never use the development password or enable `DEV_ADMIN_ENABLED` in a production deployment. If a development account already exists with a different role, set `DEV_ADMIN_USERNAME` to an unused username or promote the intended account directly in the development database.
+
+All Flutter REST calls may use leading-slash paths such as `/auth/dev-admin`; `ApiClient` strips that slash before Dio resolves the request so the configured `/api/v1` prefix is preserved. Do not remove `/api/v1` from `API_URL`.
+
 ### 5. Useful commands
 
 ```bash
@@ -158,7 +173,7 @@ Run these in order; stop at the first failure and check Troubleshooting above.
 - [ ] Android only: `usesCleartextTraffic="true"` set in the debug manifest (see step 4).
 - [ ] `flutter run` with the right `API_URL` shows the sign-in screen; OTP login works with the `devCode`.
 - [ ] In the app: queue for a quick game (bot fills after 15s), play it to the result screen, send one chat message.
-- [ ] Optional: promote yourself to admin directly in MySQL (`UPDATE users SET role='admin' ...`) to tour the Admin Panel.
+- [ ] Optional: use the documented **Admin / staff access** flow above to tour the Admin Panel.
 
 The API is available at `http://localhost:3000/api/v1/health`. Local login needs no SMS provider: whenever `OTP_WEBHOOK_URL` is empty and `NODE_ENV` is not `production`, requesting a code logs `Development OTP for <phone>: <code>` in the API console and returns the same code as `devCode` in the response (`DEV_OTP_ENABLED=true` forces this mode even when a webhook is configured). Production must provide an `OTP_WEBHOOK_URL` for an approved SMS provider and leave `DEV_OTP_ENABLED` false/unset; without a webhook, production phone verification fails fast instead of leaking codes.
 

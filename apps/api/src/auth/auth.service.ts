@@ -76,7 +76,13 @@ export class AuthService {
   }
 
   async devAdminLogin(dto: DevAdminLoginDto, userAgent?: string, ipAddress?: string) {
-    if (!this.config.get<boolean>('devAdmin.enabled', false)) throw notFound('Development admin access is disabled.');
+    if (!this.config.get<boolean>('devAdmin.enabled', false)) {
+      // Keep the shortcut undiscoverable in production, but return an
+      // actionable configuration error in development instead of making a
+      // registered route look missing to the client.
+      if (this.config.get<string>('nodeEnv') === 'production') throw notFound('Development admin access is unavailable.');
+      throw forbidden('Development admin access is disabled. Set DEV_ADMIN_ENABLED=true and restart the API.');
+    }
     const configuredUsername = this.config.get<string>('devAdmin.username', 'admin');
     const configuredPassword = this.config.get<string>('devAdmin.password', 'vibetable-admin');
     if (dto.username.trim() !== configuredUsername || dto.password !== configuredPassword) throw unauthenticated('The development admin credentials are incorrect.');

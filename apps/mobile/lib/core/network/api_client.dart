@@ -21,10 +21,15 @@ class ApiException implements Exception {
 
 class ApiClient {
   ApiClient(this.store) {
-    dio = Dio(BaseOptions(baseUrl: apiBaseUrl, connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 20), sendTimeout: const Duration(seconds: 20), headers: {'content-type': 'application/json'}));
+    // API_URL includes the server prefix (/api/v1). Keep a trailing slash on
+    // the base and pass relative paths to Dio so its URL composition cannot
+    // drop the prefix (or accidentally target the host root) on any platform.
+    final baseUrl = '${apiBaseUrl.replaceFirst(RegExp(r'/+$'), '')}/';
+    dio = Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 20), sendTimeout: const Duration(seconds: 20), headers: {'content-type': 'application/json'}));
     dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) async { final token = await store.accessToken(); if (token != null && token.isNotEmpty) options.headers['authorization'] = 'Bearer $token'; handler.next(options); }, onError: (error, handler) async { if (error.response?.statusCode == 401 && !_isAuthPath(error.requestOptions.path) && !error.requestOptions.extra.containsKey('retried')) { final refreshed = await _refresh(); if (refreshed) { final request = error.requestOptions..extra['retried'] = true; final token = await store.accessToken(); request.headers['authorization'] = 'Bearer $token'; try { handler.resolve(await dio.fetch(request)); return; } catch (_) { await store.clear(); } } } handler.next(error); }));
   }
   final TokenStore store; late final Dio dio; Future<bool>? _refreshInFlight;
+  String _relativePath(String path) => path.replaceFirst(RegExp(r'^/+'), '');
   bool _isAuthPath(String path) => path.contains('/auth/');
   Future<bool> _refresh() async {
     final existing = _refreshInFlight;
@@ -41,7 +46,8 @@ class ApiClient {
     final refresh = await store.refreshToken();
     if (refresh == null || refresh.isEmpty) return false;
     try {
-      final response = await Dio(BaseOptions(baseUrl: apiBaseUrl, connectTimeout: const Duration(seconds: 8), receiveTimeout: const Duration(seconds: 12))).post<Map<String, dynamic>>('/auth/refresh', data: {'refreshToken': refresh});
+      final baseUrl = '${apiBaseUrl.replaceFirst(RegExp(r'/+$'), '')}/';
+      final response = await Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: const Duration(seconds: 8), receiveTimeout: const Duration(seconds: 12))).post<Map<String, dynamic>>(_relativePath('/auth/refresh'), data: {'refreshToken': refresh});
       final data = response.data;
       if (data == null || data['accessToken'] is! String || data['refreshToken'] is! String) return false;
       await store.saveTokens(data['accessToken'] as String, data['refreshToken'] as String);
@@ -50,11 +56,11 @@ class ApiClient {
       return false;
     }
   }
-  Future<dynamic> get(String path, {Map<String, dynamic>? query}) => _request(() => dio.get<dynamic>(path, queryParameters: query));
-  Future<dynamic> post(String path, {Object? data, Map<String, dynamic>? query}) => _request(() => dio.post<dynamic>(path, data: data, queryParameters: query));
-  Future<dynamic> put(String path, {Object? data}) => _request(() => dio.put<dynamic>(path, data: data));
-  Future<dynamic> patch(String path, {Object? data}) => _request(() => dio.patch<dynamic>(path, data: data));
-  Future<dynamic> delete(String path, {Map<String, dynamic>? query}) => _request(() => dio.delete<dynamic>(path, queryParameters: query));
+  Future<dynamic> get(String path, {Map<String, dynamic>? query}) => _request(() => dio.get<dynamic>(_relativePath(path), queryParameters: query));
+  Future<dynamic> post(String path, {Object? data, Map<String, dynamic>? query}) => _request(() => dio.post<dynamic>(_relativePath(path), data: data, queryParameters: query));
+  Future<dynamic> put(String path, {Object? data}) => _request(() => dio.put<dynamic>(_relativePath(path), data: data));
+  Future<dynamic> patch(String path, {Object? data}) => _request(() => dio.patch<dynamic>(_relativePath(path), data: data));
+  Future<dynamic> delete(String path, {Map<String, dynamic>? query}) => _request(() => dio.delete<dynamic>(_relativePath(path), queryParameters: query));
   Future<dynamic> _request(Future<Response<dynamic>> Function() request) async {
     try {
       final response = await request();

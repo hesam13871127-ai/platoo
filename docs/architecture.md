@@ -47,7 +47,8 @@ The `admin` module exposes audited operations under `/api/v1/admin`. Every mutat
 - All routes require a JWT for an `active` user plus `moderator` or `admin` role (`JwtAuthGuard` + `RolesGuard`).
 - Admins inherit moderator privileges. Mutations that change money, access, catalog, or seasons are `@Roles('admin')` and return `403` for moderators.
 - Safety rails: self-ban/self-suspend and self-role-changes are rejected, admin accounts cannot be banned or suspended, and the last active admin cannot be demoted. Banning/suspending revokes all refresh sessions and notifies the user.
-- The Flutter console (`AdminScreen`, reachable from Profile) is hidden for non-staff roles and re-checks the role before rendering; admin-only actions are hidden for moderators.
+- The Flutter console (`AdminScreen`, reachable from the login screen's **Admin / staff entry** in development) is hidden for non-staff roles and re-checks the role before rendering; admin-only actions are hidden for moderators.
+- Local development can use `POST /api/v1/auth/dev-admin` with the configured `DEV_ADMIN_USERNAME` and `DEV_ADMIN_PASSWORD` while `DEV_ADMIN_ENABLED=true` and `NODE_ENV` is not `production`. The default credentials are `admin` / `vibetable-admin`; the API creates only a new active admin account or accepts an already-active admin/moderator account, and never promotes a normal player automatically.
 
 ### Endpoint reference (all under `/api/v1/admin`)
 

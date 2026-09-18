@@ -104,14 +104,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               child: FilledButton.tonalIcon(
                                 onPressed: busy ? null : _openAdminEntry,
                                 icon: const Icon(Icons.admin_panel_settings_rounded),
-                                label: VibeText(strings.isPersian ? 'ورود مدیر / کارکنان' : 'Admin / staff entry'),
+                                label: VibeText(strings.adminStaffEntry),
                               ),
                             ),
                             if (kDebugMode) ...[
                               const SizedBox(height: 7),
                               Center(
                                 child: VibeText(
-                                  strings.isPersian ? 'رمز توسعه: $_devAdminPassword' : 'Development password: $_devAdminPassword',
+                                  '${strings.developmentPassword}: $_devAdminPassword',
                                   style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w700),
                                 ),
                               ),
@@ -133,25 +133,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   Future<void> _openAdminEntry() async {
+    final strings = AppStrings(Localizations.localeOf(context));
     final username = TextEditingController(text: 'admin');
     final password = TextEditingController(text: _devAdminPassword);
     final credentials = await showDialog<({String username, String password})>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const VibeText('Admin / staff entry'),
+        title: VibeText(strings.adminStaffEntry),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: username, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person_outline_rounded))),
+            TextField(controller: username, textInputAction: TextInputAction.next, decoration: InputDecoration(labelText: strings.username, prefixIcon: const Icon(Icons.person_outline_rounded))),
             const SizedBox(height: 12),
-            TextField(controller: password, obscureText: false, decoration: const InputDecoration(labelText: 'Development password', prefixIcon: Icon(Icons.key_rounded))),
+            TextField(controller: password, obscureText: true, decoration: InputDecoration(labelText: strings.developmentPassword, prefixIcon: const Icon(Icons.key_rounded))),
             const SizedBox(height: 10),
-            const VibeText('Only an account with admin or moderator role can enter the console.', style: TextStyle(fontSize: 12)),
+            VibeText(strings.staffRoleHint, style: const TextStyle(fontSize: 12)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const VibeText('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop((username: username.text.trim(), password: password.text)), child: const VibeText('Enter admin panel')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: VibeText(strings.cancel)),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop((username: username.text.trim(), password: password.text)), child: VibeText(strings.enterAdminPanel)),
         ],
       ),
     );
@@ -170,7 +171,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     } else if (auth.value?.user.role == 'admin' || auth.value?.user.role == 'moderator') {
       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen()));
     } else {
-      setState(() => localError = 'This account is not authorized for staff access.');
+      setState(() => localError = strings.staffRoleHint);
     }
     if (mounted) setState(() => sending = false);
   }

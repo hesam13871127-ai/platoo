@@ -322,6 +322,11 @@ class AppStrings {
   String get adminConsole => t('adminConsole');
   String get adminStaffHub => t('adminStaffHub');
   String get adminStaffSubtitle => t('adminStaffSubtitle');
+  String get adminStaffEntry => t('adminStaffEntry');
+  String get developmentPassword => t('developmentPassword');
+  String get username => t('username');
+  String get staffRoleHint => t('staffRoleHint');
+  String get enterAdminPanel => t('enterAdminPanel');
   String get openConsole => t('openConsole');
 
   static const _values = <String, Map<String, String>>{
@@ -399,6 +404,11 @@ class AppStrings {
     'adminConsole': {'en': 'Admin Console', 'fa': 'پنل مدیریت'},
     'adminStaffHub': {'en': 'Staff & Admin Console', 'fa': 'مرکز مدیریت و نظارت'},
     'adminStaffSubtitle': {'en': 'System controls, moderation & live telemetry', 'fa': 'کنترل سیستم، نظارت بر گزارش‌ها و آمار زنده'},
+    'adminStaffEntry': {'en': 'Admin / staff entry', 'fa': 'ورود مدیر / کارکنان'},
+    'developmentPassword': {'en': 'Development password', 'fa': 'رمز توسعه'},
+    'username': {'en': 'Username', 'fa': 'نام کاربری'},
+    'staffRoleHint': {'en': 'Only an account with admin or moderator role can enter the console.', 'fa': 'فقط حساب‌های مدیر یا ناظر می‌توانند وارد پنل شوند.'},
+    'enterAdminPanel': {'en': 'Enter admin panel', 'fa': 'ورود به پنل مدیریت'},
     'openConsole': {'en': 'Open Console', 'fa': 'ورود به پنل مدیریت'},
     'yourTurn': {'en': 'Your turn', 'fa': 'نوبت تو'},
     'matchFinished': {'en': 'Match finished', 'fa': 'بازی تمام شد'},
