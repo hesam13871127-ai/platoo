@@ -235,7 +235,7 @@ class _GameArtPainter extends CustomPainter {
     for (var column = 0; column < 4; column++) {
       for (var row = 0; row < 2; row++) {
         p.color = (column + row).isEven ? color : color.withOpacity(.38);
-        c.drawCircle(11 + column * 8.7, 17 + row * 13, 3.2, p);
+        c.drawCircle(Offset(11 + column * 8.7, 17 + row * 13), 3.2, p);
       }
     }
   }
@@ -305,7 +305,7 @@ class _GameArtPainter extends CustomPainter {
       c.drawPath(path, p);
     }
     p.color = color.withOpacity(.5);
-    for (var i = 0; i < 3; i++) c.drawCircle(32, 13 + i * 9.0, 3, p);
+    for (var i = 0; i < 3; i++) c.drawCircle(Offset(32, 13 + i * 9.0), 3, p);
   }
 
   void _sea(Canvas c, Paint p) {
@@ -332,7 +332,7 @@ class _GameArtPainter extends CustomPainter {
     c.drawOval(const Rect.fromLTWH(5, 14, 11, 20), p);
     c.drawOval(const Rect.fromLTWH(31, 14, 11, 20), p);
     p.color = color;
-    for (var row = 0; row < 2; row++) for (var col = 0; col < 3; col++) c.drawCircle(18 + col * 6.5, 19 + row * 10, 2.5, p);
+    for (var row = 0; row < 2; row++) for (var col = 0; col < 3; col++) c.drawCircle(Offset(18 + col * 6.5, 19 + row * 10), 2.5, p);
   }
 
   void _heart(Canvas c, Paint p, {Offset center = const Offset(24, 25), double radius = 10}) {
