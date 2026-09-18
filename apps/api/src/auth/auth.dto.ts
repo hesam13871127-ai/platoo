@@ -33,6 +33,16 @@ export class RefreshTokenDto {
   refreshToken!: string;
 }
 
+export class DevAdminLoginDto {
+  @IsString()
+  @Length(1, 80)
+  username!: string;
+
+  @IsString()
+  @Length(1, 120)
+  password!: string;
+}
+
 export class UpdatePreferencesDto {
   @IsOptional()
   @IsIn(['en', 'fa'])

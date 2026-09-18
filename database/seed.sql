@@ -1,35 +1,53 @@
 USE vibetable;
 
-INSERT INTO games (id, display_name, category, min_players, max_players, supports_teams, accent_color, icon_key, config) VALUES
-('ocho','Ocho','cards',2,4,FALSE,'#7C5CFC','style',JSON_OBJECT('deckSize',108)),
-('pool_8_ball','Pool 8-ball','sports',2,2,FALSE,'#1C9B78','sports_bar',JSON_OBJECT('tableSize',8)),
-('ludo','Ludo','board',2,4,TRUE,'#F36B4B','casino',JSON_OBJECT('tokensPerPlayer',4)),
-('werewolf','Werewolf','party',5,12,FALSE,'#8B5CF6','nightlife',JSON_OBJECT('nightLength',45)),
-('chess','Chess','board',2,2,FALSE,'#C9894B','grid_on',JSON_OBJECT('clockSeconds',600)),
-('four_in_a_row','4 in a Row','board',2,2,FALSE,'#E94862','view_week',JSON_OBJECT('rows',6,'columns',7)),
-('dice_party','Dice Party','party',2,6,FALSE,'#F2A93B','casino',JSON_OBJECT('rounds',5)),
-('carrom','Carrom','board',2,4,TRUE,'#BE8B58','radio_button_checked',JSON_OBJECT('coins',19)),
-('bingo','Bingo','party',2,8,FALSE,'#EC4899','confirmation_num',JSON_OBJECT('size',5)),
-('dominoes','Dominoes','board',2,4,FALSE,'#6B7280','view_module',JSON_OBJECT('doubleSix',TRUE)),
-('backgammon','Backgammon','board',2,2,FALSE,'#A9673B','casino',JSON_OBJECT('points',15)),
-('checkers','Checkers','board',2,2,FALSE,'#D946EF','grid_4x4',JSON_OBJECT('boardSize',8)),
-('mini_golf','Mini Golf','sports',2,4,FALSE,'#22A06B','golf_course',JSON_OBJECT('holes',9)),
-('table_soccer','Table Soccer','sports',2,4,TRUE,'#159A8C','sports_soccer',JSON_OBJECT('goals',5)),
-('archery','Archery','sports',1,4,FALSE,'#E76F51','gps_fixed',JSON_OBJECT('rounds',5)),
-('bowling','Bowling','sports',1,4,FALSE,'#4F7CAC','sports',JSON_OBJECT('frames',10)),
-('darts','Darts','sports',1,4,FALSE,'#B7791F','adjust',JSON_OBJECT('target',301)),
-('sea_battle','Sea Battle','board',2,2,FALSE,'#1882A5','directions_boat',JSON_OBJECT('grid',10)),
-('mancala','Mancala','board',2,2,FALSE,'#B5651D','circle',JSON_OBJECT('pits',6)),
-('hearts','Hearts','cards',3,4,FALSE,'#E04F5F','favorite',JSON_OBJECT('targetScore',100)),
-('spades','Spades','cards',4,4,TRUE,'#334155','style',JSON_OBJECT('targetScore',500)),
-('sketch_guess','Sketch & Guess','party',3,8,FALSE,'#F59E0B','brush',JSON_OBJECT('roundSeconds',60)),
-('trivia_battle','Trivia Battle','party',2,8,FALSE,'#3B82F6','quiz',JSON_OBJECT('questions',10)),
-('emoji_charades','Emoji Charades','party',3,8,FALSE,'#F97316','emoji_emotions',JSON_OBJECT('roundSeconds',45)),
-('word_chain','Word Chain','party',2,8,FALSE,'#10B981','translate',JSON_OBJECT('turnSeconds',20)),
-('memory_race','Memory Race','party',2,6,FALSE,'#8B5CF6','memory',JSON_OBJECT('pairs',12)),
-('impostor_light','Impostor Light','party',4,10,FALSE,'#DC2626','visibility_off',JSON_OBJECT('roundSeconds',90)),
-('quick_challenges','Quick Challenges','arcade',1,6,FALSE,'#EAB308','bolt',JSON_OBJECT('rounds',7))
-ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), config=VALUES(config), is_active=TRUE;
+CREATE TABLE IF NOT EXISTS app_settings (
+  setting_key VARCHAR(80) NOT NULL,
+  setting_value VARCHAR(255) NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (setting_key)
+) ENGINE=InnoDB;
+
+INSERT INTO games (id, display_name, category, min_players, max_players, supports_teams, accent_color, icon_key, is_active, config) VALUES
+('ocho','Ocho','cards',2,4,FALSE,'#7C5CFC','style',TRUE,JSON_OBJECT('deckSize',108)),
+('pool_8_ball','Pool 8-ball','sports',2,2,FALSE,'#1C9B78','sports_bar',TRUE,JSON_OBJECT('tableSize',8)),
+('ludo','Ludo','board',2,4,TRUE,'#F36B4B','casino',TRUE,JSON_OBJECT('tokensPerPlayer',4)),
+('werewolf','Werewolf','party',5,12,FALSE,'#8B5CF6','nightlife',TRUE,JSON_OBJECT('nightLength',45)),
+('chess','Chess','board',2,2,FALSE,'#C9894B','grid_on',TRUE,JSON_OBJECT('clockSeconds',600)),
+('four_in_a_row','4 in a Row','board',2,2,FALSE,'#E94862','view_week',TRUE,JSON_OBJECT('rows',6,'columns',7)),
+('dice_party','Dice Party','party',2,6,FALSE,'#F2A93B','casino',FALSE,JSON_OBJECT('rounds',5)),
+('carrom','Carrom','board',2,4,TRUE,'#BE8B58','radio_button_checked',TRUE,JSON_OBJECT('coins',19)),
+('bingo','Bingo','party',2,8,FALSE,'#EC4899','confirmation_num',FALSE,JSON_OBJECT('size',5)),
+('dominoes','Dominoes','board',2,4,FALSE,'#6B7280','view_module',TRUE,JSON_OBJECT('doubleSix',TRUE)),
+('backgammon','Backgammon','board',2,2,FALSE,'#A9673B','casino',TRUE,JSON_OBJECT('points',15)),
+('checkers','Checkers','board',2,2,FALSE,'#D946EF','grid_4x4',TRUE,JSON_OBJECT('boardSize',8)),
+('mini_golf','Mini Golf','sports',2,4,FALSE,'#22A06B','golf_course',FALSE,JSON_OBJECT('holes',9)),
+('table_soccer','Table Soccer','sports',2,4,TRUE,'#159A8C','sports_soccer',FALSE,JSON_OBJECT('goals',5)),
+('archery','Archery','sports',1,4,FALSE,'#E76F51','gps_fixed',FALSE,JSON_OBJECT('rounds',5)),
+('bowling','Bowling','sports',1,4,FALSE,'#4F7CAC','sports',FALSE,JSON_OBJECT('frames',10)),
+('darts','Darts','sports',1,4,FALSE,'#B7791F','adjust',FALSE,JSON_OBJECT('target',301)),
+('sea_battle','Sea Battle','board',2,2,FALSE,'#1882A5','directions_boat',FALSE,JSON_OBJECT('grid',10)),
+('mancala','Mancala','board',2,2,FALSE,'#B5651D','circle',FALSE,JSON_OBJECT('pits',6)),
+('hearts','Hearts','cards',3,4,FALSE,'#E04F5F','favorite',FALSE,JSON_OBJECT('targetScore',100)),
+('spades','Spades','cards',4,4,TRUE,'#334155','style',FALSE,JSON_OBJECT('targetScore',500)),
+('sketch_guess','Sketch & Guess','party',3,8,FALSE,'#F59E0B','brush',FALSE,JSON_OBJECT('roundSeconds',60)),
+('trivia_battle','Trivia Battle','party',2,8,FALSE,'#3B82F6','quiz',FALSE,JSON_OBJECT('questions',10)),
+('emoji_charades','Emoji Charades','party',3,8,FALSE,'#F97316','emoji_emotions',FALSE,JSON_OBJECT('roundSeconds',45)),
+('word_chain','Word Chain','party',2,8,FALSE,'#10B981','translate',FALSE,JSON_OBJECT('turnSeconds',20)),
+('memory_race','Memory Race','party',2,6,FALSE,'#8B5CF6','memory',FALSE,JSON_OBJECT('pairs',12)),
+('impostor_light','Impostor Light','party',4,10,FALSE,'#DC2626','visibility_off',FALSE,JSON_OBJECT('roundSeconds',90)),
+('quick_challenges','Quick Challenges','arcade',1,6,FALSE,'#EAB308','bolt',FALSE,JSON_OBJECT('rounds',7))
+ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), config=VALUES(config);
+
+-- The ten focused games are enabled by default. Every other registered game
+-- remains installed but disabled; Admin can reverse that flag later. The
+-- one-time marker makes this safe to rerun after an administrator enables a
+-- future game: a later seed must not silently undo that decision.
+INSERT INTO app_settings (setting_key, setting_value) VALUES ('games.core_release_default', 'pending')
+ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key);
+UPDATE games SET is_active = id IN ('ocho','pool_8_ball','ludo','chess','four_in_a_row','dominoes','carrom','backgammon','checkers','werewolf')
+WHERE EXISTS (SELECT 1 FROM app_settings WHERE setting_key='games.core_release_default' AND setting_value='pending');
+UPDATE app_settings SET setting_value='applied'
+WHERE setting_key='games.core_release_default' AND setting_value='pending';
 
 INSERT INTO shop_items (id, sku, name, description, category, price_coins, price_pips, asset_key, is_giftable) VALUES
 ('10000000-0000-4000-8000-000000000001','avatar-neon','Neon Nova','A bright neon profile avatar.','avatar',500,0,'avatar_neon',TRUE),

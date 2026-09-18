@@ -86,6 +86,9 @@ describe('authoritative game engines', () => {
     expect(state.positions[0][0]).toBe(1); expect(state.positions[1][0]).toBe(-1); expect(state.turnPlayerId).toBe('player-1');
     state.turnPlayerId = 'player-0'; state.turnIndex = 0; state.pendingRoll = 1; state.positions[0][0] = 0; state.positions[1][0] = 40; state.positions[1][1] = 40;
     expect(() => engine.apply(state, 'player-0', { type: 'move', token: 0 }, roster)).toThrow();
+    state.positions[1][0] = -1; state.positions[1][1] = -1; state.positions[0][1] = 1; state.positions[0][2] = 1;
+    expect(() => engine.apply(state, 'player-0', { type: 'move', token: 0 }, roster)).toThrow();
+    state.positions[0][1] = -1; state.positions[0][2] = -1; state.positions[1][0] = 40; state.positions[1][1] = 40;
     expect(engine.botAction(state, 'player-0', roster).type).toBe('pass');
     const botState = engine.create(roster) as any; botState.pendingRoll = 6;
     expect(engine.botAction(botState, 'player-0', roster)).toEqual({ type: 'move', token: 0 });
@@ -106,26 +109,31 @@ describe('authoritative game engines', () => {
     expect(stillPlaying.winnerIds).toEqual([]);
   });
 
-  it('plays pool 8-ball through groups, fouls, and the winning eight ball', () => {
+  it('resolves pool shots on the server instead of trusting claimed pockets or scratches', () => {
     const engine = new PoolEngine(); const roster = players(2); let state = engine.create(roster) as any;
-    state = engine.apply(state, 'player-0', { type: 'shot', power: 80, pocket: 0, pocketed: [1] }, roster) as any;
-    expect(state.phase).toBe('open'); expect(state.turnPlayerId).toBe('player-0'); expect(state.remainingBalls).not.toContain(1);
-    state = engine.apply(state, 'player-0', { type: 'shot', power: 60, pocket: 1, pocketed: [2] }, roster) as any;
-    expect(state.groups).toEqual(['solids', 'stripes']);
-    expect(() => engine.apply(state, 'player-0', { type: 'shot', power: 60, pocket: 1, pocketed: [9] }, roster)).toThrow();
-    for (const ball of [3, 4, 5, 6, 7]) state = engine.apply(state, 'player-0', { type: 'shot', power: 60, pocket: 1, pocketed: [ball] }, roster) as any;
-    expect(state.remainingBalls).toEqual([8, 9, 10, 11, 12, 13, 14, 15]);
-    state = engine.apply(state, 'player-0', { type: 'shot', power: 70, pocket: 2, pocketed: [8] }, roster) as any;
-    expect(state.finished).toBe(true); expect(state.winnerId).toBe('player-0');
+    state.serverSeed = 'pool-3';
+    state = engine.apply(state, 'player-0', { type: 'shot', power: 80, pocket: 0, targetBall: 1 }, roster) as any;
+    expect(state.phase).toBe('assigned'); expect(state.turnPlayerId).toBe('player-0'); expect(state.remainingBalls).not.toContain(1);
+    expect(state.lastShot.pocketed).toEqual([1]);
+
+    state.groups = ['solids', 'stripes']; state.phase = 'assigned';
+    expect(() => engine.apply(state, 'player-0', { type: 'shot', power: 60, pocket: 1, targetBall: 9 }, roster)).toThrow();
+
+    const winning = engine.create(roster) as any;
+    winning.serverSeed = 'pool-3'; winning.phase = 'assigned'; winning.groups = ['solids', 'stripes']; winning.remainingBalls = [8, 9];
+    const won = engine.apply(winning, 'player-0', { type: 'shot', power: 70, pocket: 2, targetBall: 8 }, roster) as any;
+    expect(won.finished).toBe(true); expect(won.winnerId).toBe('player-0');
 
     const earlyEight = engine.create(roster) as any;
-    earlyEight.phase = 'assigned'; earlyEight.groups = ['solids', 'stripes']; earlyEight.remainingBalls = [3, 8, 9];
-    const foul = engine.apply(earlyEight, 'player-0', { type: 'shot', power: 70, pocket: 2, pocketed: [8] }, roster) as any;
+    earlyEight.serverSeed = 'pool-3'; earlyEight.phase = 'assigned'; earlyEight.groups = ['solids', 'stripes']; earlyEight.remainingBalls = [3, 8, 9];
+    const foul = engine.apply(earlyEight, 'player-0', { type: 'shot', power: 70, pocket: 2, targetBall: 8 }, roster) as any;
     expect(foul.finished).toBe(true); expect(foul.winnerId).toBe('player-1');
 
     const scratch = engine.create(roster) as any;
-    const afterScratch = engine.apply(scratch, 'player-0', { type: 'shot', power: 35, pocket: 0, pocketed: [], scratch: true }, roster) as any;
+    const afterScratch = engine.apply(scratch, 'player-0', { type: 'shot', power: 35, pocket: 0, targetBall: null }, roster) as any;
     expect(afterScratch.phase).toBe('open'); expect(afterScratch.turnPlayerId).toBe('player-1');
+    const claimed = engine.create(roster) as any;
+    expect(() => engine.apply(claimed, 'player-0', { type: 'shot', power: 35, pocket: 0, targetBall: null, scratch: true }, roster)).toThrow('resolved by the server');
   });
 
   it('lets pool bots complete full matches', () => {
@@ -383,20 +391,26 @@ describe('authoritative game engines', () => {
     }
   });
 
-  it('assigns Carrom colors and requires a covered queen before winning', () => {
+  it('resolves Carrom strikes, fouls, and queen covers on the server', () => {
     const engine = new CarromEngine(); const roster = players(2); let state = engine.create(roster) as any;
-    state = engine.apply(state, 'player-0', { type: 'strike', power: 70, pocketed: [1], queen: false }, roster) as any;
+    state.serverSeed = 'carrom-3';
+    state = engine.apply(state, 'player-0', { type: 'strike', power: 70, targetCoins: [1], queen: false }, roster) as any;
     expect(state.groups).toEqual(['white', 'black']); expect(state.scores[0]).toBe(1); expect(state.turnPlayerId).toBe('player-0');
-    expect(() => engine.apply(state, 'player-0', { type: 'strike', power: 70, pocketed: [10], queen: false }, roster)).toThrow();
-    state = engine.apply(state, 'player-0', { type: 'strike', power: 40, pocketed: [], queen: false }, roster) as any;
+    const open = engine.create(roster) as any;
+    expect(() => engine.apply(open, 'player-0', { type: 'strike', power: 70, targetCoins: [1, 10], queen: false }, roster)).toThrow('one coin color');
+    expect(() => engine.apply(state, 'player-0', { type: 'strike', power: 70, targetCoins: [10], queen: false }, roster)).toThrow();
+    state = engine.apply(state, 'player-0', { type: 'strike', power: 40, targetCoins: [], queen: false }, roster) as any;
     expect(state.turnPlayerId).toBe('player-1');
-    state.turnIndex = 0; state.turnPlayerId = 'player-0';
-    const foul = engine.apply(state, 'player-0', { type: 'strike', power: 20, pocketed: [], queen: false, foul: true }, roster) as any;
-    expect(foul.remainingCoins).toContain(1); expect(foul.scores[0]).toBe(0); expect(foul.turnPlayerId).toBe('player-1'); expect(foul.lastShot.foul).toBe(true);
+
+    const foul = engine.create(roster) as any;
+    foul.serverSeed = 'foul-15'; foul.pocketed[0] = [1]; foul.remainingCoins = Array.from({ length: 18 }, (_, index) => index + 1).filter((coin) => coin !== 1);
+    const resolvedFoul = engine.apply(foul, 'player-0', { type: 'strike', power: 100, targetCoins: [], queen: false }, roster) as any;
+    expect(resolvedFoul.remainingCoins).toContain(1); expect(resolvedFoul.scores[0]).toBe(0); expect(resolvedFoul.turnPlayerId).toBe('player-1'); expect(resolvedFoul.lastShot.foul).toBe(true);
+    expect(() => engine.apply(foul, 'player-0', { type: 'strike', power: 20, targetCoins: [], queen: false, foul: true }, roster)).toThrow('resolved by the server');
 
     const queen = engine.create(roster) as any;
-    queen.groups = ['white', 'black']; queen.remainingCoins = [1, 10]; queen.turnIndex = 0; queen.turnPlayerId = 'player-0';
-    const called = engine.apply(queen, 'player-0', { type: 'strike', power: 70, pocketed: [1], queen: true }, roster) as any;
+    queen.serverSeed = 'carrom-3'; queen.groups = ['white', 'black']; queen.remainingCoins = [1, 10]; queen.turnIndex = 0; queen.turnPlayerId = 'player-0';
+    const called = engine.apply(queen, 'player-0', { type: 'strike', power: 70, targetCoins: [1], queen: true }, roster) as any;
     expect(called.queenRemaining).toBe(false); expect(called.queenPendingFor).toBeNull(); expect(called.finished).toBe(true); expect(called.winnerIds).toEqual(['player-0']);
   });
 

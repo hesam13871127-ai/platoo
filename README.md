@@ -72,7 +72,7 @@ Notes:
 ### 5. Useful commands
 
 ```bash
-npm test            # backend unit/integration tests (65 tests, no DB needed)
+npm test            # backend unit/integration tests (no DB needed)
 npm run lint        # backend type check
 npm run db:migrate  # re-apply schema (safe to re-run)
 npm run db:seed     # re-apply seed data (idempotent)
@@ -153,7 +153,7 @@ Run these in order; stop at the first failure and check Troubleshooting above.
 - [ ] `npm run setup` completes with "VibeTable schema applied." and "VibeTable seed data applied."
 - [ ] `npm run dev:api` boots with "MySQL connection pool ready" and "Shared bot pool ready (12 accounts)".
 - [ ] `curl http://localhost:3000/api/v1/health/ready` returns `"status":"ready"`.
-- [ ] `npm test` → 4 suites, 65 tests, all passing.
+- [ ] `npm test` → all API suites and tests pass.
 - [ ] `cd apps/mobile && flutter create --platforms=android,ios . && flutter pub get` succeeds.
 - [ ] Android only: `usesCleartextTraffic="true"` set in the debug manifest (see step 4).
 - [ ] `flutter run` with the right `API_URL` shows the sign-in screen; OTP login works with the `devCode`.
@@ -166,7 +166,7 @@ The API is available at `http://localhost:3000/api/v1/health`. Local login needs
 
 - Access tokens are short-lived JWTs. Refresh tokens are rotated, hashed at rest, and revoked on logout.
 - MySQL transactions lock wallets, match state, ratings, and OTP challenges before mutation. Shop purchases accept an idempotency key.
-- Match state is authoritative on the server. Every action is validated by a dedicated engine and persisted as a revisioned replay event.
+- Match state is authoritative on the server. Every action is validated by a dedicated engine and persisted as a revisioned replay event. Pool and Carrom clients submit shot controls/targets only; the server resolves pockets, scratches, fouls, and queen covers from a hidden per-match seed, so a client cannot claim a favorable physical outcome.
 - A queued ticket is matched with compatible tickets first. A compatible human-like bot fills the requested table after 15 seconds; bot accounts are never presented as real players.
 - `/chat` and `/games` Socket.IO namespaces authenticate the same access JWT. Voice tokens are issued for LiveKit only after match/conversation membership is checked.
 - Ranking uses per-game, per-season Elo with K=32, result statistics, peak rating, and season reward payouts.
@@ -187,8 +187,10 @@ The API refuses to boot with `NODE_ENV=production` unless these hold:
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` are unique and at least 32 characters.
 - `CORS_ORIGINS` lists the allowed web origins (mobile apps are unaffected).
 - `DEV_OTP_ENABLED=false` and `OTP_WEBHOOK_URL` points at the approved SMS provider.
+- `DEV_IAP_ENABLED=false` and real App Store / Play credentials are configured.
+- `REDIS_URL` points at the shared Redis service used by the distributed rate limiter.
 
-Also recommended before launch: non-default `DB_USER`/`DB_PASSWORD` (or `DATABASE_URL`), Verified LiveKit credentials, and the shop/season seed reviewed in `database/seed.sql`.
+Also recommended before launch: non-default `DB_USER`/`DB_PASSWORD` (or `DATABASE_URL`), verified LiveKit credentials, the shop/season seed reviewed in `database/seed.sql`, a successful `npm run smoke:api` against the deployed readiness endpoint, and the CI Docker image build.
 
 ## Operations
 

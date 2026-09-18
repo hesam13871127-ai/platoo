@@ -294,8 +294,22 @@ export class DartsEngine implements GameEngine {
     if (action.type !== 'throw') throw new IllegalMoveError('Use throw.');
     const value = asInt(action.value, 'value', 0, 60);
     const score = (state.scores as number[])[side];
+    const hasSegment = action.segment !== undefined;
+    const hasMultiplier = action.multiplier !== undefined;
+    if (hasSegment !== hasMultiplier) throw new IllegalMoveError('Segment and multiplier must be declared together.');
+    if (hasMultiplier) {
+      const multiplier = asInt(action.multiplier, 'multiplier', 1, 3);
+      const segment = asInt(action.segment, 'segment', 1, 20);
+      if (value !== segment * multiplier) throw new IllegalMoveError('The dart value does not match its ring.');
+    }
+    if (action.dartType !== undefined && !['miss', 'outer_bull', 'bull'].includes(String(action.dartType))) throw new IllegalMoveError('Unknown dart type.');
+    if (action.dartType !== undefined && (hasSegment || hasMultiplier)) throw new IllegalMoveError('A special dart cannot also declare a segment.');
+    if (action.dartType === 'miss' && value !== 0) throw new IllegalMoveError('A miss scores zero.');
+    if (action.dartType === 'outer_bull' && value !== 25) throw new IllegalMoveError('An outer bull scores twenty-five.');
+    if (action.dartType === 'bull' && value !== 50) throw new IllegalMoveError('A bull scores fifty.');
     if (score - value < 0) throw new IllegalMoveError('Bust: you cannot go below zero.');
     if (score - value === 1) throw new IllegalMoveError('A score of one is a bust.');
+    if (score - value === 0 && (action.multiplier !== undefined || action.dartType !== undefined) && action.multiplier !== 2 && action.dartType !== 'bull') throw new IllegalMoveError('Checkout must finish on a double or bull.');
   }
 
   apply(state: DartsState, actorId: string, action: Action, players: GamePlayer[]): DartsState {
@@ -330,9 +344,31 @@ export class DartsEngine implements GameEngine {
     const index = players.findIndex((player) => player.id === botId);
     const side = index >= 0 ? index : Number(state.turnIndex);
     const score = (state.scores as number[])[side];
-    if (score >= 1 && score <= 60) return { type: 'throw', value: score };
-    if (score <= 0) return { type: 'throw', value: 0 };
-    return { type: 'throw', value: randomInt(Math.min(60, Math.max(0, score - 2)) + 1) };
+    if (score <= 1) return { type: 'throw', value: 0, dartType: 'miss' };
+
+    // Bots use the same declared ring metadata as the mobile board. In
+    // particular, an exact finish is only attempted with a legal double or
+    // bull; impossible leaves are played down instead of relying on the
+    // backwards-compatible metadata-free action format.
+    if (score <= 40 && score % 2 === 0) return { type: 'throw', value: score, segment: score / 2, multiplier: 2 };
+    if (score === 50) return { type: 'throw', value: 50, dartType: 'bull' };
+
+    const legalValues = [
+      0,
+      ...Array.from({ length: 20 }, (_, segment) => segment + 1),
+      ...Array.from({ length: 20 }, (_, segment) => (segment + 1) * 2),
+      ...Array.from({ length: 20 }, (_, segment) => (segment + 1) * 3),
+      25,
+      50,
+    ];
+    const candidates = legalValues.filter((value) => value < score && score - value !== 1);
+    const value = candidates.length ? candidates[randomInt(candidates.length)] : 0;
+    if (value === 0) return { type: 'throw', value: 0, dartType: 'miss' };
+    if (value === 25) return { type: 'throw', value: 25, dartType: 'outer_bull' };
+    if (value === 50) return { type: 'throw', value: 50, dartType: 'bull' };
+    const multiplier = value % 3 === 0 && value / 3 <= 20 ? 3 : value % 2 === 0 && value / 2 <= 20 ? 2 : 1;
+    const segment = value / multiplier;
+    return { type: 'throw', value, segment, multiplier };
   }
 }
 
@@ -504,7 +540,11 @@ export class TableSoccerEngine implements GameEngine {
     return { finished: Boolean(state.finished), winnerIds: winners, loserIds: winners.length ? players.filter((player) => !winners.includes(player.id)).map((player) => player.id) : [], draw: Boolean(state.draw) };
   }
 
-  botAction(_state: TableSoccerState, _botId: string, _players: GamePlayer[]): Action { return { type: 'shoot', power: 70, aim: 50 }; }
+  botAction(_state: TableSoccerState, _botId: string, _players: GamePlayer[]): Action {
+    // A believable bot favors a central, moderately strong shot but occasionally
+    // rushes or mis-aims instead of scoring with the same perfect input.
+    return { type: 'shoot', power: 58 + randomInt(28), aim: Math.min(100, Math.max(0, 50 + randomInt(25) - 12)) };
+  }
 }
 
 export class ScoreChallengeEngine implements GameEngine {

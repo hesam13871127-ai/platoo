@@ -90,7 +90,7 @@ class _NavItem extends StatelessWidget {
               ),
               child: Badge(
                 isLabelVisible: badgeCount > 0,
-                label: Text('$badgeCount'),
+                label: VibeText('$badgeCount'),
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 180),
                   child: Icon(selected ? selectedIcon : icon, key: ValueKey(selected), size: 25, color: selected ? active : idle),
@@ -98,7 +98,7 @@ class _NavItem extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: selected ? active : idle)),
+            VibeText(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: selected ? active : idle)),
           ],
         ),
       ),

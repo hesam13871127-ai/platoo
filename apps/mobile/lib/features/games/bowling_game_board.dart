@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -45,14 +46,14 @@ class _BowlingGameBoardState extends State<BowlingGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: _bowlingBlue.withOpacity(.17), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.sports_rounded, color: _bowlingBlue)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Bowling', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Bowling', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _BowlingBadge(label: finished ? 'Final' : 'Frame $frame · Ball $ball'),
           ]),
           const SizedBox(height: 6),
-          Text(finished ? 'All ten frames are complete.' : 'Strikes and spares earn bonus pins — highest total wins.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+          VibeText(finished ? 'All ten frames are complete.' : 'Strikes and spares earn bonus pins — highest total wins.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
           if (lastRoll != null && !finished) ...[
             const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: _bowlingBlue.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: Text('${_name(lastRoll['playerId']?.toString())} knocked ${lastRoll['pins'] ?? 0} pins (frame ${lastRoll['frame'] ?? '–'})', style: const TextStyle(color: _bowlingBlue, fontWeight: FontWeight.w800, fontSize: 12))),
+            Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: _bowlingBlue.withOpacity(.1), borderRadius: BorderRadius.circular(12)), child: VibeText('${_name(lastRoll['playerId']?.toString())} knocked ${lastRoll['pins'] ?? 0} pins (frame ${lastRoll['frame'] ?? '–'})', style: const TextStyle(color: _bowlingBlue, fontWeight: FontWeight.w800, fontSize: 12))),
           ],
           const SizedBox(height: 12),
           for (var index = 0; index < widget.match.players.length; index += 1) ...[
@@ -62,19 +63,19 @@ class _BowlingGameBoardState extends State<BowlingGameBoard> {
           if (isTurn) ...[
             const SizedBox(height: 14),
             Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: _bowlingBlue.withOpacity(.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: _bowlingBlue.withOpacity(.3))), child: Column(children: [
-              Text('Your roll — up to $maxPins pins standing', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+              VibeText('Your roll — up to $maxPins pins standing', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
               const SizedBox(height: 10),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 IconButton.filledTonal(onPressed: clamped > 0 ? () => setState(() => pins = clamped - 1) : null, icon: const Icon(Icons.remove_rounded)),
-                Container(width: 64, alignment: Alignment.center, padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).dividerColor)), child: Text('$clamped', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22))),
+                Container(width: 64, alignment: Alignment.center, padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).dividerColor)), child: VibeText('$clamped', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22))),
                 IconButton.filledTonal(onPressed: clamped < maxPins ? () => setState(() => pins = clamped + 1) : null, icon: const Icon(Icons.add_rounded)),
               ]),
               const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => widget.onAction({'type': 'roll', 'pins': clamped}), icon: const Icon(Icons.sports_rounded), label: const Text('Roll'))),
+              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => widget.onAction({'type': 'roll', 'pins': clamped}), icon: const Icon(Icons.sports_rounded), label: const VibeText('Roll'))),
             ])),
           ] else if (!finished) ...[
             const SizedBox(height: 12),
-            Text('Waiting for ${_turnName()} to roll…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+            VibeText('Waiting for ${_turnName()} to roll…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
           ],
         ]),
       ),
@@ -165,9 +166,9 @@ class _PlayerScorecard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           if (isTurn) const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.sports_rounded, size: 15, color: _bowlingBlue)),
-          Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
+          Expanded(child: VibeText(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
           if (won) const Padding(padding: EdgeInsets.only(right: 5), child: Icon(Icons.emoji_events_rounded, size: 16, color: _bowlingBlue)),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(color: _bowlingBlue.withOpacity(.14), borderRadius: BorderRadius.circular(9)), child: Text('$total', style: const TextStyle(color: _bowlingBlue, fontWeight: FontWeight.w900))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(color: _bowlingBlue.withOpacity(.14), borderRadius: BorderRadius.circular(9)), child: VibeText('$total', style: const TextStyle(color: _bowlingBlue, fontWeight: FontWeight.w900))),
         ]),
         const SizedBox(height: 8),
         SingleChildScrollView(
@@ -225,9 +226,9 @@ class _FrameCell extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(9), border: Border.all(color: Theme.of(context).dividerColor)),
         child: Column(children: [
-          SizedBox(height: 15, child: Text(marks, maxLines: 1, overflow: TextOverflow.visible, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: _bowlingBlue))),
+          SizedBox(height: 15, child: VibeText(marks, maxLines: 1, overflow: TextOverflow.visible, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: _bowlingBlue))),
           const SizedBox(height: 2),
-          Text(cumulative == null ? '·' : '$cumulative', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: cumulative == null ? Theme.of(context).disabledColor : Theme.of(context).colorScheme.onSurface)),
+          VibeText(cumulative == null ? '·' : '$cumulative', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: cumulative == null ? Theme.of(context).disabledColor : Theme.of(context).colorScheme.onSurface)),
         ]),
       );
 }
@@ -236,5 +237,5 @@ class _BowlingBadge extends StatelessWidget {
   const _BowlingBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _bowlingBlue.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: _bowlingBlue, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: _bowlingBlue.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: _bowlingBlue, fontWeight: FontWeight.w900, fontSize: 12)));
 }

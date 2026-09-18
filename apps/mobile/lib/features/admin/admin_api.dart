@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
+import '../../core/localization/app_strings.dart';
 
 // ---------------------------------------------------------------------------
 // Parsing helpers (the API returns MySQL-flavoured numbers/booleans/dates).
@@ -72,7 +73,7 @@ Future<T?> guardAdmin<T>(BuildContext context, Future<dynamic> Function() call) 
     return await call();
   } catch (error) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: VibeText(error.toString())));
     }
     return null;
   }
@@ -80,7 +81,7 @@ Future<T?> guardAdmin<T>(BuildContext context, Future<dynamic> Function() call) 
 
 void showAdminMessage(BuildContext context, String message) {
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: VibeText(message)));
 }
 
 // ---------------------------------------------------------------------------

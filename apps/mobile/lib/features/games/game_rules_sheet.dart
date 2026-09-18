@@ -56,9 +56,9 @@ class GameRulesSheet extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(game.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+                        VibeText(game.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
                         const SizedBox(height: 2),
-                        Text(
+                        VibeText(
                           fa ? 'راهنما و قوانین رسمی' : 'How to play & official rules',
                           style: TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
@@ -71,8 +71,7 @@ class GameRulesSheet extends StatelessWidget {
                       color: AppTheme.violet.withOpacity(.12),
                       borderRadius: BorderRadius.circular(99),
                     ),
-                    child: Text(
-                      '${game.minPlayers}–${game.maxPlayers} ${fa ? 'بازیکن' : 'players'}',
+                    child: VibeText('${game.minPlayers}–${game.maxPlayers} ${fa ? 'بازیکن' : 'players'}',
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: AppTheme.violet),
                     ),
                   ),
@@ -155,9 +154,9 @@ class _RuleSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5)),
+                  VibeText(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5)),
                   const SizedBox(height: 4),
-                  Text(
+                  VibeText(
                     description,
                     style: TextStyle(
                       fontSize: 13,

@@ -5,6 +5,7 @@ import { MysqlService } from '../database/mysql.service';
 import { conflict, forbidden, invalid, notFound } from '../common/errors';
 import { AdjustWalletDto, BanUserDto, CreateSeasonDto, CreateSeasonRewardDto, CreateShopItemDto, ResolveReportDto, ToggleDto, UpdateGameDto, UpdateSeasonDto, UpdateShopItemDto, UpdateUserAdminDto } from './admin.dto';
 import { RankingService } from '../ranking/ranking.service';
+import { isCoreGame } from '../games/game.registry';
 
 export interface Paginated<T> { items: T[]; page: number; limit: number; total: number; totalPages: number; }
 
@@ -244,7 +245,15 @@ export class AdminService {
   // ---------------------------------------------------------------- games
 
   async games() {
-    return this.mysql.query<RowDataPacket[]>(`SELECT id, display_name AS displayName, category, min_players AS minPlayers, max_players AS maxPlayers, supports_teams AS supportsTeams, accent_color AS accentColor, icon_key AS iconKey, is_active AS isActive, config FROM games ORDER BY display_name`);
+    const rows = await this.mysql.query<RowDataPacket[]>(`SELECT id, display_name AS displayName, category, min_players AS minPlayers, max_players AS maxPlayers, supports_teams AS supportsTeams, accent_color AS accentColor, icon_key AS iconKey, is_active AS isActive, config FROM games ORDER BY displayName`);
+    return rows.map((row) => ({
+      ...row,
+      isCore: isCoreGame(String(row.id)),
+      // Non-core games stay visible to staff for inventory and future work.
+      // Their database flag remains the deliberate, reversible release switch.
+      isActive: Boolean(row.isActive),
+      releaseState: isCoreGame(String(row.id)) ? 'core' : Boolean(row.isActive) ? 'enabled_future' : 'disabled_future',
+    }));
   }
 
   async toggleGame(adminId: string, gameId: string, dto: ToggleDto) {

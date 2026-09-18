@@ -29,27 +29,88 @@ export class FourInARowEngine implements GameEngine {
     const board = (state.board as number[][]).map((row) => [...row]);
     const side = players.findIndex((player) => player.id === botId);
     const mine = side + 1;
-    const theirs = side === 0 ? 2 : 1;
     const legal = Array.from({ length: 7 }, (_, column) => column).filter((column) => board[0][column] === 0);
-    const rowFor = (column: number): number => { let row = 5; while (row >= 0 && board[row][column] !== 0) row -= 1; return row; };
-    for (const column of legal) {
-      const row = rowFor(column);
-      board[row][column] = mine;
-      const wins = this.hasLine(board, row, column, mine);
+    if (!legal.length) return { type: 'drop', column: 0 };
+    const ranked = legal.map((column) => {
+      const row = this.drop(board, column, mine);
+      const score = this.search(board, mine === 1 ? 2 : 1, mine, 4, -Infinity, Infinity);
       board[row][column] = 0;
-      if (wins) return { type: 'drop', column };
-    }
-    for (const column of legal) {
-      const row = rowFor(column);
-      board[row][column] = theirs;
-      const blocks = this.hasLine(board, row, column, theirs);
-      board[row][column] = 0;
-      if (blocks) return { type: 'drop', column };
-    }
-    const preferred = [3, 2, 4, 1, 5, 0, 6].filter((column) => legal.includes(column));
-    const column = Math.random() < 0.8 ? preferred[0] : preferred[randomInt(preferred.length)];
-    return { type: 'drop', column: column ?? legal[0] ?? 0 };
+      return { column, score: score + (Math.random() * 0.8) };
+    }).sort((a, b) => b.score - a.score);
+    // A shallow minimax gives the bot real fork/block awareness. The small
+    // temperature prevents identical bots from following one memorized line.
+    return { type: 'drop', column: ranked[0].column };
   }
+
+  private drop(board: number[][], column: number, value: number): number {
+    let row = 5;
+    while (row >= 0 && board[row][column] !== 0) row -= 1;
+    if (row < 0) throw new IllegalMoveError('That column is full.');
+    board[row][column] = value;
+    return row;
+  }
+
+  private search(board: number[][], player: number, mine: number, depth: number, alpha: number, beta: number): number {
+    const opponent = mine === 1 ? 2 : 1;
+    if (this.hasAnyLine(board, mine)) return 100000 + depth * 100;
+    if (this.hasAnyLine(board, opponent)) return -100000 - depth * 100;
+    const legal = Array.from({ length: 7 }, (_, column) => column).filter((column) => board[0][column] === 0);
+    if (!legal.length || depth === 0) return this.positionScore(board, mine, opponent);
+    const maximizing = player === mine;
+    let best = maximizing ? -Infinity : Infinity;
+    for (const column of legal) {
+      const row = this.drop(board, column, player);
+      const value = this.search(board, maximizing ? opponent : mine, mine, depth - 1, alpha, beta);
+      board[row][column] = 0;
+      if (maximizing) {
+        best = Math.max(best, value);
+        alpha = Math.max(alpha, best);
+      } else {
+        best = Math.min(best, value);
+        beta = Math.min(beta, best);
+      }
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+
+  private positionScore(board: number[][], mine: number, opponent: number): number {
+    let score = 0;
+    for (let row = 0; row < 6; row += 1) for (let column = 0; column < 7; column += 1) {
+      if (board[row][column] === mine) score += 3 - Math.abs(3 - column);
+      if (board[row][column] === opponent) score -= 3 - Math.abs(3 - column);
+    }
+    for (const window of this.windows(board)) {
+      const own = window.filter((value) => value === mine).length;
+      const foe = window.filter((value) => value === opponent).length;
+      const empty = 4 - own - foe;
+      if (foe === 0) score += own === 3 && empty === 1 ? 42 : own === 2 && empty === 2 ? 8 : own;
+      if (own === 0) score -= foe === 3 && empty === 1 ? 48 : foe === 2 && empty === 2 ? 9 : foe;
+    }
+    return score;
+  }
+
+  private windows(board: number[][]): number[][] {
+    const windows: number[][] = [];
+    for (let row = 0; row < 6; row += 1) for (let column = 0; column < 7; column += 1) {
+      for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+        const cells: number[] = [];
+        for (let step = 0; step < 4; step += 1) {
+          const r = row + dr * step; const c = column + dc * step;
+          if (r < 0 || r >= 6 || c < 0 || c >= 7) { cells.length = 0; break; }
+          cells.push(board[r][c]);
+        }
+        if (cells.length === 4) windows.push(cells);
+      }
+    }
+    return windows;
+  }
+
+  private hasAnyLine(board: number[][], value: number): boolean {
+    for (let row = 0; row < 6; row += 1) for (let column = 0; column < 7; column += 1) if (board[row][column] === value && this.hasLine(board, row, column, value)) return true;
+    return false;
+  }
+
   private hasLine(board: number[][], row: number, col: number, value: number): boolean { return [[1, 0], [0, 1], [1, 1], [1, -1]].some(([dr, dc]) => 1 + this.count(board, row, col, dr, dc, value) + this.count(board, row, col, -dr, -dc, value) >= 4); }
   private count(board: number[][], row: number, col: number, dr: number, dc: number, value: number): number { let count = 0; let r = row + dr; let c = col + dc; while (r >= 0 && r < 6 && c >= 0 && c < 7 && board[r][c] === value) { count += 1; r += dr; c += dc; } return count; }
 }
@@ -67,16 +128,146 @@ export class MancalaEngine implements GameEngine {
 
 export class CheckersEngine implements GameEngine {
   readonly id: GameId = 'checkers';
-  create(players: GamePlayer[]): GameState { const board: (string | null)[][] = Array.from({ length: 8 }, () => Array(8).fill(null)); for (let r = 0; r < 3; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'b'; for (let r = 5; r < 8; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'r'; return { board, turnIndex: 0, turnPlayerId: players[0].id, forcedFrom: null, winnerId: null, finished: false }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { turnCheck(state, actorId); if (action.type !== 'move') throw new IllegalMoveError('Use the move action.'); const from = this.square(action.fromRow, action.fromCol); const to = this.square(action.toRow, action.toCol); const board = state.board as (string | null)[][]; const piece = board[from.r][from.c]; const color = players.findIndex((p) => p.id === actorId) === 0 ? 'r' : 'b'; if (!piece || piece.toLowerCase() !== color) throw new IllegalMoveError('That is not your piece.'); if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).r !== from.r) throw new IllegalMoveError('You must continue the capture.'); if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).c !== from.c) throw new IllegalMoveError('You must continue the capture.'); if (board[to.r][to.c]) throw new IllegalMoveError('The destination is occupied.'); const moves = this.movesFor(board, from.r, from.c, piece, this.hasAnyCapture(board, color)); if (!moves.some((m) => m.r === to.r && m.c === to.c)) throw new IllegalMoveError('That move is not legal.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const board = next.board as (string | null)[][]; const fr = action.fromRow as number; const fc = action.fromCol as number; const tr = action.toRow as number; const tc = action.toCol as number; let piece = board[fr][fc] as string; board[fr][fc] = null; const isCapture = Math.abs(tr - fr) === 2; if (isCapture) board[(fr + tr) / 2][(fc + tc) / 2] = null; if (piece === 'r' && tr === 0) piece = 'R'; if (piece === 'b' && tr === 7) piece = 'B'; board[tr][tc] = piece; const color = players.findIndex((p) => p.id === actorId) === 0 ? 'r' : 'b'; const moreCapture = isCapture && this.movesFor(board, tr, tc, piece, true).some((m) => m.r !== tr || m.c !== tc); if (moreCapture) { next.forcedFrom = { r: tr, c: tc }; } else { next.forcedFrom = null; rotateTurn(next, players); } const nextColor = players.findIndex((p) => p.id === next.turnPlayerId) === 0 ? 'r' : 'b'; if (!this.hasPieces(board, nextColor) || !this.hasAnyLegalMove(board, nextColor)) { next.finished = true; next.winnerId = actorId; } void color; return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const board = state.board as (string | null)[][]; const color = players.findIndex((p) => p.id === botId) === 0 ? 'r' : 'b'; const moves: Action[] = []; for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) { const piece = board[r][c]; if (piece?.toLowerCase() === color) for (const move of this.movesFor(board, r, c, piece, this.hasAnyCapture(board, color))) moves.push({ type: 'move', fromRow: r, fromCol: c, toRow: move.r, toCol: move.c }); } return moves[randomInt(moves.length)] ?? { type: 'move', fromRow: 0, fromCol: 0, toRow: 0, toCol: 0 }; }
+  create(players: GamePlayer[]): GameState {
+    if (players.length !== 2) throw new IllegalMoveError('Checkers requires exactly two players.');
+    const board: (string | null)[][] = Array.from({ length: 8 }, () => Array(8).fill(null));
+    for (let r = 0; r < 3; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'b';
+    for (let r = 5; r < 8; r += 1) for (let c = 0; c < 8; c += 1) if ((r + c) % 2 === 1) board[r][c] = 'r';
+    return { board, turnIndex: 0, turnPlayerId: players[0].id, forcedFrom: null, winnerId: null, finished: false, draw: false, halfmoveClock: 0, positionCounts: { [this.positionKey(board)]: 1 } };
+  }
+  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void {
+    turnCheck(state, actorId);
+    if (action.type !== 'move') throw new IllegalMoveError('Use the move action.');
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    const from = this.square(action.fromRow, action.fromCol);
+    const to = this.square(action.toRow, action.toCol);
+    const board = state.board as (string | null)[][];
+    const piece = board[from.r][from.c];
+    const color = side === 0 ? 'r' : 'b';
+    if (!piece || piece.toLowerCase() !== color) throw new IllegalMoveError('That is not your piece.');
+    if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).r !== from.r) throw new IllegalMoveError('You must continue the capture.');
+    if (state.forcedFrom && (state.forcedFrom as { r: number; c: number }).c !== from.c) throw new IllegalMoveError('You must continue the capture.');
+    if (board[to.r][to.c]) throw new IllegalMoveError('The destination is occupied.');
+    const moves = this.movesFor(board, from.r, from.c, piece, this.hasAnyCapture(board, color));
+    if (!moves.some((move) => move.r === to.r && move.c === to.c)) throw new IllegalMoveError('That move is not legal.');
+  }
+  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state);
+    const board = next.board as (string | null)[][];
+    const fr = action.fromRow as number;
+    const fc = action.fromCol as number;
+    const tr = action.toRow as number;
+    const tc = action.toCol as number;
+    let piece = board[fr][fc] as string;
+    const wasKing = piece === piece.toUpperCase();
+    board[fr][fc] = null;
+    const isCapture = Math.abs(tr - fr) === 2;
+    if (isCapture) board[(fr + tr) / 2][(fc + tc) / 2] = null;
+    if (piece === 'r' && tr === 0) piece = 'R';
+    if (piece === 'b' && tr === 7) piece = 'B';
+    board[tr][tc] = piece;
+    const promoted = !wasKing && piece === piece.toUpperCase();
+    // In American checkers a man that reaches the king row is crowned and
+    // the capture sequence ends immediately; it does not continue as a king.
+    const moreCapture = !promoted && isCapture && this.movesFor(board, tr, tc, piece, true).length > 0;
+    if (moreCapture) {
+      next.forcedFrom = { r: tr, c: tc };
+    } else {
+      next.forcedFrom = null;
+      rotateTurn(next, players);
+    }
+    const nextColor = players.findIndex((player) => player.id === next.turnPlayerId) === 0 ? 'r' : 'b';
+    if (!this.hasPieces(board, nextColor) || !this.hasAnyLegalMove(board, nextColor)) {
+      next.finished = true;
+      next.winnerId = actorId;
+    }
+    const halfmoveClock = isCapture || promoted ? 0 : Number(next.halfmoveClock ?? 0) + 1;
+    next.halfmoveClock = halfmoveClock;
+    const positionCounts = { ...((next.positionCounts as Record<string, number> | undefined) ?? {}) };
+    const key = this.positionKey(board, Number(next.turnIndex));
+    positionCounts[key] = (positionCounts[key] ?? 0) + 1;
+    next.positionCounts = positionCounts;
+    if (!next.finished && (halfmoveClock >= 80 || positionCounts[key] >= 3)) {
+      next.finished = true;
+      next.draw = true;
+      next.drawReason = halfmoveClock >= 80 ? 'forty_move_rule' : 'threefold_repetition';
+    }
+    return next;
+  }
+  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: Boolean(state.draw) }; }
+  botAction(state: GameState, botId: string, players: GamePlayer[]): Action {
+    const board = state.board as (string | null)[][];
+    const color = players.findIndex((player) => player.id === botId) === 0 ? 'r' : 'b';
+    const forced = state.forcedFrom as { r: number; c: number } | null;
+    const mustCapture = this.hasAnyCapture(board, color);
+    const moves: Action[] = [];
+    for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) {
+      if (forced && (forced.r !== r || forced.c !== c)) continue;
+      const piece = board[r][c];
+      if (piece?.toLowerCase() !== color) continue;
+      for (const move of this.movesFor(board, r, c, piece, mustCapture)) moves.push({ type: 'move', fromRow: r, fromCol: c, toRow: move.r, toCol: move.c });
+    }
+    // Evaluate the resulting position instead of always taking the first
+    // capture. This keeps bots tactical without making them play a perfect,
+    // repetitive opening book.
+    const scored = moves.map((move) => {
+      const copy = board.map((row) => [...row]);
+      this.simulateMove(copy, move);
+      const capture = Math.abs((move.toRow as number) - (move.fromRow as number)) === 2;
+      const promotion = (move.toRow as number) === (color === 'r' ? 0 : 7);
+      let score = this.evaluateBoard(copy, color);
+      if (capture) score += 45;
+      if (promotion) score += 35;
+      score += Math.random() * 7;
+      return { move, score };
+    }).sort((a, b) => b.score - a.score);
+    return scored[0]?.move ?? { type: 'move', fromRow: 0, fromCol: 0, toRow: 0, toCol: 0 };
+  }
+
+  private simulateMove(board: (string | null)[][], move: Action): void {
+    const fromRow = move.fromRow as number; const fromCol = move.fromCol as number;
+    const toRow = move.toRow as number; const toCol = move.toCol as number;
+    const piece = board[fromRow][fromCol] as string;
+    board[fromRow][fromCol] = null;
+    if (Math.abs(toRow - fromRow) === 2) board[(fromRow + toRow) / 2][(fromCol + toCol) / 2] = null;
+    board[toRow][toCol] = piece === 'r' && toRow === 0 ? 'R' : piece === 'b' && toRow === 7 ? 'B' : piece;
+  }
+
+  private evaluateBoard(board: (string | null)[][], color: string): number {
+    const enemy = color === 'r' ? 'b' : 'r';
+    let score = 0;
+    for (let row = 0; row < 8; row += 1) for (let column = 0; column < 8; column += 1) {
+      const piece = board[row][column];
+      if (!piece) continue;
+      const mine = piece.toLowerCase() === color;
+      const king = piece === piece.toUpperCase();
+      const material = king ? 175 : 100;
+      const advance = king ? 0 : color === 'r' ? 7 - row : row;
+      const center = 3 - Math.abs(3.5 - column);
+      score += mine ? material + advance * 2 + center * 3 : -(material + (king ? 0 : (enemy === 'r' ? 7 - row : row) * 2) + center * 2);
+    }
+    const ownMobility = this.countMoves(board, color);
+    const enemyMobility = this.countMoves(board, enemy);
+    return score + (ownMobility - enemyMobility) * 5;
+  }
+
+  private countMoves(board: (string | null)[][], color: string): number {
+    const captures = this.hasAnyCapture(board, color);
+    let count = 0;
+    for (let row = 0; row < 8; row += 1) for (let column = 0; column < 8; column += 1) {
+      const piece = board[row][column];
+      if (piece?.toLowerCase() === color) count += this.movesFor(board, row, column, piece, captures).length;
+    }
+    return count;
+  }
   private square(r: unknown, c: unknown): { r: number; c: number } { return { r: asInt(r, 'row', 0, 7), c: asInt(c, 'column', 0, 7) }; }
   private movesFor(board: (string | null)[][], r: number, c: number, piece: string, captureOnly: boolean): Array<{ r: number; c: number }> { const directions = piece.toUpperCase() === piece ? [[1, 1], [1, -1], [-1, 1], [-1, -1]] : piece === 'r' ? [[-1, 1], [-1, -1]] : [[1, 1], [1, -1]]; const moves: Array<{ r: number; c: number }> = []; for (const [dr, dc] of directions) { const nr = r + dr; const nc = c + dc; const jr = r + dr * 2; const jc = c + dc * 2; if (!captureOnly && this.inside(nr, nc) && !board[nr][nc]) moves.push({ r: nr, c: nc }); if (this.inside(jr, jc) && board[nr]?.[nc] && board[nr][nc]?.toLowerCase() !== piece.toLowerCase() && !board[jr][jc]) moves.push({ r: jr, c: jc }); } return moves; }
   private hasAnyCapture(board: (string | null)[][], color: string): boolean { for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) { const piece = board[r][c]; if (piece?.toLowerCase() === color && this.movesFor(board, r, c, piece, true).some((m) => Math.abs(m.r - r) === 2)) return true; } return false; }
   private hasAnyLegalMove(board: (string | null)[][], color: string): boolean { const capture = this.hasAnyCapture(board, color); for (let r = 0; r < 8; r += 1) for (let c = 0; c < 8; c += 1) { const piece = board[r][c]; if (piece?.toLowerCase() === color && this.movesFor(board, r, c, piece, capture).length) return true; } return false; }
   private hasPieces(board: (string | null)[][], color: string): boolean { return board.some((row) => row.some((piece) => piece?.toLowerCase() === color)); }
+  private positionKey(board: (string | null)[][], turn = 0): string { return `${board.map((row) => row.map((piece) => piece ?? '.').join('')).join('/')}|${turn}`; }
   private inside(r: number, c: number): boolean { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 }
 
@@ -231,6 +422,12 @@ export class ChessEngine implements GameEngine {
         const hanging = victim ? Math.max(0, this.pieceValue(attacker) - this.pieceValue(victim)) : this.pieceValue(attacker);
         score -= hanging * 0.6;
       }
+      const replies = this.legalMoves(copy, enemy);
+      const strongestReply = replies.reduce((value, reply) => {
+        const replyTarget = copy.board[reply.tr][reply.tc];
+        return Math.max(value, replyTarget ? this.pieceValue(replyTarget) : 0);
+      }, 0);
+      score -= strongestReply * 0.45;
       if (score > bestScore) { bestScore = score; best = move; }
     }
     return {

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -57,30 +58,30 @@ class _SketchGuessGameBoardState extends State<SketchGuessGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.14), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.brush_rounded, color: AppTheme.violet)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Sketch & Guess', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Sketch & Guess', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _SketchBadge(label: 'Round $round / $rounds'),
           ]),
           const SizedBox(height: 12),
           if (phase == 'drawing' && isDrawer && prompt != null) _PromptBanner(prompt: prompt),
-          if (phase == 'drawing' && !isDrawer) Text('The drawer is sketching a secret prompt…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12)),
-          if (phase == 'guessing') Text(isDrawer ? 'Your sketch is live · wait for the guesses.' : 'What did the drawer draw? First correct guess scores three points.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12)),
-          if (phase == 'guessing') ...[const SizedBox(height: 8), Text('$guesses guess${guesses == 1 ? '' : 'es'} received', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))],
+          if (phase == 'drawing' && !isDrawer) VibeText('The drawer is sketching a secret prompt…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12)),
+          if (phase == 'guessing') VibeText(isDrawer ? 'Your sketch is live · wait for the guesses.' : 'What did the drawer draw? First correct guess scores three points.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12)),
+          if (phase == 'guessing') ...[const SizedBox(height: 8), VibeText('$guesses guess${guesses == 1 ? '' : 'es'} received', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))],
           const SizedBox(height: 12),
           _SketchPad(strokes: drawing, enabled: phase == 'drawing' && isDrawer && isTurn && !finished, onStrokesChanged: (value) => setState(() => localStrokes = value)),
           const SizedBox(height: 12),
           if (phase == 'drawing' && isDrawer && isTurn && !finished) Row(children: [
-            OutlinedButton.icon(onPressed: () => setState(() => localStrokes = <List<Offset>>[]), icon: const Icon(Icons.delete_sweep_rounded), label: const Text('Clear')),
+            OutlinedButton.icon(onPressed: () => setState(() => localStrokes = <List<Offset>>[]), icon: const Icon(Icons.delete_sweep_rounded), label: const VibeText('Clear')),
             const SizedBox(width: 9),
-            Expanded(child: FilledButton.icon(onPressed: localStrokes.isEmpty ? null : () => widget.onAction({'type': 'draw', 'strokes': _wireStrokes(localStrokes)}), icon: const Icon(Icons.send_rounded), label: const Text('Submit sketch'))),
+            Expanded(child: FilledButton.icon(onPressed: localStrokes.isEmpty ? null : () => widget.onAction({'type': 'draw', 'strokes': _wireStrokes(localStrokes)}), icon: const Icon(Icons.send_rounded), label: const VibeText('Submit sketch'))),
           ]),
-          if (phase == 'drawing' && !isDrawer) Text('You will get the first guess when the sketch is submitted.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+          if (phase == 'drawing' && !isDrawer) VibeText('You will get the first guess when the sketch is submitted.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
           if (phase == 'guessing' && !isDrawer && isTurn && !finished) ...[
             TextField(controller: guess, maxLength: 40, textInputAction: TextInputAction.send, onSubmitted: (_) => _sendGuess(), decoration: const InputDecoration(hintText: 'Type your guess', counterText: '')),
             const SizedBox(height: 8),
-            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _sendGuess, icon: const Icon(Icons.lightbulb_rounded), label: const Text('Submit guess'))),
+            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _sendGuess, icon: const Icon(Icons.lightbulb_rounded), label: const VibeText('Submit guess'))),
           ],
-          if (phase == 'guessing' && (isDrawer || !isTurn) && !finished) Text(isDrawer ? 'Guesses appear here as players try.' : 'Waiting for the next guess…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-          if (finished) ...[const SizedBox(height: 4), Text('All prompts are complete. Highest score wins.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12))],
+          if (phase == 'guessing' && (isDrawer || !isTurn) && !finished) VibeText(isDrawer ? 'Guesses appear here as players try.' : 'Waiting for the next guess…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+          if (finished) ...[const SizedBox(height: 4), VibeText('All prompts are complete. Highest score wins.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12))],
           const SizedBox(height: 14),
           _SketchScores(match: widget.match, scores: scores, viewerSeat: widget.match.viewerSeat),
         ]),
@@ -166,14 +167,14 @@ class _PromptBanner extends StatelessWidget {
   const _PromptBanner({required this.prompt});
   final String prompt;
   @override
-  Widget build(BuildContext context) => Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.16), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.gold.withOpacity(.45))), child: Row(children: [const Icon(Icons.visibility_off_rounded, size: 18, color: AppTheme.gold), const SizedBox(width: 8), const Text('Draw this:', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(width: 5), Expanded(child: Text(prompt, style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.gold)))]));
+  Widget build(BuildContext context) => Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.16), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.gold.withOpacity(.45))), child: Row(children: [const Icon(Icons.visibility_off_rounded, size: 18, color: AppTheme.gold), const SizedBox(width: 8), const VibeText('Draw this:', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(width: 5), Expanded(child: VibeText(prompt, style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.gold)))]));
 }
 
 class _SketchBadge extends StatelessWidget {
   const _SketchBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.13), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.13), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 12)));
 }
 
 class _SketchScores extends StatelessWidget {
@@ -182,5 +183,5 @@ class _SketchScores extends StatelessWidget {
   final List<int> scores;
   final int viewerSeat;
   @override
-  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (var index = 0; index < match.players.length; index += 1) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: index == viewerSeat ? AppTheme.violet.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: index == viewerSeat ? AppTheme.violet.withOpacity(.3) : Theme.of(context).dividerColor)), child: Text('${match.players[index]['displayName']?.toString() ?? 'Player'} · ${scores.length > index ? scores[index] : 0}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)))]);
+  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (var index = 0; index < match.players.length; index += 1) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: index == viewerSeat ? AppTheme.violet.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: index == viewerSeat ? AppTheme.violet.withOpacity(.3) : Theme.of(context).dividerColor)), child: VibeText('${match.players[index]['displayName']?.toString() ?? 'Player'} · ${scores.length > index ? scores[index] : 0}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)))]);
 }

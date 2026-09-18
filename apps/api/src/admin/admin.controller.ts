@@ -6,6 +6,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 import { AdminService } from './admin.service';
 import { AdjustWalletDto, BanUserDto, CreateSeasonDto, CreateSeasonRewardDto, CreateShopItemDto, ResolveReportDto, UpdateGameDto, UpdateSeasonDto, UpdateShopItemDto, UpdateUserAdminDto } from './admin.dto';
 import { RateLimit } from '../common/rate-limit/rate-limit.decorator';
+import { forbidden } from '../common/errors';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('moderator', 'admin')
@@ -42,7 +43,10 @@ export class AdminController {
 
   // Games
   @Get('games') games() { return this.admin.games(); }
-  @Patch('games/:id') @Roles('admin') updateGame(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateGameDto) { return this.admin.updateGame(user.id, id, dto); }
+  @Patch('games/:id') @Roles('moderator', 'admin') updateGame(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateGameDto) {
+    if (user.role === 'moderator' && Object.keys(dto).some((key) => key !== 'isActive')) throw forbidden('Moderators may only change game availability.');
+    return this.admin.updateGame(user.id, id, dto);
+  }
 
   // Reports & moderation
   @Get('reports')

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -41,13 +42,13 @@ class _TriviaBattleGameBoardState extends State<TriviaBattleGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.17), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.quiz_rounded, color: AppTheme.gold)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Trivia Battle', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Trivia Battle', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _TriviaBadge(label: '${round + 1} / $rounds'),
           ]),
           const SizedBox(height: 12),
-          if (question['category'] != null) Text(question['category'].toString().toUpperCase(), style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
+          if (question['category'] != null) VibeText(question['category'].toString().toUpperCase(), style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
           const SizedBox(height: 5),
-          Text(question['prompt']?.toString() ?? (finished ? 'The final scores are in.' : 'Loading the next question…'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+          VibeText(question['prompt']?.toString() ?? (finished ? 'The final scores are in.' : 'Loading the next question…'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
           const SizedBox(height: 13),
           if (options.isNotEmpty) ...[
             for (var index = 0; index < options.length; index += 1) ...[
@@ -55,10 +56,10 @@ class _TriviaBattleGameBoardState extends State<TriviaBattleGameBoard> {
               if (index < options.length - 1) const SizedBox(height: 8),
             ],
             const SizedBox(height: 12),
-            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: isTurn && selected != null && !finished ? () => widget.onAction({'type': 'answer', 'answer': selected}) : null, icon: const Icon(Icons.check_circle_rounded), label: Text(isTurn ? 'Lock in answer' : 'Waiting for turn'))),
-          ] else Text(finished ? 'Match complete.' : 'The question will appear after the live state syncs.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700)),
-          if (!finished && !isTurn) ...[const SizedBox(height: 8), Text('The answer order is locked one player at a time so nobody can see another player\'s choice.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11))],
-          if (lastAnswer != null && !finished) ...[const SizedBox(height: 10), Text('Previous round revealed · next question is live.', style: TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 11))],
+            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: isTurn && selected != null && !finished ? () => widget.onAction({'type': 'answer', 'answer': selected}) : null, icon: const Icon(Icons.check_circle_rounded), label: VibeText(isTurn ? 'Lock in answer' : 'Waiting for turn'))),
+          ] else VibeText(finished ? 'Match complete.' : 'The question will appear after the live state syncs.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700)),
+          if (!finished && !isTurn) ...[const SizedBox(height: 8), VibeText('The answer order is locked one player at a time so nobody can see another player\'s choice.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11))],
+          if (lastAnswer != null && !finished) ...[const SizedBox(height: 10), VibeText('Previous round revealed · next question is live.', style: TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w800, fontSize: 11))],
           const SizedBox(height: 14),
           _TriviaScores(match: widget.match, scores: scores, viewerSeat: widget.match.viewerSeat),
         ]),
@@ -90,9 +91,9 @@ class _AnswerOption extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
       decoration: BoxDecoration(color: selected ? AppTheme.gold.withOpacity(.18) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: selected ? AppTheme.gold : Theme.of(context).dividerColor, width: selected ? 2 : 1)),
       child: Row(children: [
-        Container(width: 29, height: 29, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? AppTheme.gold : AppTheme.gold.withOpacity(.14), shape: BoxShape.circle), child: Text(String.fromCharCode(65 + index), style: TextStyle(fontWeight: FontWeight.w900, color: selected ? Colors.white : AppTheme.gold))),
+        Container(width: 29, height: 29, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? AppTheme.gold : AppTheme.gold.withOpacity(.14), shape: BoxShape.circle), child: VibeText(String.fromCharCode(65 + index), style: TextStyle(fontWeight: FontWeight.w900, color: selected ? Colors.white : AppTheme.gold))),
         const SizedBox(width: 10),
-        Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800))),
+        Expanded(child: VibeText(label, style: const TextStyle(fontWeight: FontWeight.w800))),
         if (selected) const Icon(Icons.check_circle_rounded, color: AppTheme.gold),
       ]),
     ),
@@ -103,7 +104,7 @@ class _TriviaBadge extends StatelessWidget {
   const _TriviaBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.16), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900, fontSize: 12)));
 }
 
 class _TriviaScores extends StatelessWidget {
@@ -112,5 +113,5 @@ class _TriviaScores extends StatelessWidget {
   final List<int> scores;
   final int viewerSeat;
   @override
-  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (var index = 0; index < match.players.length; index += 1) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: index == viewerSeat ? AppTheme.gold.withOpacity(.16) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: index == viewerSeat ? AppTheme.gold.withOpacity(.4) : Theme.of(context).dividerColor)), child: Text('${match.players[index]['displayName']?.toString() ?? 'Player'} · ${scores.length > index ? scores[index] : 0}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)))]);
+  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (var index = 0; index < match.players.length; index += 1) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: index == viewerSeat ? AppTheme.gold.withOpacity(.16) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: index == viewerSeat ? AppTheme.gold.withOpacity(.4) : Theme.of(context).dividerColor)), child: VibeText('${match.players[index]['displayName']?.toString() ?? 'Player'} · ${scores.length > index ? scores[index] : 0}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)))]);
 }

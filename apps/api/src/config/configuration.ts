@@ -43,6 +43,11 @@ export default () => {
       devEnabled: process.env.DEV_OTP_ENABLED === 'true',
       webhookUrl: process.env.OTP_WEBHOOK_URL ?? '',
     },
+    devAdmin: {
+      enabled: process.env.NODE_ENV !== 'production' && process.env.DEV_ADMIN_ENABLED !== 'false',
+      username: process.env.DEV_ADMIN_USERNAME ?? 'admin',
+      password: process.env.DEV_ADMIN_PASSWORD ?? 'vibetable-admin',
+    },
     livekit: {
       url: process.env.LIVEKIT_URL ?? '',
       apiKey: process.env.LIVEKIT_API_KEY ?? '',

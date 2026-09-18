@@ -33,7 +33,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
               child: const Icon(Icons.emoji_events_rounded, color: AppTheme.gold, size: 20),
             ),
             const SizedBox(width: 10),
-            Text(strings.isPersian ? 'جدول امتیازات فصل' : 'Season Leaderboard', style: const TextStyle(fontWeight: FontWeight.w900)),
+            VibeText(strings.isPersian ? 'جدول امتیازات فصل' : 'Season Leaderboard', style: const TextStyle(fontWeight: FontWeight.w900)),
           ],
         ),
       ),
@@ -77,7 +77,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                                 for (final game in list)
                                   DropdownMenuItem(
                                     value: game.id,
-                                    child: Text(
+                                    child: VibeText(
                                       game.name,
                                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                                     ),
@@ -164,8 +164,7 @@ class _Leaderboard extends ConsumerWidget {
                           shape: BoxShape.circle,
                           border: isTop3 ? Border.all(color: medalColor.withOpacity(.5), width: 1.5) : null,
                         ),
-                        child: Text(
-                          '$rank',
+                        child: VibeText('$rank',
                           style: TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 15,
@@ -180,12 +179,12 @@ class _Leaderboard extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            VibeText(
                               entry['displayName']?.toString() ?? 'Player',
                               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
                             ),
                             const SizedBox(height: 2),
-                            Text(
+                            VibeText(
                               strings.isPersian
                                   ? '${entry['wins'] ?? 0} برد · ${entry['gamesPlayed'] ?? 0} بازی'
                                   : '${entry['wins'] ?? 0} wins · ${entry['gamesPlayed'] ?? 0} matches',
@@ -206,8 +205,7 @@ class _Leaderboard extends ConsumerWidget {
                           children: [
                             const Icon(Icons.star_rounded, size: 14, color: AppTheme.gold),
                             const SizedBox(width: 4),
-                            Text(
-                              '${entry['rating'] ?? 1000}',
+                            VibeText('${entry['rating'] ?? 1000}',
                               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppTheme.violet),
                             ),
                           ],

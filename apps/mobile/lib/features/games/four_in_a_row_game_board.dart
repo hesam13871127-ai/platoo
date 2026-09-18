@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -70,9 +71,9 @@ class _FourInARowGameBoardState extends State<FourInARowGameBoard> {
         Row(children: [
           Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.oceanGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(AppTheme.violet, strength: .35)), child: const Icon(Icons.view_week_rounded, color: Colors.white, size: 20)),
           const SizedBox(width: 10),
-          Text('4 in a Row', style: Theme.of(context).textTheme.titleLarge),
+          VibeText('4 in a Row', style: Theme.of(context).textTheme.titleLarge),
           const Spacer(),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.violet.withOpacity(.3))), child: Text('$moveCount / 42', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.violet.withOpacity(.3))), child: VibeText('$moveCount / 42', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12))),
         ]),
         const SizedBox(height: 8),
         _StatusDot(text: _status(isTurn), active: isTurn, finished: widget.match.status == 'finished'),
@@ -186,7 +187,7 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = finished ? AppTheme.gold : active ? AppTheme.coral : Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
+    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: VibeText(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
   }
 }
 
@@ -201,7 +202,7 @@ class _SeatChip extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
           decoration: BoxDecoration(color: active ? color.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(13), border: Border.all(color: active ? color : Theme.of(context).dividerColor, width: active ? 1.8 : 1)),
-          child: Row(children: [Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 5)])), const SizedBox(width: 7), Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)))]),
+          child: Row(children: [Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 5)])), const SizedBox(width: 7), Expanded(child: VibeText(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)))]),
         ),
       );
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -41,11 +42,11 @@ class _MiniGolfGameBoardState extends State<MiniGolfGameBoard> {
           Row(children: [
             Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.15), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.golf_course_rounded, color: AppTheme.mint)),
             const SizedBox(width: 10),
-            const Expanded(child: Text('Mini Golf', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
+            const Expanded(child: VibeText('Mini Golf', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19))),
             _GolfBadge(label: 'Hole $hole / $holes'),
           ]),
           const SizedBox(height: 12),
-          Text(finished ? 'Lowest total score wins.' : isTurn ? 'Your turn · choose how many strokes this hole takes.' : 'Each player completes the hole before the next hole starts.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
+          VibeText(finished ? 'Lowest total score wins.' : isTurn ? 'Your turn · choose how many strokes this hole takes.' : 'Each player completes the hole before the next hole starts.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
           _Course(hole: hole, par: par, lastStroke: widget.state['lastStroke'] as Map?),
           const SizedBox(height: 13),
@@ -53,14 +54,14 @@ class _MiniGolfGameBoardState extends State<MiniGolfGameBoard> {
           const SizedBox(height: 13),
           if (isTurn && !finished) ...[
             Row(children: [
-              const Text('Strokes', style: TextStyle(fontWeight: FontWeight.w900)),
+              const VibeText('Strokes', style: TextStyle(fontWeight: FontWeight.w900)),
               const Spacer(),
               IconButton(onPressed: strokes > 1 ? () => setState(() => strokes -= 1) : null, icon: const Icon(Icons.remove_circle_outline_rounded)),
-              Container(width: 48, alignment: Alignment.center, padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.13), borderRadius: BorderRadius.circular(12)), child: Text('$strokes', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppTheme.mint))),
+              Container(width: 48, alignment: Alignment.center, padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.13), borderRadius: BorderRadius.circular(12)), child: VibeText('$strokes', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppTheme.mint))),
               IconButton(onPressed: strokes < 12 ? () => setState(() => strokes += 1) : null, icon: const Icon(Icons.add_circle_outline_rounded)),
             ]),
-            FilledButton.icon(onPressed: () => widget.onAction({'type': 'putt', 'strokes': strokes}), icon: const Icon(Icons.sports_golf_rounded), label: Text('Putt in $strokes')),
-          ] else if (!finished) Text('Waiting for the active player to finish this hole…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            FilledButton.icon(onPressed: () => widget.onAction({'type': 'putt', 'strokes': strokes}), icon: const Icon(Icons.sports_golf_rounded), label: VibeText('Putt in $strokes')),
+          ] else if (!finished) VibeText('Waiting for the active player to finish this hole…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ]),
       ),
     );
@@ -78,7 +79,7 @@ class _GolfBadge extends StatelessWidget {
   const _GolfBadge({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.14), borderRadius: BorderRadius.circular(12)), child: Text(label, style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppTheme.mint.withOpacity(.14), borderRadius: BorderRadius.circular(12)), child: VibeText(label, style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12)));
 }
 
 class _Course extends StatelessWidget {
@@ -93,8 +94,8 @@ class _Course extends StatelessWidget {
     decoration: BoxDecoration(color: const Color(0xFF195E4B), borderRadius: BorderRadius.circular(20), boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 7, offset: Offset(0, 3))]),
     child: Stack(children: [
       Positioned.fill(child: CustomPaint(painter: _MiniGolfPainter(hole: hole))),
-      Positioned(left: 15, top: 13, child: Text('PAR $par', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w900, fontSize: 11))),
-      if (lastStroke != null) Positioned(right: 15, top: 13, child: Text('Last: ${lastStroke!['strokes'] ?? '-'}', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800, fontSize: 11))),
+      Positioned(left: 15, top: 13, child: VibeText('PAR $par', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w900, fontSize: 11))),
+      if (lastStroke != null) Positioned(right: 15, top: 13, child: VibeText('Last: ${lastStroke!['strokes'] ?? '-'}', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800, fontSize: 11))),
     ]),
   );
 }
@@ -139,16 +140,16 @@ class _ScoreTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(children: [
     Row(children: [
-      const Expanded(child: Text('PLAYER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5))),
-      const SizedBox(width: 60, child: Text('HOLE', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5))),
-      const SizedBox(width: 60, child: Text('TOTAL', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5))),
+      const Expanded(child: VibeText('PLAYER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5))),
+      const SizedBox(width: 60, child: VibeText('HOLE', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5))),
+      const SizedBox(width: 60, child: VibeText('TOTAL', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5))),
     ]),
     const Divider(height: 14),
     for (var index = 0; index < match.players.length; index += 1) ...[
       Row(children: [
-        Expanded(child: Row(children: [if (index == viewerSeat) const Icon(Icons.person_rounded, size: 16, color: AppTheme.mint), if (index == viewerSeat) const SizedBox(width: 4), Flexible(child: Text(match.players[index]['displayName']?.toString() ?? 'Player ${index + 1}', overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)))])),
-        SizedBox(width: 60, child: Text(holeStrokes.length > index && holeStrokes[index] != null ? '${holeStrokes[index]}' : '—', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800))),
-        SizedBox(width: 60, child: Text(totals.length > index ? '${totals[index]}' : '0', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.mint))),
+        Expanded(child: Row(children: [if (index == viewerSeat) const Icon(Icons.person_rounded, size: 16, color: AppTheme.mint), if (index == viewerSeat) const SizedBox(width: 4), Flexible(child: VibeText(match.players[index]['displayName']?.toString() ?? 'Player ${index + 1}', overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)))])),
+        SizedBox(width: 60, child: VibeText(holeStrokes.length > index && holeStrokes[index] != null ? '${holeStrokes[index]}' : '—', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800))),
+        SizedBox(width: 60, child: VibeText(totals.length > index ? '${totals[index]}' : '0', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.mint))),
       ]),
       if (index < match.players.length - 1) const SizedBox(height: 9),
     ],

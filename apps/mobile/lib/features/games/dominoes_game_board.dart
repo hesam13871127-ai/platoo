@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/vibe_components.dart';
 import '../../models/models.dart';
@@ -60,7 +61,7 @@ class _DominoesGameBoardState extends State<DominoesGameBoard> {
         Row(children: [
           Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: AppTheme.oceanGradient, borderRadius: BorderRadius.circular(13), boxShadow: AppTheme.glow(AppTheme.violet, strength: .35)), child: const Icon(Icons.view_carousel_rounded, color: Colors.white, size: 20)),
           const SizedBox(width: 10),
-          Text('Dominoes', style: Theme.of(context).textTheme.titleLarge),
+          VibeText('Dominoes', style: Theme.of(context).textTheme.titleLarge),
           const Spacer(),
           _StatPill(icon: Icons.layers_rounded, label: '$boneyardCount draw'),
         ]),
@@ -72,13 +73,13 @@ class _DominoesGameBoardState extends State<DominoesGameBoard> {
         _OpponentCounts(match: widget.match, handSizes: handSizes, viewerSeat: widget.match.viewerSeat, turnPlayerId: widget.state['turnPlayerId']?.toString()),
         const SizedBox(height: 13),
         Row(children: [
-          Text('Your hand', style: Theme.of(context).textTheme.titleMedium),
+          VibeText('Your hand', style: Theme.of(context).textTheme.titleMedium),
           const Spacer(),
-          if (selected != null) Text('${selected[0]}–${selected[1]}', style: const TextStyle(color: AppTheme.violet, fontSize: 13, fontWeight: FontWeight.w900)),
+          if (selected != null) VibeText('${selected[0]}–${selected[1]}', style: const TextStyle(color: AppTheme.violet, fontSize: 13, fontWeight: FontWeight.w900)),
         ]),
         const SizedBox(height: 8),
         if (hand.isEmpty)
-          Text('Your dominoes are hidden until the table syncs.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))
+          VibeText('Your dominoes are hidden until the table syncs.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))
         else
           _HandView(hand: hand, legal: legal, fresh: _fresh, selectedIndex: selectedIndex, enabled: isTurn && !finished, onSelect: (index) => setState(() => selectedIndex = selectedIndex == index ? null : index)),
         const SizedBox(height: 12),
@@ -96,9 +97,9 @@ class _DominoesGameBoardState extends State<DominoesGameBoard> {
         ] else if (canDraw)
           VibePrimaryButton(onPressed: () => widget.onAction({'type': 'draw'}), icon: Icons.add_rounded, label: 'Draw a tile')
         else if (canPass)
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => widget.onAction({'type': 'pass'}), icon: const Icon(Icons.skip_next_rounded), label: const Text('Pass · block the round')))
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => widget.onAction({'type': 'pass'}), icon: const Icon(Icons.skip_next_rounded), label: const VibeText('Pass · block the round')))
         else if (!isTurn && !finished)
-          Text('Waiting for the active player…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          VibeText('Waiting for the active player…', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ],
     );
   }
@@ -135,7 +136,7 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = finished ? AppTheme.gold : active ? AppTheme.violet : Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
+    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(.5), blurRadius: 8)])), const SizedBox(width: 9), Expanded(child: VibeText(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: active && !finished ? null : Theme.of(context).colorScheme.onSurfaceVariant)))]);
   }
 }
 
@@ -150,13 +151,13 @@ class _ChainView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(color: dark ? const Color(0xFF23202E) : const Color(0xFFF5F1FF), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppTheme.violet.withOpacity(.25))),
       child: chain.length < 2
-          ? const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 18), child: Text('The opening tile will appear here')))
+          ? const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 18), child: VibeText('The opening tile will appear here')))
           : Column(
               children: [
                 Row(children: [
                   _EndBadge(value: chain.first, label: 'left'),
                   const Spacer(),
-                  Text('${chain.length - 1} tiles', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  VibeText('${chain.length - 1} tiles', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   const Spacer(),
                   _EndBadge(value: chain.last, label: 'right'),
                 ]),
@@ -184,7 +185,7 @@ class _EndBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.14), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.violet.withOpacity(.35))),
-        child: Text('$label · $value', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppTheme.violet)),
+        child: VibeText('$label · $value', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppTheme.violet)),
       );
 }
 
@@ -216,7 +217,7 @@ class _HandView extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     _DominoTile(first: hand[index][0], second: hand[index][1], selected: selected, enabled: playable, glow: enabled && legal.contains(index)),
-                    if (fresh.contains(index)) Positioned(top: -7, right: -5, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: AppTheme.gold, borderRadius: BorderRadius.circular(99), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]), child: const Text('new', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)))),
+                    if (fresh.contains(index)) Positioned(top: -7, right: -5, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(color: AppTheme.gold, borderRadius: BorderRadius.circular(99), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]), child: const VibeText('new', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)))),
                   ],
                 ),
               ),
@@ -292,7 +293,7 @@ class _PlaceButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => PressableScale(
         onTap: onTap,
-        child: Container(padding: const EdgeInsets.symmetric(vertical: 13), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.13), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.violet.withOpacity(.45))), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 18, color: AppTheme.violet), const SizedBox(width: 7), Text(label, style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.violet))])),
+        child: Container(padding: const EdgeInsets.symmetric(vertical: 13), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.13), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.violet.withOpacity(.45))), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 18, color: AppTheme.violet), const SizedBox(width: 7), VibeText(label, style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.violet))])),
       );
 }
 
@@ -301,7 +302,7 @@ class _StatPill extends StatelessWidget {
   final IconData icon;
   final String label;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppTheme.violet.withOpacity(.3))), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 15, color: AppTheme.violet), const SizedBox(width: 5), Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900))]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppTheme.violet.withOpacity(.3))), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 15, color: AppTheme.violet), const SizedBox(width: 5), VibeText(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900))]));
 }
 
 class _OpponentCounts extends StatelessWidget {
@@ -318,7 +319,7 @@ class _OpponentCounts extends StatelessWidget {
           final seat = (player['seat'] as num?)?.toInt() ?? 0;
           final count = seat < handSizes.length ? handSizes[seat] : 0;
           final active = player['id']?.toString() == turnPlayerId;
-          return AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: active ? AppTheme.violet.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(11), border: Border.all(color: active ? AppTheme.violet : Theme.of(context).dividerColor, width: active ? 1.8 : 1)), child: Text('${player['displayName'] ?? 'Player'} · $count tiles', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)));
+          return AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: active ? AppTheme.violet.withOpacity(.13) : Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(11), border: Border.all(color: active ? AppTheme.violet : Theme.of(context).dividerColor, width: active ? 1.8 : 1)), child: VibeText('${player['displayName'] ?? 'Player'} · $count tiles', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)));
         }).toList(),
       );
 }

@@ -195,6 +195,24 @@ class FriendEntry {
   factory FriendEntry.fromJson(Map<String, dynamic> json) => FriendEntry(id: json['userId'] as String, friendshipId: json['friendshipId'] as String? ?? '', displayName: json['displayName'] as String? ?? 'Player', username: json['username'] as String? ?? 'player', status: json['status'] as String? ?? 'pending', isOnline: json['isOnline'] as bool? ?? false, isRequester: json['isRequester'] as bool? ?? false);
 }
 
+/// The focused closed-release catalog used by offline/fallback surfaces. Every
+/// other registered engine remains installed and disabled by default; the API
+/// can expose one later when staff re-enable it.
+const kCoreGameIds = <String>{
+  'ocho',
+  'pool_8_ball',
+  'ludo',
+  'chess',
+  'four_in_a_row',
+  'dominoes',
+  'carrom',
+  'backgammon',
+  'checkers',
+  'werewolf',
+};
+
+bool isCoreGame(String id) => kCoreGameIds.contains(id);
+
 /// Game ids with a real mobile board: a dedicated board widget (game_room
 /// dispatch) or a functional inline UI (memory_race, word_chain).
 /// Anything missing here falls back to the Coming Soon card in the game room,

@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { Response } from 'express';
 import { rateLimited } from '../errors';
 import { RATE_LIMIT_KEY, RateLimitOptions, SKIP_RATE_LIMIT_KEY } from './rate-limit.decorator';
+import { RedisRateLimitService } from './redis-rate-limit.service';
 
 interface Bucket {
   count: number;
@@ -11,15 +12,15 @@ interface Bucket {
 }
 
 /**
- * Fixed-window HTTP rate limiter. In-memory by design: correct for a single
- * API instance (current soft-launch topology) with zero new dependencies.
- * Move the buckets to Redis when the API scales past one replica.
+ * Fixed-window HTTP rate limiter. It uses Redis when configured so limits are
+ * shared across API replicas, with a process-local fallback for development or
+ * a temporary Redis outage.
  */
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private readonly buckets = new Map<string, Bucket>();
 
-  constructor(private readonly reflector: Reflector, private readonly config: ConfigService) {}
+  constructor(private readonly reflector: Reflector, private readonly config: ConfigService, private readonly distributed?: RedisRateLimitService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     if (context.getType() !== 'http') return true;
@@ -34,18 +35,28 @@ export class RateLimitGuard implements CanActivate {
     const scope = `${context.getClass().name}.${String(context.getHandler().name)}`;
     const key = `rl:${scope}:${options.key ?? 'auto'}:${identity}`;
     const now = Date.now();
-    let bucket = this.buckets.get(key);
-    if (!bucket || bucket.resetAt <= now) {
-      bucket = { count: 0, resetAt: now + options.windowMs };
-      this.buckets.set(key, bucket);
+    const distributed = await this.distributed?.increment(key, options.windowMs);
+    let count: number;
+    let resetAt: number;
+    if (distributed) {
+      count = distributed.count;
+      resetAt = distributed.resetAt;
+    } else {
+      let bucket = this.buckets.get(key);
+      if (!bucket || bucket.resetAt <= now) {
+        bucket = { count: 0, resetAt: now + options.windowMs };
+        this.buckets.set(key, bucket);
+      }
+      bucket.count += 1;
+      count = bucket.count;
+      resetAt = bucket.resetAt;
+      this.sweep(now);
     }
-    bucket.count += 1;
     response.setHeader('X-RateLimit-Limit', String(options.limit));
-    response.setHeader('X-RateLimit-Remaining', String(Math.max(options.limit - bucket.count, 0)));
-    response.setHeader('X-RateLimit-Reset', String(Math.ceil(bucket.resetAt / 1000)));
-    this.sweep(now);
-    if (bucket.count > options.limit) {
-      response.setHeader('Retry-After', String(Math.max(Math.ceil((bucket.resetAt - now) / 1000), 1)));
+    response.setHeader('X-RateLimit-Remaining', String(Math.max(options.limit - count, 0)));
+    response.setHeader('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
+    if (count > options.limit) {
+      response.setHeader('Retry-After', String(Math.max(Math.ceil((resetAt - now) / 1000), 1)));
       throw rateLimited();
     }
     return true;

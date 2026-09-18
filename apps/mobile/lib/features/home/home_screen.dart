@@ -49,7 +49,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final strings = AppStrings(Localizations.localeOf(context));
     final user = ref.watch(authProvider).value?.user;
     final catalog = ref.watch(gamesProvider);
-    final games = catalog.maybeWhen(data: (value) => value, orElse: () => localGameCatalog);
+    final games = catalog.maybeWhen(data: (value) => value.isEmpty ? coreGameCatalog : value, orElse: () => coreGameCatalog);
     final filtered = games.where((game) {
       final matchesCategory = category == null || game.category == category;
       final matchesQuery = query.trim().isEmpty || game.name.toLowerCase().contains(query.trim().toLowerCase());
@@ -106,7 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.1), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppTheme.violet.withOpacity(.25))),
-                    child: Text('${filtered.length}', style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 13)),
+                    child: VibeText('${filtered.length}', style: const TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 13)),
                   ),
                 ),
               ),
@@ -182,9 +182,9 @@ class _HomeHeader extends StatelessWidget {
       const SizedBox(width: 12),
       Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(name == null || name.isEmpty ? 'Welcome back' : 'Hi, $name', style: Theme.of(context).textTheme.titleMedium),
+        VibeText(name == null || name.isEmpty ? 'Welcome back' : 'Hi, $name', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 2),
-        Text(strings.isPersian ? 'میز بعدی‌ات آماده است' : 'Your next table is ready', style: Theme.of(context).textTheme.bodySmall),
+        VibeText(strings.isPersian ? 'میز بعدی‌ات آماده است' : 'Your next table is ready', style: Theme.of(context).textTheme.bodySmall),
       ])),
       BalancePill(value: user?.coins ?? 0, icon: Icons.circle, color: AppTheme.gold),
       const SizedBox(width: 9),
@@ -222,7 +222,7 @@ class _HomeQuickStats extends StatelessWidget {
               children: [
                 const Icon(Icons.bolt_rounded, color: Colors.white, size: 15),
                 const SizedBox(width: 3),
-                Text(
+                VibeText(
                   fa ? 'سطح $level' : 'Lvl $level',
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12),
                 ),
@@ -237,13 +237,12 @@ class _HomeQuickStats extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
+                    VibeText(
                       fa ? 'پیشرفت فصل' : 'Season XP',
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                     ),
                     const Spacer(),
-                    Text(
-                      '$expInLevel / 500 XP',
+                    VibeText('$expInLevel / 500 XP',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   ],
@@ -276,7 +275,7 @@ class _HomeQuickStats extends StatelessWidget {
                 children: [
                   const Icon(Icons.casino_rounded, color: AppTheme.mint, size: 16),
                   const SizedBox(width: 5),
-                  Text(
+                  VibeText(
                     fa ? 'تصادفی' : 'Random',
                     style: const TextStyle(color: AppTheme.mint, fontWeight: FontWeight.w900, fontSize: 12),
                   ),
@@ -302,9 +301,12 @@ class _FeaturedBanner extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
+  Widget build(BuildContext context) {
+    final strings = AppStrings(Localizations.localeOf(context));
+    final name = strings.gameName(game.id, game.name);
+    return Semantics(
         button: true,
-        label: 'Play ${game.name}',
+        label: strings.translateText('Play $name'),
         child: PressableScale(
           onTap: onTap,
           child: Container(
@@ -327,10 +329,10 @@ class _FeaturedBanner extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                           decoration: BoxDecoration(color: Colors.white.withOpacity(.16), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.28))),
-                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.star_rounded, color: Colors.white, size: 13), SizedBox(width: 4), Text('FEATURED', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.4, fontSize: 10))]),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.star_rounded, color: Colors.white, size: 13), SizedBox(width: 4), VibeText('FEATURED', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.4, fontSize: 10))]),
                         ),
                         const SizedBox(height: 10),
-                        Text(game.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28, letterSpacing: -.6, height: 1.05)),
+                        VibeText(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28, letterSpacing: -.6, height: 1.05)),
                         const SizedBox(height: 9),
                         Wrap(spacing: 7, runSpacing: 7, children: [
                           _MetaChip(icon: Icons.people_alt_outlined, label: '${game.minPlayers}–${game.maxPlayers}'),
@@ -340,7 +342,7 @@ class _FeaturedBanner extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 11),
                           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(99), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.22), blurRadius: 14, offset: const Offset(0, 6))]),
-                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Text('Play now', style: TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 14)), SizedBox(width: 7), Icon(Icons.arrow_forward_rounded, color: AppTheme.violet, size: 18)]),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [VibeText('Play now', style: TextStyle(color: AppTheme.violet, fontWeight: FontWeight.w900, fontSize: 14)), SizedBox(width: 7), Icon(Icons.arrow_forward_rounded, color: AppTheme.violet, size: 18)]),
                         ),
                       ])),
                       Padding(
@@ -365,6 +367,7 @@ class _FeaturedBanner extends StatelessWidget {
           ),
         ),
       );
+  }
 }
 
 class _MetaChip extends StatelessWidget {
@@ -375,7 +378,7 @@ class _MetaChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(color: Colors.white.withOpacity(.14), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white.withOpacity(.22))),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: Colors.white, size: 13), const SizedBox(width: 5), Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800))]),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: Colors.white, size: 13), const SizedBox(width: 5), VibeText(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800))]),
       );
 }
 
@@ -393,8 +396,8 @@ class _CatalogNotice extends StatelessWidget {
         child: Row(children: [
           Container(width: 34, height: 34, alignment: Alignment.center, decoration: BoxDecoration(color: AppTheme.gold.withOpacity(.2), shape: BoxShape.circle), child: const Icon(Icons.cloud_off_rounded, color: AppTheme.gold, size: 18)),
           const SizedBox(width: 10),
-          const Expanded(child: Text('Showing the saved game catalog while we reconnect.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
+          const Expanded(child: VibeText('Showing the saved game catalog while we reconnect.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+          TextButton(onPressed: onRetry, child: const VibeText('Retry')),
         ]),
       );
 }
@@ -433,7 +436,7 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsetsDirectional.only(end: 8),
         child: ChoiceChip(
-          label: Text(label),
+          label: VibeText(label),
           selected: active,
           onSelected: (_) => onTap(),
           showCheckmark: false,
@@ -460,10 +463,12 @@ class _GameCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings(Localizations.localeOf(context));
+    final name = strings.gameName(game.id, game.name);
     final accent = _accent(game.accent);
     return Semantics(
       button: true,
-      label: 'Open ${game.name}',
+      label: strings.translateText('Open $name'),
       child: PressableScale(
         onTap: onTap,
         child: Container(
@@ -496,7 +501,7 @@ class _GameCard extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                             decoration: BoxDecoration(color: Colors.black.withOpacity(.3), borderRadius: BorderRadius.circular(99)),
-                            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.groups_rounded, color: Colors.white, size: 13), SizedBox(width: 4), Text('TEAMS', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .6))]),
+                            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.groups_rounded, color: Colors.white, size: 13), SizedBox(width: 4), VibeText('TEAMS', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .6))]),
                           ),
                         ),
                     ],
@@ -508,12 +513,12 @@ class _GameCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(game.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
+                        VibeText(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
                         const Spacer(),
                         Row(children: [
                           Icon(Icons.people_alt_outlined, size: 15, color: scheme.onSurfaceVariant),
                           const SizedBox(width: 5),
-                          Text('${game.minPlayers}–${game.maxPlayers}', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
+                          VibeText('${game.minPlayers}–${game.maxPlayers}', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
                           const Spacer(),
                           Container(width: 30, height: 30, alignment: Alignment.center, decoration: BoxDecoration(color: accent.withOpacity(.12), shape: BoxShape.circle), child: Icon(Icons.arrow_forward_rounded, size: 16, color: accent)),
                         ]),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 
@@ -49,6 +50,9 @@ class HeartsGameBoard extends StatelessWidget {
     final hasLead = leadSuit != null && mine.any((card) => card is Map && card['suit'] == leadSuit);
     final mustFollow = leadSuit != null && hasLead;
     final points = _isHearts ? _trickPoints(trick) : 0;
+    final bidPhase = !_isHearts && state['bidPhase'] == true;
+    final heartsBroken = state['heartsBroken'] == true;
+    final openingLead = state['openingLead'] == true;
 
     return Card(
       child: Padding(
@@ -57,9 +61,9 @@ class HeartsGameBoard extends StatelessWidget {
           Row(children: [
             Icon(_isHearts ? Icons.favorite_rounded : Icons.style_rounded, color: _isHearts ? AppTheme.coral : AppTheme.violet),
             const SizedBox(width: 8),
-            Text(_isHearts ? 'Hearts' : 'Spades', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            VibeText(_isHearts ? 'Hearts' : 'Spades', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             const Spacer(),
-            Text('Target $target', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
+            VibeText(bidPhase ? 'Bidding' : 'Target $target', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
           ]),
           const SizedBox(height: 10),
           Wrap(
@@ -76,10 +80,14 @@ class HeartsGameBoard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            finished ? 'Match complete' : isTurn ? (mustFollow ? 'Your turn — follow ${_suitName(leadSuit!)}.' : 'Your turn — play a card.') : 'Waiting for ${_turnName()}…',
+          VibeText(
+            finished ? 'Match complete' : bidPhase ? (isTurn ? 'Your turn — choose how many tricks you expect.' : 'Waiting for ${_turnName()} to bid…') : isTurn ? (openingLead ? 'Lead the 2♣ to start.' : mustFollow ? 'Your turn — follow ${_suitName(leadSuit!)}.' : heartsBroken || !_isHearts ? 'Your turn — play a card.' : 'Your turn — hearts are still locked.') : 'Waiting for ${_turnName()}…',
             style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700),
           ),
+          if (bidPhase) ...[
+            const SizedBox(height: 12),
+            _SpadesBidPanel(isTurn: isTurn, handSize: mine.length, onBid: (bid) => onAction({'type': 'bid', 'bid': bid})),
+          ],
           if (trick.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
@@ -88,9 +96,9 @@ class HeartsGameBoard extends StatelessWidget {
               decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.08), borderRadius: BorderRadius.circular(16)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Text('On the table', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  VibeText('On the table', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   const Spacer(),
-                  if (_isHearts && points > 0) Text('worth $points pts', style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800)),
+                  if (_isHearts && points > 0) VibeText('worth $points pts', style: const TextStyle(color: AppTheme.coral, fontWeight: FontWeight.w800)),
                 ]),
                 const SizedBox(height: 8),
                 Wrap(
@@ -103,9 +111,9 @@ class HeartsGameBoard extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           if (mine.isEmpty)
-            Text(finished ? 'No cards left.' : 'Your hand is hidden until the deal reaches you.', style: Theme.of(context).textTheme.bodySmall)
+            VibeText(finished ? 'No cards left.' : 'Your hand is hidden until the deal reaches you.', style: Theme.of(context).textTheme.bodySmall)
           else ...[
-            const Text('Your hand', style: TextStyle(fontWeight: FontWeight.w800)),
+            const VibeText('Your hand', style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -114,7 +122,7 @@ class HeartsGameBoard extends StatelessWidget {
                 for (var i = 0; i < mine.length; i += 1)
                   Builder(builder: (context) {
                     final card = mine[i] is Map ? mine[i] as Map : const {};
-                    final playable = isTurn && !finished && (!mustFollow || card['suit'] == leadSuit);
+                    final playable = isTurn && !finished && !bidPhase && _isPlayable(card, mine, i, leadSuit, mustFollow, heartsBroken, openingLead);
                     return _HandCard(card: card, enabled: playable, onTap: () => onAction({'type': 'play', 'index': i}));
                   }),
               ],
@@ -122,14 +130,53 @@ class HeartsGameBoard extends StatelessWidget {
           ],
           if (_isHearts) ...[
             const SizedBox(height: 10),
-            Text('Avoid hearts and the Q♠ — lowest score wins.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            VibeText('Avoid hearts and the Q♠ — lowest score wins.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ],
         ]),
       ),
     );
   }
 
+  bool _isPlayable(Map card, List hand, int index, String? leadSuit, bool mustFollow, bool heartsBroken, bool openingLead) {
+    final suit = card['suit']?.toString();
+    final rank = (card['rank'] as num?)?.toInt() ?? 0;
+    if (mustFollow && suit != leadSuit) return false;
+    if (!_isHearts) {
+      if (leadSuit == null && suit == 'S' && state['spadesBroken'] != true && hand.any((entry) => entry is Map && entry['suit'] != 'S')) return false;
+      return true;
+    }
+    if (openingLead) return suit == 'C' && rank == 2;
+    final pointCard = suit == 'H' || suit == 'S' && rank == 12;
+    if (state['round'] == 1 && pointCard && !mustFollow && hand.any((entry) {
+      if (entry is! Map) return false;
+      final otherSuit = entry['suit']?.toString();
+      final otherRank = (entry['rank'] as num?)?.toInt() ?? 0;
+      return !(otherSuit == 'H' || otherSuit == 'S' && otherRank == 12);
+    })) return false;
+    if (leadSuit == null && suit == 'H' && !heartsBroken && hand.any((entry) => entry is Map && entry['suit'] != 'H')) return false;
+    return true;
+  }
+
   String _suitName(String suit) => switch (suit) { 'H' => 'hearts ♥', 'D' => 'diamonds ♦', 'S' => 'spades ♠', 'C' => 'clubs ♣', _ => 'suit' };
+}
+
+class _SpadesBidPanel extends StatelessWidget {
+  const _SpadesBidPanel({required this.isTurn, required this.handSize, required this.onBid});
+  final bool isTurn;
+  final int handSize;
+  final ValueChanged<int> onBid;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppTheme.violet.withOpacity(.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.violet.withOpacity(.22))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const VibeText('How many tricks will you take?', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, runSpacing: 6, children: [for (var bid = 0; bid <= handSize; bid += 1) SizedBox(width: 42, child: OutlinedButton(onPressed: isTurn ? () => onBid(bid) : null, child: VibeText('$bid')))]),
+        ]),
+      );
 }
 
 class _ScoreChip extends StatelessWidget {
@@ -147,7 +194,7 @@ class _ScoreChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(99),
           border: turn ? Border.all(color: AppTheme.mint) : null,
         ),
-        child: Text('$name · $score${mine ? ' (you)' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+        child: VibeText('$name · $score${mine ? ' (you)' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
       );
 }
 
@@ -162,7 +209,7 @@ class _TrickCard extends StatelessWidget {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       _HandCard(card: card is Map ? card : const {}, enabled: false, onTap: null),
       const SizedBox(height: 3),
-      SizedBox(width: 64, child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700))),
+      SizedBox(width: 64, child: VibeText(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700))),
     ]);
   }
 }
@@ -194,7 +241,7 @@ class _HandCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.withOpacity(enabled ? .7 : .25), width: enabled ? 2 : 1),
         ),
-        child: Text('$face$pip', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: enabled || onTap == null ? color : Theme.of(context).disabledColor)),
+        child: VibeText('$face$pip', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: enabled || onTap == null ? color : Theme.of(context).disabledColor)),
       ),
     );
   }

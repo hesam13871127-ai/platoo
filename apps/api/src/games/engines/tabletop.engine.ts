@@ -1,4 +1,26 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { Action, asInt, GameEngine, GameId, GameOutcome, GamePlayer, GameState, IllegalMoveError, clone, nextTurn, randomInt, rotateTurn } from '../game.types';
+
+/**
+ * Resolve physical-shot outcomes on the server. The client supplies only
+ * control inputs (power, aim, pocket, and the ball/coin it is attempting to
+ * play); it never supplies the result. A per-match seed keeps the result
+ * replayable while remaining hidden from public state serialization.
+ */
+const serverRoll = (seed: string | undefined, game: string, actorId: string, shot: number, salt: string): number => {
+  const digest = createHash('sha256').update(`${seed ?? 'server-seed'}:${game}:${actorId}:${shot}:${salt}`).digest('hex');
+  return Number.parseInt(digest.slice(0, 12), 16) / 0x1000000000000;
+};
+
+const shotAccuracy = (power: number, aim: number | undefined, pocket: number | undefined): number => {
+  const controlledPower = Math.min(Math.max(power, 1), 100);
+  const powerControl = controlledPower <= 78 ? 0.54 + controlledPower / 260 : 0.84 - (controlledPower - 78) / 180;
+  // Aim and pocket are validated controls. The server's hidden roll supplies
+  // the table friction/collision variance that a client must not be able to
+  // turn into a claimed pocket or foul.
+  const aimControl = aim === undefined ? 0.88 : 0.94 - (Math.abs((aim % 360) - ((pocket ?? 0) * 60 + 30)) % 180) / 900;
+  return Math.min(Math.max(powerControl * aimControl, 0.2), 0.9);
+};
 
 const ensureTurn = (state: GameState, actorId: string) => { if (state.turnPlayerId !== actorId) throw new IllegalMoveError('It is not your turn.'); if (state.finished) throw new IllegalMoveError('This game has finished.'); };
 
@@ -181,18 +203,21 @@ export class LudoEngine implements GameEngine {
     if (destination > LUDO_FINISHED) return false;
     const firstTrackProgress = position === LUDO_HOME ? destination : position + 1;
     for (let progress = firstTrackProgress; progress <= Math.min(destination, LUDO_TRACK_SIZE - 1); progress += 1) {
-      if (this.hasOpponentBlockade(state, side, progress, players)) return false;
+      if (this.hasBlockade(state, side, progress)) return false;
     }
     return true;
   }
 
-  private hasOpponentBlockade(state: LudoState, side: number, progress: number, players: GamePlayer[]): boolean {
+  private hasBlockade(state: LudoState, side: number, progress: number): boolean {
     if (progress >= LUDO_TRACK_SIZE) return false;
     const absolute = this.absolutePosition(side, progress);
-    const opponents = state.positions
-      .map((positions, other) => other === side || this.sameTeam(players, side, other) ? 0 : positions.filter((position) => position >= 0 && position < LUDO_TRACK_SIZE && this.absolutePosition(other, position) === absolute).length)
+    // A blockade is made by any two tokens on the shared track, including a
+    // player's own tokens and a teammate's tokens in four-player team mode.
+    // Opponent tokens may still be captured when there is only one of them.
+    const occupied = state.positions
+      .map((positions, other) => positions.filter((position) => position >= 0 && position < LUDO_TRACK_SIZE && this.absolutePosition(other, position) === absolute).length)
       .reduce((sum, count) => sum + count, 0);
-    return opponents >= 2;
+    return occupied >= 2;
   }
 
   private captureOpponents(state: LudoState, side: number, progress: number, players: GamePlayer[]): void {
@@ -417,57 +442,316 @@ export class DominoesEngine implements GameEngine {
   }
 }
 
-interface BackgammonState extends GameState { points: number[]; bar: number[]; borneOff: number[]; dice: number[]; turnIndex: number; turnPlayerId: string; finished: boolean; winnerId: string | null; }
+interface BackgammonState extends GameState {
+  points: number[];
+  bar: number[];
+  borneOff: number[];
+  dice: number[];
+  turnIndex: number;
+  turnPlayerId: string;
+  finished: boolean;
+  winnerId: string | null;
+}
+
 export class BackgammonEngine implements GameEngine {
   readonly id: GameId = 'backgammon';
-  create(players: GamePlayer[]): BackgammonState { const points = Array(24).fill(0); points[0] = 2; points[11] = 5; points[16] = 3; points[18] = 5; points[23] = -2; points[12] = -5; points[7] = -3; points[5] = -5; return { points, bar: [0, 0], borneOff: [0, 0], dice: [], turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null }; }
+
+  create(players: GamePlayer[]): BackgammonState {
+    if (players.length !== 2) throw new IllegalMoveError('Backgammon requires exactly two players.');
+    // Positive checkers move from point 0 toward 24; negative checkers move
+    // from point 23 toward -1. This is the same orientation used by the
+    // mobile board and keeps all move validation server-authoritative.
+    const points = Array(24).fill(0) as number[];
+    points[0] = 2; points[11] = 5; points[16] = 3; points[18] = 5;
+    points[23] = -2; points[12] = -5; points[7] = -3; points[5] = -5;
+    return { points, bar: [0, 0], borneOff: [0, 0], dice: [], turnIndex: 0, turnPlayerId: players[0].id, finished: false, winnerId: null };
+  }
+
   validate(state: BackgammonState, actorId: string, action: Action, players: GamePlayer[]): void {
-    ensureTurn(state, actorId); const side = players.findIndex((p) => p.id === actorId);
-    if (action.type === 'roll') { if (state.dice.length) throw new IllegalMoveError('Use all dice before rolling.'); return; }
-    if (action.type === 'pass') { if (!state.dice.length) throw new IllegalMoveError('Roll before passing.'); if (this.legalMoves(state, side).length) throw new IllegalMoveError('You have legal moves.'); return; }
+    ensureTurn(state, actorId);
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    if (action.type === 'roll') {
+      if (state.dice.length) throw new IllegalMoveError('Use all dice before rolling.');
+      return;
+    }
+    if (action.type === 'pass') {
+      if (!state.dice.length) throw new IllegalMoveError('Roll before passing.');
+      if (this.legalMoves(state, side).length) throw new IllegalMoveError('You have legal moves.');
+      return;
+    }
     if (action.type !== 'move' || !state.dice.length) throw new IllegalMoveError('Roll before moving.');
-    const from = asInt(action.from, 'from', -1, 23); const to = asInt(action.to, 'to', -1, 24);
-    const points = state.points; const own = side === 0 ? 1 : -1;
+    const from = asInt(action.from, 'from', -1, 23);
+    const to = asInt(action.to, 'to', -1, 24);
+    const own = side === 0 ? 1 : -1;
     if (state.bar[side] > 0 && from !== -1) throw new IllegalMoveError('Move a checker from the bar first.');
     if (from === -1 && state.bar[side] <= 0) throw new IllegalMoveError('You have no checker on the bar.');
-    if (from !== -1 && Math.sign(points[from]) !== own) throw new IllegalMoveError('That point does not contain your checker.');
+    if (from !== -1 && Math.sign(state.points[from]) !== own) throw new IllegalMoveError('That point does not contain your checker.');
+
     const distance = side === 0 ? to - from : from === -1 ? 24 - to : from - to;
-    if (!state.dice.includes(distance)) throw new IllegalMoveError('That die is not available.');
-    if (to >= 0 && to < 24 && points[to] * own < -1) throw new IllegalMoveError('That point is blocked.');
+    if (from === -1) {
+      if (!state.dice.includes(distance)) throw new IllegalMoveError('That die is not available.');
+      const expected = side === 0 ? distance - 1 : 24 - distance;
+      if (to !== expected || !this.isOpen(state, to, own)) throw new IllegalMoveError('That bar entry is blocked.');
+      return;
+    }
+    const bearingOff = to === (side === 0 ? 24 : -1);
+    if (bearingOff && (state.bar[side] > 0 || (side === 0 ? from < 18 : from > 5))) throw new IllegalMoveError('You may bear off only from your home board.');
+    const dieIndex = bearingOff
+      ? state.dice.findIndex((die) => die >= distance && this.canBearOff(state, side, from, die))
+      : state.dice.indexOf(distance);
+    if (dieIndex < 0) throw new IllegalMoveError('That die is not available.');
+    if (bearingOff) return;
+    if (to < 0 || to > 23 || state.points[to] * own < -1) throw new IllegalMoveError('That point is not an available destination.');
   }
-  apply(state: BackgammonState, actorId: string, action: Action, players: GamePlayer[]): BackgammonState { this.validate(state, actorId, action, players); const next = clone(state) as BackgammonState; const side = players.findIndex((p) => p.id === actorId); if (action.type === 'roll') { const a = randomInt(6) + 1; const b = randomInt(6) + 1; next.dice = a === b ? [a, a, a, a] : [a, b]; return next; } const from = action.from as number; const to = action.to as number; const own = side === 0 ? 1 : -1; if (action.type === 'pass') { next.dice = []; rotateTurn(next, players); return next; } const die = side === 0 ? to - from : from === -1 ? 24 - to : from - to; const dieIndex = next.dice.indexOf(die); if (dieIndex >= 0) next.dice.splice(dieIndex, 1); if (from === -1) next.bar[side] -= 1; else next.points[from] -= own; if (to < 0 || to > 23) next.borneOff[side] += 1; else { if (next.points[to] * own === -1) { next.points[to] = 0; next.bar[1 - side] += 1; } next.points[to] += own; } if (next.borneOff[side] === 15) { next.finished = true; next.winnerId = actorId; } else if (!next.dice.length) rotateTurn(next, players); return next; }
-  outcome(state: BackgammonState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
+
+  apply(state: BackgammonState, actorId: string, action: Action, players: GamePlayer[]): BackgammonState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state) as BackgammonState;
+    const side = players.findIndex((player) => player.id === actorId);
+    if (action.type === 'roll') {
+      const first = randomInt(6) + 1;
+      const second = randomInt(6) + 1;
+      next.dice = first === second ? [first, first, first, first] : [first, second];
+      return next;
+    }
+    if (action.type === 'pass') {
+      next.dice = [];
+      rotateTurn(next, players);
+      return next;
+    }
+
+    const from = action.from as number;
+    const to = action.to as number;
+    const own = side === 0 ? 1 : -1;
+    const distance = side === 0 ? to - from : from === -1 ? 24 - to : from - to;
+    const bearingOff = to === (side === 0 ? 24 : -1);
+    const dieIndex = bearingOff
+      ? next.dice.findIndex((die) => die >= distance && this.canBearOff(next, side, from, die))
+      : next.dice.indexOf(distance);
+    if (dieIndex < 0) throw new IllegalMoveError('That die is no longer available.');
+    next.dice.splice(dieIndex, 1);
+    if (from === -1) next.bar[side] -= 1;
+    else next.points[from] -= own;
+
+    if (to < 0 || to > 23) {
+      next.borneOff[side] += 1;
+    } else {
+      if (next.points[to] * own === -1) {
+        next.points[to] = 0;
+        next.bar[1 - side] += 1;
+      }
+      next.points[to] += own;
+    }
+    if (next.borneOff[side] === 15) {
+      next.finished = true;
+      next.winnerId = actorId;
+    } else if (!next.dice.length) {
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: BackgammonState, players: GamePlayer[]): GameOutcome {
+    const winner = typeof state.winnerId === 'string' ? state.winnerId : '';
+    return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((player) => player.id !== winner).map((player) => player.id) : [], draw: false };
+  }
+
   botAction(state: BackgammonState, botId: string, players: GamePlayer[]): Action {
     if (!state.dice.length) return { type: 'roll' };
-    const side = players.findIndex((p) => p.id === botId);
+    const side = players.findIndex((player) => player.id === botId);
     const moves = this.legalMoves(state, side);
     if (!moves.length) return { type: 'pass' };
-    const move = moves[randomInt(moves.length)];
+    // Prefer a hit and then a move that bears off; a small random tie-break
+    // keeps bots from making identical, easily exploitable lines.
+    moves.sort((a, b) => this.moveValue(state, side, b) - this.moveValue(state, side, a) || Math.random() - 0.5);
+    const move = moves[0];
     return { type: 'move', from: move[0], to: move[1] };
   }
+
   private legalMoves(state: BackgammonState, side: number): Array<[number, number]> {
     const moves: Array<[number, number]> = [];
     const own = side === 0 ? 1 : -1;
-    const open = (to: number): boolean => to === 24 || to === -1 || (to >= 0 && to < 24 && state.points[to] * own >= -1);
-    if (state.bar[side] > 0) {
-      for (const die of state.dice) { const to = side === 0 ? die - 1 : 24 - die; if (to >= 0 && to < 24 && open(to)) moves.push([-1, to]); }
-      return moves;
-    }
-    for (let from = 0; from < 24; from += 1) {
-      if (state.points[from] * own <= 0) continue;
-      for (const die of state.dice) { const to = side === 0 ? from + die : from - die; if (open(to)) moves.push([from, to]); }
-    }
+    const addForDie = (die: number) => {
+      if (state.bar[side] > 0) {
+        const to = side === 0 ? die - 1 : 24 - die;
+        if (this.isOpen(state, to, own)) moves.push([-1, to]);
+        return;
+      }
+      for (let from = 0; from < 24; from += 1) {
+        if (Math.sign(state.points[from]) !== own) continue;
+        const destination = side === 0 ? from + die : from - die;
+        if (destination >= 0 && destination < 24) {
+          if (this.isOpen(state, destination, own)) moves.push([from, destination]);
+        } else if (this.canBearOff(state, side, from, die)) {
+          moves.push([from, side === 0 ? 24 : -1]);
+        }
+      }
+    };
+    for (const die of state.dice) addForDie(die);
     return moves;
+  }
+
+  private isOpen(state: BackgammonState, point: number, own: number): boolean {
+    return point >= 0 && point < 24 && state.points[point] * own >= -1;
+  }
+
+  private canBearOff(state: BackgammonState, side: number, from: number, die: number): boolean {
+    const own = side === 0 ? 1 : -1;
+    if (state.bar[side] > 0 || from < 0 || from > 23 || Math.sign(state.points[from]) !== own) return false;
+    const inHome = side === 0 ? from >= 18 : from <= 5;
+    if (!inHome || !this.allCheckersInHome(state, side)) return false;
+    const distance = side === 0 ? 24 - from : from + 1;
+    if (die < distance) return false;
+    // An oversized die may only bear off the furthest checker. Positive
+    // checkers exit above point 23, while negative checkers exit below point
+    // 0, so the search must move away from the exit in each orientation.
+    if (die > distance) {
+      for (let point = side === 0 ? from - 1 : from + 1; point >= 0 && point < 24; point += side === 0 ? -1 : 1) {
+        if (Math.sign(state.points[point]) === own) return false;
+      }
+    }
+    return true;
+  }
+
+  private allCheckersInHome(state: BackgammonState, side: number): boolean {
+    const own = side === 0 ? 1 : -1;
+    return state.points.every((value, point) => Math.sign(value) !== own || (side === 0 ? point >= 18 : point <= 5));
+  }
+
+  private moveValue(state: BackgammonState, side: number, move: [number, number]): number {
+    const own = side === 0 ? 1 : -1;
+    if (move[1] === (side === 0 ? 24 : -1)) return 100;
+    if (move[1] >= 0 && move[1] < 24 && state.points[move[1]] * own === -1) return 70;
+    return Math.random() * 8 + (side === 0 ? move[1] : 23 - move[1]);
   }
 }
 
 export class SeaBattleEngine implements GameEngine {
   readonly id: GameId = 'sea_battle';
-  create(players: GamePlayer[]): GameState { return { boards: players.map(() => Array.from({ length: 10 }, () => Array(10).fill(0))), shots: players.map(() => Array.from({ length: 10 }, () => Array(10).fill(-1))), fleets: players.map(() => []), phase: 'placing', turnIndex: 0, turnPlayerId: null, finished: false, winnerId: null }; }
-  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void { const side = players.findIndex((p) => p.id === actorId); if (side < 0) throw new IllegalMoveError('You are not in this game.'); if (state.phase === 'placing') { if (action.type !== 'place') throw new IllegalMoveError('Place your fleet first.'); const cells = action.cells; if (!Array.isArray(cells) || !cells.length) throw new IllegalMoveError('A ship needs cells.'); const sizes = [5, 4, 3, 3, 2]; const fleets = state.fleets as unknown[][][]; if (fleets[side].length >= sizes.length) throw new IllegalMoveError('Your fleet is already placed.'); const expected = sizes[fleets[side].length]; if (cells.length !== expected) throw new IllegalMoveError('Incorrect ship size.'); const board = (state.boards as number[][][])[side]; for (const raw of cells) { if (!Array.isArray(raw) || raw.length !== 2) throw new IllegalMoveError('Invalid ship coordinate.'); const r = asInt(raw[0], 'row', 0, 9); const c = asInt(raw[1], 'column', 0, 9); if (board[r][c]) throw new IllegalMoveError('Ships may not overlap.'); } return; } if (action.type !== 'fire') throw new IllegalMoveError('Use fire to attack.'); ensureTurn(state, actorId); asInt(action.row, 'row', 0, 9); asInt(action.column, 'column', 0, 9); const shots = (state.shots as number[][][])[side]; if (shots[action.row as number][action.column as number] !== -1) throw new IllegalMoveError('You already fired there.'); }
-  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState { this.validate(state, actorId, action, players); const next = clone(state); const side = players.findIndex((p) => p.id === actorId); if (next.phase === 'placing') { const cells = action.cells as number[][]; const board = (next.boards as number[][][])[side]; const fleet = (next.fleets as number[][][][])[side]; const id = fleet.length + 1; for (const [r, c] of cells) board[r][c] = id; fleet.push(cells); if ((next.fleets as unknown[][][]).every((ships) => ships.length === 5)) { next.phase = 'battle'; next.turnPlayerId = players[0].id; } return next; } const opponent = 1 - side; const row = action.row as number; const column = action.column as number; const shots = (next.shots as number[][][])[side]; const target = (next.boards as number[][][])[opponent][row][column]; shots[row][column] = target ? 1 : 0; if (target) (next.boards as number[][][])[opponent][row][column] = -target; const remaining = (next.boards as number[][][])[opponent].flat().some((cell) => cell > 0); if (!remaining) { next.finished = true; next.winnerId = actorId; } else rotateTurn(next, players); return next; }
-  outcome(state: GameState, players: GamePlayer[]): GameOutcome { const winner = typeof state.winnerId === 'string' ? state.winnerId : ''; return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((p) => p.id !== winner).map((p) => p.id) : [], draw: false }; }
-  botAction(state: GameState, botId: string, players: GamePlayer[]): Action { const side = players.findIndex((p) => p.id === botId); if (state.phase === 'placing') { const sizes = [5,4,3,3,2]; const size = sizes[(state.fleets as unknown[][][])[side].length]; const row = (state.fleets as unknown[][][])[side].length; return { type: 'place', cells: Array.from({ length: size }, (_, i) => [row, i]) }; } const shots = (state.shots as number[][][])[side]; const open: Array<[number, number]> = []; for (let r = 0; r < 10; r += 1) for (let c = 0; c < 10; c += 1) if (shots[r][c] === -1) open.push([r, c]); const [row, column] = open[randomInt(open.length)] ?? [0, 0]; return { type: 'fire', row, column }; }
+
+  create(players: GamePlayer[]): GameState {
+    if (players.length !== 2) throw new IllegalMoveError('Sea Battle requires exactly two players.');
+    return {
+      boards: players.map(() => Array.from({ length: 10 }, () => Array(10).fill(0))),
+      shots: players.map(() => Array.from({ length: 10 }, () => Array(10).fill(-1))),
+      fleets: players.map(() => []),
+      phase: 'placing',
+      turnIndex: 0,
+      turnPlayerId: null,
+      finished: false,
+      winnerId: null,
+    };
+  }
+
+  validate(state: GameState, actorId: string, action: Action, players: GamePlayer[]): void {
+    const side = players.findIndex((player) => player.id === actorId);
+    if (side < 0) throw new IllegalMoveError('You are not in this game.');
+    const sizes = [5, 4, 3, 3, 2];
+    if (state.phase === 'placing') {
+      if (action.type !== 'place') throw new IllegalMoveError('Place your fleet first.');
+      const cells = action.cells;
+      if (!Array.isArray(cells) || !cells.length) throw new IllegalMoveError('A ship needs cells.');
+      const fleets = state.fleets as unknown[][][];
+      if (fleets[side].length >= sizes.length) throw new IllegalMoveError('Your fleet is already placed.');
+      const expected = sizes[fleets[side].length];
+      if (cells.length !== expected) throw new IllegalMoveError('Incorrect ship size.');
+      const coordinates = cells.map((raw) => {
+        if (!Array.isArray(raw) || raw.length !== 2) throw new IllegalMoveError('Invalid ship coordinate.');
+        return [asInt(raw[0], 'row', 0, 9), asInt(raw[1], 'column', 0, 9)] as [number, number];
+      });
+      const keys = coordinates.map(([row, column]) => `${row}:${column}`);
+      if (new Set(keys).size !== keys.length) throw new IllegalMoveError('A ship cannot repeat a cell.');
+      const sameRow = coordinates.every(([row]) => row === coordinates[0][0]);
+      const sameColumn = coordinates.every(([, column]) => column === coordinates[0][1]);
+      if (!sameRow && !sameColumn) throw new IllegalMoveError('A ship must be straight.');
+      const ordered = coordinates.map(([row, column]) => sameRow ? column : row).sort((a, b) => a - b);
+      if (ordered.some((value, index) => index > 0 && value !== ordered[index - 1] + 1)) throw new IllegalMoveError('Ship cells must be contiguous.');
+      const board = (state.boards as number[][][])[side];
+      for (const [row, column] of coordinates) if (board[row][column]) throw new IllegalMoveError('Ships may not overlap.');
+      // Keep a one-cell buffer around ships. It prevents ambiguous hits and
+      // matches the no-touching fleet rule used by the board UI.
+      for (const [row, column] of coordinates) {
+        for (let dr = -1; dr <= 1; dr += 1) for (let dc = -1; dc <= 1; dc += 1) {
+          const adjacentRow = row + dr; const adjacentColumn = column + dc;
+          if (adjacentRow >= 0 && adjacentRow < 10 && adjacentColumn >= 0 && adjacentColumn < 10 && board[adjacentRow][adjacentColumn]) throw new IllegalMoveError('Ships may not touch.');
+        }
+      }
+      return;
+    }
+    if (state.phase !== 'battle') throw new IllegalMoveError('This game has finished.');
+    if (action.type !== 'fire') throw new IllegalMoveError('Use fire to attack.');
+    ensureTurn(state, actorId);
+    const row = asInt(action.row, 'row', 0, 9);
+    const column = asInt(action.column, 'column', 0, 9);
+    const shots = (state.shots as number[][][])[side];
+    if (shots[row][column] !== -1) throw new IllegalMoveError('You already fired there.');
+  }
+
+  apply(state: GameState, actorId: string, action: Action, players: GamePlayer[]): GameState {
+    this.validate(state, actorId, action, players);
+    const next = clone(state);
+    const side = players.findIndex((player) => player.id === actorId);
+    if (next.phase === 'placing') {
+      const cells = action.cells as number[][];
+      const board = (next.boards as number[][][])[side];
+      const fleet = (next.fleets as number[][][][])[side];
+      const id = fleet.length + 1;
+      for (const [row, column] of cells) board[row][column] = id;
+      fleet.push(cells);
+      if ((next.fleets as unknown[][][]).every((ships) => ships.length === 5)) {
+        next.phase = 'battle';
+        next.turnPlayerId = players[0].id;
+      }
+      return next;
+    }
+    const opponent = 1 - side;
+    const row = action.row as number;
+    const column = action.column as number;
+    const shots = (next.shots as number[][][])[side];
+    const target = (next.boards as number[][][])[opponent][row][column];
+    shots[row][column] = target > 0 ? 1 : 0;
+    if (target > 0) (next.boards as number[][][])[opponent][row][column] = -target;
+    const remaining = (next.boards as number[][][])[opponent].flat().some((cell) => cell > 0);
+    if (!remaining) {
+      next.finished = true;
+      next.winnerId = actorId;
+    } else {
+      rotateTurn(next, players);
+    }
+    return next;
+  }
+
+  outcome(state: GameState, players: GamePlayer[]): GameOutcome {
+    const winner = typeof state.winnerId === 'string' ? state.winnerId : '';
+    return { finished: Boolean(state.finished), winnerIds: winner ? [winner] : [], loserIds: winner ? players.filter((player) => player.id !== winner).map((player) => player.id) : [], draw: false };
+  }
+
+  botAction(state: GameState, botId: string, players: GamePlayer[]): Action {
+    const side = players.findIndex((player) => player.id === botId);
+    if (state.phase === 'placing') {
+      const sizes = [5, 4, 3, 3, 2];
+      const ship = (state.fleets as unknown[][][])[side].length;
+      const row = ship * 2;
+      const size = sizes[ship];
+      return { type: 'place', cells: Array.from({ length: size }, (_, index) => [row, index]) };
+    }
+    const shots = (state.shots as number[][][])[side];
+    const candidates: Array<[number, number]> = [];
+    const hits: Array<[number, number]> = [];
+    for (let row = 0; row < 10; row += 1) for (let column = 0; column < 10; column += 1) {
+      if (shots[row][column] === -1) candidates.push([row, column]);
+      if (shots[row][column] === 1) {
+        for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nextRow = row + dr; const nextColumn = column + dc;
+          if (nextRow >= 0 && nextRow < 10 && nextColumn >= 0 && nextColumn < 10 && shots[nextRow][nextColumn] === -1) hits.push([nextRow, nextColumn]);
+        }
+      }
+    }
+    const pool = hits.length ? hits : candidates;
+    const [row, column] = pool[randomInt(pool.length)] ?? [0, 0];
+    return { type: 'fire', row, column };
+  }
 }
 
 type PoolGroup = 'solids' | 'stripes';
@@ -483,7 +767,8 @@ interface PoolState extends GameState {
   winnerId: string | null;
   winnerIds: string[];
   shots: number;
-  lastShot: { actorId: string; pocketed: number[]; scratch: boolean; legalEight: boolean } | null;
+  serverSeed: string;
+  lastShot: { actorId: string; pocketed: number[]; scratch: boolean; legalEight: boolean; aim: number | null } | null;
 }
 
 export class PoolEngine implements GameEngine {
@@ -502,6 +787,7 @@ export class PoolEngine implements GameEngine {
       winnerId: null,
       winnerIds: [],
       shots: 0,
+      serverSeed: randomUUID(),
       lastShot: null,
     };
   }
@@ -513,34 +799,37 @@ export class PoolEngine implements GameEngine {
     if (action.type !== 'shot') throw new IllegalMoveError('Use the shot action.');
     asInt(action.power, 'power', 1, 100);
     asInt(action.pocket, 'pocket', 0, 5);
-    if (action.scratch !== undefined && typeof action.scratch !== 'boolean') throw new IllegalMoveError('scratch must be true or false.');
-    const balls = this.pocketedBalls(action);
-    for (const ball of balls) if (!state.remainingBalls.includes(ball)) throw new IllegalMoveError('That ball is no longer on the table.');
-    if (state.phase === 'break') {
-      if (balls.includes(8) && balls.length !== 1) throw new IllegalMoveError('The eight ball must be the only ball called on a break.');
-      return;
-    }
+    if (action.aim !== undefined) asInt(action.aim, 'aim', 0, 360);
+    if (action.scratch !== undefined) throw new IllegalMoveError('Scratch is resolved by the server; do not submit a claimed result.');
+    const target = this.targetBall(action);
+    if (target !== null && !state.remainingBalls.includes(target)) throw new IllegalMoveError('That ball is no longer on the table.');
+    if (state.phase === 'break') return;
     const group = state.groups[side];
     const ownRemaining = this.ownRemaining(state, side);
-    const objectBalls = balls.filter((ball) => ball !== 8);
-    if (group === null && objectBalls.length > 1 && objectBalls.some((ball) => this.groupFor(ball) !== this.groupFor(objectBalls[0]))) throw new IllegalMoveError('Open-table shots must use one group.');
-    if (group !== null && ownRemaining > 0 && objectBalls.some((ball) => this.groupFor(ball) !== group)) throw new IllegalMoveError('You must hit your assigned group.');
-    if (group !== null && ownRemaining === 0 && objectBalls.length) throw new IllegalMoveError('Your group is cleared. Call the eight ball.');
+    // An early eight-ball attempt is legal to submit but is a server-resolved
+    // losing shot if it actually falls. Do not let the client turn that foul
+    // into a rejected request or claim a different result.
+    if (target !== null && target !== 8 && group !== null && ownRemaining > 0 && this.groupFor(target) !== group) throw new IllegalMoveError('You must hit your assigned group.');
+    if (target !== null && target !== 8 && group !== null && ownRemaining === 0) throw new IllegalMoveError('Your group is cleared. Call the eight ball.');
   }
 
   apply(state: PoolState, actorId: string, action: Action, players: GamePlayer[]): PoolState {
     this.validate(state, actorId, action, players);
     const next = clone(state) as PoolState;
     const side = players.findIndex((player) => player.id === actorId);
-    const balls = this.pocketedBalls(action);
-    const scratch = action.scratch === true;
-    const legalEight = balls.length === 1 && balls[0] === 8 && !scratch && next.phase !== 'break' && this.canShootEight(next, side);
+    const target = this.targetBall(action);
     next.shots = Number(next.shots) + 1;
-    next.remainingBalls = next.remainingBalls.filter((ball) => !balls.includes(ball));
-    next.pocketed[side].push(...balls);
-    next.lastShot = { actorId, pocketed: balls, scratch, legalEight };
+    const aim = typeof action.aim === 'number' ? action.aim : null;
+    const power = action.power as number;
+    const accuracy = shotAccuracy(power, aim ?? undefined, action.pocket as number);
+    const scratch = serverRoll(next.serverSeed, 'pool', actorId, next.shots, 'scratch') < Math.max(0.025, (power - 70) * 0.004);
+    const pocketed = !scratch && target !== null && serverRoll(next.serverSeed, 'pool', actorId, next.shots, 'pocket') < accuracy ? [target] : [];
+    const legalEight = pocketed.length === 1 && pocketed[0] === 8 && next.phase !== 'break' && this.canShootEight(next, side);
+    next.remainingBalls = next.remainingBalls.filter((ball) => !pocketed.includes(ball));
+    next.pocketed[side].push(...pocketed);
+    next.lastShot = { actorId, pocketed, scratch, legalEight, aim };
 
-    if (balls.includes(8)) {
+    if (pocketed.includes(8)) {
       next.finished = true;
       next.winnerId = legalEight || (next.phase === 'break' && !scratch) ? actorId : players[1 - side].id;
       next.winnerIds = [next.winnerId];
@@ -549,20 +838,22 @@ export class PoolEngine implements GameEngine {
 
     if (next.phase === 'break') {
       next.phase = 'open';
-      if (balls.length && !next.remainingBalls.some((ball) => ball !== 8)) {
-        const firstGroup = this.groupFor(balls[0]);
+      if (pocketed.length) {
+        const firstGroup = this.groupFor(pocketed[0]);
         next.groups[side] = firstGroup;
         next.groups[1 - side] = firstGroup === 'solids' ? 'stripes' : 'solids';
+        next.phase = 'assigned';
       }
-      if (!balls.length || scratch) rotateTurn(next, players);
+      if (!pocketed.length || scratch) rotateTurn(next, players);
       return next;
     }
 
-    if (next.groups[side] === null && balls.length) {
-      next.groups[side] = this.groupFor(balls[0]);
+    if (next.groups[side] === null && pocketed.length) {
+      next.groups[side] = this.groupFor(pocketed[0]);
       next.groups[1 - side] = next.groups[side] === 'solids' ? 'stripes' : 'solids';
+      next.phase = 'assigned';
     }
-    if (!balls.length || scratch) rotateTurn(next, players);
+    if (!pocketed.length || scratch) rotateTurn(next, players);
     return next;
   }
 
@@ -582,22 +873,25 @@ export class PoolEngine implements GameEngine {
     const pocket = randomInt(6);
     const power = 55 + randomInt(36);
     // Bots miss sometimes: a perfect bot would run every rack unopposed.
-    if (state.phase === 'break') return { type: 'shot', power, pocket, pocketed: available.length && Math.random() < 0.6 ? [available[0]] : [] };
-    if (this.canShootEight(state, side)) return { type: 'shot', power, pocket, pocketed: [8] };
+    const aim = randomInt(361);
+    if (state.phase === 'break') return { type: 'shot', power, aim, pocket, targetBall: available.length ? (Math.random() < 0.6 ? available[0] : null) : null };
+    if (this.canShootEight(state, side)) return { type: 'shot', power, aim, pocket, targetBall: 8 };
     const group = state.groups[side];
     const target = group === null ? available[0] : available.find((ball) => this.groupFor(ball) === group);
-    const pocketed = target === undefined || Math.random() < 0.25 ? [] : [target];
-    return { type: 'shot', power, pocket, pocketed };
+    return { type: 'shot', power, aim, pocket, targetBall: target ?? null };
   }
 
-  private pocketedBalls(action: Action): number[] {
+  /** The selected ball is an attempted target, never a claimed outcome. */
+  private targetBall(action: Action): number | null {
+    if (action.targetBall !== undefined) return action.targetBall === null ? null : asInt(action.targetBall, 'targetBall', 1, 15);
+    // `pocketed` is retained as a backwards-compatible target alias for old
+    // clients. It is never treated as the server's result.
     const raw = action.pocketed === undefined
       ? action.ball === undefined || action.ball === null ? [] : [action.ball]
       : action.pocketed;
-    if (!Array.isArray(raw)) throw new IllegalMoveError('pocketed must be an array of ball numbers.');
-    const balls = raw.map((value) => asInt(value, 'ball', 1, 15));
-    if (new Set(balls).size !== balls.length) throw new IllegalMoveError('A ball may only be pocketed once per shot.');
-    return balls;
+    if (!Array.isArray(raw)) throw new IllegalMoveError('targetBall must be one attempted ball or null.');
+    if (raw.length > 1) throw new IllegalMoveError('Choose one target ball; the server resolves the result.');
+    return raw.length ? asInt(raw[0], 'targetBall', 1, 15) : null;
   }
 
   private groupFor(ball: number): PoolGroup {
@@ -628,6 +922,8 @@ interface CarromState extends GameState {
   finished: boolean;
   winnerId: string | null;
   winnerIds: string[];
+  strikes: number;
+  serverSeed: string;
   lastShot: { actorId: string; pocketed: number[]; queen: boolean; foul: boolean } | null;
   draw?: boolean;
 }
@@ -650,6 +946,8 @@ export class CarromEngine implements GameEngine {
       finished: false,
       winnerId: null,
       winnerIds: [],
+      strikes: 0,
+      serverSeed: randomUUID(),
       lastShot: null,
     };
   }
@@ -661,26 +959,29 @@ export class CarromEngine implements GameEngine {
     if (action.type !== 'strike') throw new IllegalMoveError('Use the strike action.');
     asInt(action.power, 'power', 1, 100);
     if (action.queen !== undefined && typeof action.queen !== 'boolean') throw new IllegalMoveError('queen must be true or false.');
-    if (action.foul !== undefined && typeof action.foul !== 'boolean') throw new IllegalMoveError('foul must be true or false.');
-    const pocketed = this.pocketedCoins(action);
-    if (pocketed.length > 3) throw new IllegalMoveError('A strike may pocket at most three coins.');
-    if (action.foul === true && (pocketed.length > 0 || action.queen === true)) throw new IllegalMoveError('A foul strike cannot also pocket a coin or call the queen.');
-    for (const coin of pocketed) if (!state.remainingCoins.includes(coin)) throw new IllegalMoveError('That coin is no longer on the board.');
+    if (action.foul !== undefined) throw new IllegalMoveError('Fouls are resolved by the server; do not submit a claimed result.');
+    const targets = this.targetCoins(action);
+    if (targets.length > 3) throw new IllegalMoveError('A strike may target at most three coins.');
+    for (const coin of targets) if (!state.remainingCoins.includes(coin)) throw new IllegalMoveError('That coin is no longer on the board.');
     if (action.queen === true && !state.queenRemaining) throw new IllegalMoveError('The queen is not on the board.');
     const group = this.groupForSide(state, side);
-    if (group && pocketed.some((coin) => this.coinColor(coin) !== group)) throw new IllegalMoveError('Pocket only coins from your assigned color.');
-    const finalColorCoin = group && pocketed.length > 0 && !state.remainingCoins.some((coin) => this.coinColor(coin) === group && !pocketed.includes(coin));
-    if (group && state.queenRemaining && finalColorCoin && action.queen !== true) throw new IllegalMoveError('Pocket your final color coin with the queen to cover it.');
-    if (action.queen === true && group && !pocketed.some((coin) => this.coinColor(coin) === group) && !state.remainingCoins.some((coin) => this.coinColor(coin) === group)) throw new IllegalMoveError('Pocket your final color coin with the queen to cover it.');
+    if (group === null && targets.length > 1 && targets.some((coin) => this.coinColor(coin) !== this.coinColor(targets[0]))) throw new IllegalMoveError('An open strike must use one coin color.');
+    if (group && targets.some((coin) => this.coinColor(coin) !== group)) throw new IllegalMoveError('Target only coins from your assigned color.');
+    const finalColorCoin = group && targets.length > 0 && !state.remainingCoins.some((coin) => this.coinColor(coin) === group && !targets.includes(coin));
+    if (group && state.queenRemaining && finalColorCoin && action.queen !== true) throw new IllegalMoveError('Target your final color coin with the queen to cover it.');
   }
 
   apply(state: CarromState, actorId: string, action: Action, players: GamePlayer[]): CarromState {
     this.validate(state, actorId, action, players);
     const next = clone(state) as CarromState;
     const side = players.findIndex((player) => player.id === actorId);
-    const pocketed = this.pocketedCoins(action);
-    const queenShot = action.queen === true;
-    const foul = action.foul === true;
+    const targets = this.targetCoins(action);
+    next.strikes = Number(next.strikes) + 1;
+    const power = action.power as number;
+    const accuracy = shotAccuracy(power, undefined, 0);
+    const foul = serverRoll(next.serverSeed, 'carrom', actorId, next.strikes, 'foul') < Math.max(0.02, (power - 82) * 0.004);
+    const pocketed = foul ? [] : targets.filter((coin) => serverRoll(next.serverSeed, 'carrom', actorId, next.strikes, `coin:${coin}`) < accuracy);
+    const queenShot = !foul && action.queen === true && serverRoll(next.serverSeed, 'carrom', actorId, next.strikes, 'queen') < accuracy * 0.82;
     if (foul) {
       const returned = next.pocketed[side].pop();
       if (returned !== undefined) {
@@ -705,7 +1006,7 @@ export class CarromEngine implements GameEngine {
     const group = this.groupForSide(next, side);
     next.scores[side] += pocketed.filter((coin) => !group || this.coinColor(coin) === group).length;
 
-    let keepsTurn = pocketed.length > 0;
+    let keepsTurn = pocketed.length > 0 || queenShot;
     if (next.queenPendingFor !== null && next.queenPendingFor === side) {
       const covered = Boolean(group) && pocketed.some((coin) => this.coinColor(coin) === group);
       if (covered) {
@@ -755,20 +1056,23 @@ export class CarromEngine implements GameEngine {
     const side = players.findIndex((player) => player.id === botId);
     const group = this.groupForSide(state, side);
     const own = state.remainingCoins.filter((coin) => !group || this.coinColor(coin) === group);
-    if (state.queenPendingFor === side && own.length) return { type: 'strike', power: 65, pocketed: [own[0]], queen: false };
+    if (state.queenPendingFor === side && own.length) return { type: 'strike', power: 65, targetCoins: [own[0]], queen: false };
     // Bots miss sometimes: a perfect bot would keep the turn forever.
-    if (Math.random() < 0.25) return { type: 'strike', power: 50, pocketed: [], queen: false };
-    if (state.queenRemaining && own.length === 1) return { type: 'strike', power: 65, pocketed: [own[0]], queen: true };
-    if (own.length) return { type: 'strike', power: 65, pocketed: [own[0]], queen: false };
-    if (state.queenRemaining && state.remainingCoins.length === 0 && !group) return { type: 'strike', power: 65, pocketed: [], queen: true };
-    return { type: 'strike', power: 50, pocketed: [], queen: false };
+    if (Math.random() < 0.25) return { type: 'strike', power: 50, targetCoins: [], queen: false };
+    if (state.queenRemaining && own.length === 1) return { type: 'strike', power: 65, targetCoins: [own[0]], queen: true };
+    if (own.length) return { type: 'strike', power: 65, targetCoins: [own[0]], queen: false };
+    if (state.queenRemaining && state.remainingCoins.length === 0 && !group) return { type: 'strike', power: 65, targetCoins: [], queen: true };
+    return { type: 'strike', power: 50, targetCoins: [], queen: false };
   }
 
-  private pocketedCoins(action: Action): number[] {
-    const raw = action.pocketed ?? [];
-    if (!Array.isArray(raw)) throw new IllegalMoveError('pocketed must be an array of coin numbers.');
-    const coins = raw.map((value) => asInt(value, 'coin', 1, 18));
-    if (new Set(coins).size !== coins.length) throw new IllegalMoveError('A coin may only be pocketed once per strike.');
+  /** Selected coins are target inputs; the server resolves which, if any, fall. */
+  private targetCoins(action: Action): number[] {
+    // The target list is an input to the server-side shot resolver, not a
+    // claimed pocket result. Keep the old field as a compatibility alias.
+    const raw = action.targetCoins ?? action.pocketed ?? [];
+    if (!Array.isArray(raw)) throw new IllegalMoveError('targetCoins must be an array of attempted coin numbers.');
+    const coins = raw.map((value) => asInt(value, 'targetCoin', 1, 18));
+    if (new Set(coins).size !== coins.length) throw new IllegalMoveError('A coin may only be targeted once per strike.');
     return coins;
   }
 
